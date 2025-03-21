@@ -1,0 +1,42 @@
+apply plugin: "com.android.application"
+apply plugin: "kotlin-android"
+apply plugin: "com.google.gms.google-services"
+apply plugin: "dev.flutter.flutter-gradle-plugin"
+
+// Define Flutter version code and version name manually.
+def flutterVersionCode = 1
+def flutterVersionName = "1.0"
+
+android {
+    namespace "com.shamilTechnologies.shamil_mobile_app"
+    compileSdkVersion 34
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    defaultConfig {
+        applicationId "com.shamilTechnologies.shamil_mobile_app"
+        minSdkVersion 24
+        targetSdkVersion 34
+        versionCode flutterVersionCode
+        versionName flutterVersionName
+        multiDexEnabled true
+    }
+
+    buildTypes {
+        release {
+            // For now using the debug signing config; update for production.
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source "../.."
+}
