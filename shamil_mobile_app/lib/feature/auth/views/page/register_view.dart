@@ -355,11 +355,9 @@ class _RegisterViewState extends State<RegisterView>
                       firstDate: DateTime(1900),
                       lastDate: DateTime.now(),
                     );
-                    if (pickedDate != null) {
-                      _dobController.text =
-                          pickedDate.toLocal().toString().split(' ')[0];
-                    }
-                  },
+                    _dobController.text =
+                        pickedDate!.toLocal().toString().split(' ')[0];
+                                    },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Select DOB';
