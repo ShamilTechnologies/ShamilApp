@@ -117,8 +117,10 @@ class ModernUploadField extends StatelessWidget {
                 borderRadius: BorderRadius.circular(25),
               ),
               child: file == null
-                  ? const Icon(Icons.cloud_upload, size: 30, color: AppColors.primaryColor)
-                  : const Icon(Icons.check_circle, size: 30, color: Colors.green),
+                  ? const Icon(Icons.cloud_upload,
+                      size: 30, color: AppColors.primaryColor)
+                  : const Icon(Icons.check_circle,
+                      size: 30, color: Colors.green),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -162,7 +164,7 @@ class ModernUploadField extends StatelessWidget {
   }
 }
 
-/// OneMoreStepScreen: Handles profile picture selection and scanning of ID cards.
+/// OneMoreStepScreen: Handles profile picture selection and ID scanning using camera or gallery.
 class OneMoreStepScreen extends StatefulWidget {
   const OneMoreStepScreen({Key? key}) : super(key: key);
 
@@ -170,7 +172,8 @@ class OneMoreStepScreen extends StatefulWidget {
   State<OneMoreStepScreen> createState() => _OneMoreStepScreenState();
 }
 
-class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProviderStateMixin {
+class _OneMoreStepScreenState extends State<OneMoreStepScreen>
+    with TickerProviderStateMixin {
   File? _profilePic;
   File? _idFront;
   File? _idBack;
@@ -183,8 +186,10 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController);
+    _fadeController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _fadeAnimation =
+        Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController);
     _fadeController.forward();
   }
 
@@ -194,22 +199,49 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProvid
     super.dispose();
   }
 
-  /// Displays a bottom sheet for the user to choose the image source.
+  /// Displays a modern bottom sheet for image source selection using our theme.
   Future<ImageSource?> _showImageSourceSelector() async {
     return showModalBottomSheet<ImageSource>(
       context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Wrap(
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          margin: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color:AppColors.white,
+            borderRadius: BorderRadius.circular(20.0),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 10,
+                offset: Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              Text(
+                'Choose Image Source',
+                style: getbodyStyle(
+                  color: AppColors.primaryColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
               ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text("Camera"),
+                leading: Icon(Icons.camera_alt, color: AppColors.primaryColor),
+                title: Text('Camera',
+                    style: getbodyStyle(color: AppColors.primaryColor)),
                 onTap: () => Navigator.of(context).pop(ImageSource.camera),
               ),
+              const Divider(),
               ListTile(
-                leading: const Icon(Icons.photo),
-                title: const Text("Gallery"),
+                leading: Icon(Icons.photo, color: AppColors.primaryColor),
+                title: Text('Gallery',
+                    style: getbodyStyle(color: AppColors.primaryColor)),
                 onTap: () => Navigator.of(context).pop(ImageSource.gallery),
               ),
             ],
@@ -219,64 +251,48 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProvid
     );
   }
 
-  /// Picks a profile picture from the chosen source.
-  Future<void> _pickProfilePic() async {
+  /// Picks an image from the chosen source.
+  Future<void> _pickImage() async {
     final source = await _showImageSourceSelector();
     if (source != null) {
       final pickedImage = await _picker.pickImage(source: source);
       if (pickedImage != null) {
         setState(() {
-          _profilePic = File(pickedImage.path);
+          // Update file based on current step.
+          if (_currentStep == 0) {
+            _profilePic = File(pickedImage.path);
+          } else if (_currentStep == 1) {
+            _idFront = File(pickedImage.path);
+          } else if (_currentStep == 2) {
+            _idBack = File(pickedImage.path);
+          }
         });
+      } else {
+        showGlobalSnackBar(context, "Image capture cancelled.");
       }
     }
   }
 
-  /// Uses the embedded card scanner from flutter_credit_card_scanner.
-  Future<void> _scanCard({required Function(File) onScanned}) async {
-    final CreditCardScannerResult? result = await FlutterCreditCardScanner.scanCard(
-      scanOptions: const ScanOptions(
-        scanCardHolderName: false,
-        scanExpiryDate: false,
-      ),
-    );
-    // Note: The CreditCardScannerResult object provides the scanned details.
-    // Assume that the property 'image' holds a File of the scanned card.
-    if (result != null && result.image != null) {
-      onScanned(result.image!);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Card scan failed. Please try again.")),
-      );
-    }
-  }
-
   Future<void> _scanIdFront() async {
-    await _scanCard(onScanned: (file) {
-      setState(() {
-        _idFront = file;
-      });
-    });
+    // For ID scanning steps, we use the same _pickImage method.
+    await _pickImage();
   }
 
   Future<void> _scanIdBack() async {
-    await _scanCard(onScanned: (file) {
-      setState(() {
-        _idBack = file;
-      });
-    });
+    // For ID scanning steps, we use the same _pickImage method.
+    await _pickImage();
   }
 
   /// Dispatches an event to upload the files.
   void _uploadFiles() {
     if (_profilePic != null && _idFront != null && _idBack != null) {
       context.read<AuthBloc>().add(
-        UploadIdEvent(
-          profilePic: _profilePic!,
-          idFront: _idFront!,
-          idBack: _idBack!,
-        ),
-      );
+            UploadIdEvent(
+              profilePic: _profilePic!,
+              idFront: _idFront!,
+              idBack: _idBack!,
+            ),
+          );
     }
   }
 
@@ -284,25 +300,19 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProvid
   void _continue() {
     if (_currentStep == 0) {
       if (_profilePic == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please upload your profile picture.")),
-        );
+        showGlobalSnackBar(context, "Please upload your profile picture.");
         return;
       }
       setState(() => _currentStep = 1);
     } else if (_currentStep == 1) {
       if (_idFront == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please scan the front of your ID card.")),
-        );
+        showGlobalSnackBar(context, "Please scan the front of your ID.");
         return;
       }
       setState(() => _currentStep = 2);
     } else if (_currentStep == 2) {
       if (_idBack == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please scan the back of your ID card.")),
-        );
+        showGlobalSnackBar(context, "Please scan the back of your ID.");
         return;
       }
       _uploadFiles();
@@ -331,10 +341,10 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProvid
         iconData = Icons.person;
         break;
       case 1:
-        iconData = Icons.credit_card;
+        iconData = Icons.document_scanner;
         break;
       case 2:
-        iconData = Icons.credit_card_outlined;
+        iconData = Icons.document_scanner_outlined;
         break;
       default:
         iconData = Icons.info;
@@ -385,19 +395,19 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProvid
         title: "Profile Picture",
         description: "Tap to capture or select a headshot.",
         file: _profilePic,
-        onTap: _pickProfilePic,
+        onTap: _pickImage,
       );
     } else if (_currentStep == 1) {
       return ModernUploadField(
         title: "ID Front",
-        description: "Tap to scan the front of your ID card.",
+        description: "Tap to scan the front of your ID.",
         file: _idFront,
         onTap: _scanIdFront,
       );
     } else {
       return ModernUploadField(
         title: "ID Back",
-        description: "Tap to scan the back of your ID card.",
+        description: "Tap to scan the back of your ID.",
         file: _idBack,
         onTap: _scanIdBack,
       );

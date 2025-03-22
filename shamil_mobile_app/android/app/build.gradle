@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId "com.shamilTechnologies.shamil_mobile_app"
-        minSdkVersion 24
+        minSdkVersion 35
         targetSdkVersion 35
         versionCode flutterVersionCode
         versionName flutterVersionName
