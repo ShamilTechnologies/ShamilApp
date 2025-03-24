@@ -13,12 +13,12 @@ import 'package:shamil_mobile_app/storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppLocalStorage.init();
 
   // Load environment variables from the .env file.
   await dotenv.load(fileName: "assets/env/.env");
 
-  // Initialize local storage.
-  await AppLocalStorage.init();
+  
 
   // Initialize Firebase.
   await Firebase.initializeApp(

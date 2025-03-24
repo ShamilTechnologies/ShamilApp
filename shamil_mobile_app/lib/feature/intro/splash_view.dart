@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shamil_mobile_app/core/constants/assets_icons.dart';
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
 import 'package:shamil_mobile_app/feature/intro/onBoarding/on_boarding_view.dart';
@@ -21,33 +23,38 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    // Initialize controllers for animations.
+    // Initialize animation controllers.
     _lottieController = AnimationController(vsync: this);
     _squareController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
 
-    // Configure square reveal animation.
     _squareAnimation = CurvedAnimation(
       parent: _squareController,
       curve: Curves.easeInOut,
     );
 
-    // When the Lottie animation completes, trigger the square reveal.
+    // Trigger square reveal when Lottie animation completes.
     _lottieController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         _squareController.forward();
       }
     });
 
-    // After 5 seconds, load the next screen.
+    // Delay navigation to allow animations to play.
     Future.delayed(const Duration(seconds: 5), _navigateNext);
   }
 
-  /// Navigates to the next screen (OnBoardingView).
-  void _navigateNext() {
-    pushReplacement(context, const OnBoardingView());
+  /// Checks login state from SharedPreferences and navigates accordingly.
+  Future<void> _navigateNext() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    if (isLoggedIn) {
+      pushReplacement(context, const ExploreScreen());
+    } else {
+      pushReplacement(context, const OnBoardingView());
+    }
   }
 
   @override
@@ -60,13 +67,12 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    // Calculate the screen diagonal for full coverage.
     final maxSide = sqrt(pow(size.width, 2) + pow(size.height, 2));
 
     return Scaffold(
       body: Stack(
         children: [
-          // Square reveal animation layer.
+          // Animated square reveal.
           AnimatedBuilder(
             animation: _squareAnimation,
             builder: (context, child) {
@@ -81,7 +87,7 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
               );
             },
           ),
-          // Centered Lottie animation layer.
+          // Centered Lottie animation.
           Center(
             child: Lottie.asset(
               AssetsIcons.splashAnimation,
@@ -101,7 +107,7 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
   }
 }
 
-/// Custom clipper used for the square reveal animation.
+/// Custom clipper for the square reveal animation.
 class SquareClipper extends CustomClipper<Path> {
   final double side;
 
@@ -111,9 +117,7 @@ class SquareClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final halfSide = side / 2;
-    return Path()
-      ..addRect(Rect.fromLTWH(
-          center.dx - halfSide, center.dy - halfSide, side, side));
+    return Path()..addRect(Rect.fromLTWH(center.dx - halfSide, center.dy - halfSide, side, side));
   }
 
   @override

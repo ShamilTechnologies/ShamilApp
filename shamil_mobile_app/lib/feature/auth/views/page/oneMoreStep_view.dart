@@ -9,7 +9,7 @@ import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart';
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
-import 'package:shamil_mobile_app/feature/home/home_view.dart';
+import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
 
 /// Animates text by "typing" one letter at a time.
 class SmoothTypingText extends StatefulWidget {
@@ -18,11 +18,11 @@ class SmoothTypingText extends StatefulWidget {
   final Duration letterDelay;
 
   const SmoothTypingText({
-    Key? key,
+    super.key,
     required this.text,
     required this.style,
     this.letterDelay = const Duration(milliseconds: 100),
-  }) : super(key: key);
+  });
 
   @override
   _SmoothTypingTextState createState() => _SmoothTypingTextState();
@@ -87,12 +87,12 @@ class ModernUploadField extends StatelessWidget {
   final VoidCallback onTap;
 
   const ModernUploadField({
-    Key? key,
+    super.key,
     required this.title,
     required this.description,
     required this.file,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +166,7 @@ class ModernUploadField extends StatelessWidget {
 
 /// OneMoreStepScreen: Handles profile picture selection and ID scanning using camera or gallery.
 class OneMoreStepScreen extends StatefulWidget {
-  const OneMoreStepScreen({Key? key}) : super(key: key);
+  const OneMoreStepScreen({super.key});
 
   @override
   State<OneMoreStepScreen> createState() => _OneMoreStepScreenState();
@@ -232,14 +232,14 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen>
               ),
               const SizedBox(height: 10),
               ListTile(
-                leading: Icon(Icons.camera_alt, color: AppColors.primaryColor),
+                leading: const Icon(Icons.camera_alt, color: AppColors.primaryColor),
                 title: Text('Camera',
                     style: getbodyStyle(color: AppColors.primaryColor)),
                 onTap: () => Navigator.of(context).pop(ImageSource.camera),
               ),
               const Divider(),
               ListTile(
-                leading: Icon(Icons.photo, color: AppColors.primaryColor),
+                leading: const Icon(Icons.photo, color: AppColors.primaryColor),
                 title: Text('Gallery',
                     style: getbodyStyle(color: AppColors.primaryColor)),
                 onTap: () => Navigator.of(context).pop(ImageSource.gallery),
@@ -330,7 +330,7 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen>
 
   /// Skips the upload process.
   void _skip() {
-    pushReplacement(context, const HomeScreen());
+    pushReplacement(context, const ExploreScreen());
   }
 
   /// Returns a custom icon for each step.
@@ -421,7 +421,7 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen>
         if (state is UploadIdLoadingState) {
           showGlobalSnackBar(context, "Please wait....");
         } else if (state is UploadIdSuccessState) {
-          pushReplacement(context, const HomeScreen());
+          pushReplacement(context, const ExploreScreen());
         } else if (state is AuthErrorState) {
           showGlobalSnackBar(context, state.message, isError: true);
         }

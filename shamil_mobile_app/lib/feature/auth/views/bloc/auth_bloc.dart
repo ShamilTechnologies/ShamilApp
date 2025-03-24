@@ -21,18 +21,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _login(LoginEvent event, Emitter<AuthState> emit) async {
     emit(LoginLoadingState());
     try {
+      print("Starting login for email: ${event.email}");
       final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: event.email,
         password: event.password,
       );
       final User user = userCredential.user!;
+      print("User logged in: ${user.uid}");
 
       // Retrieve and cache the Firebase ID token.
       final token = await user.getIdToken();
-      AppLocalStorage.cacheData(
+      print("Token retrieved: $token");
+      await AppLocalStorage.cacheData(
         key: AppLocalStorage.userToken,
         value: token,
       );
+      print("Token cached successfully");
+
+      // Store the login state flag.
+      await AppLocalStorage.cacheData(
+        key: "isLoggedIn",
+        value: true,
+      );
+      print("isLoggedIn flag cached");
 
       // Fetch the user document from Firestore and create an AuthModel.
       final DocumentSnapshot doc = await FirebaseFirestore.instance
@@ -40,8 +51,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           .doc(user.uid)
           .get();
       final authModel = AuthModel.fromFirestore(doc);
+      print("User data fetched from Firestore");
 
       emit(LoginSuccessState(user: authModel));
+      print("LoginSuccessState emitted");
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
         emit(AuthErrorState("Account not found"));
@@ -50,8 +63,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       } else {
         emit(AuthErrorState(e.message ?? 'Authentication error'));
       }
+      print("FirebaseAuthException: ${e.code} - ${e.message}");
     } catch (e) {
       emit(AuthErrorState('Something went wrong'));
+      print("General exception during login: $e");
     }
   }
 
@@ -91,8 +106,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       modelMap['lastSeen'] = FieldValue.serverTimestamp();
 
       await FirebaseFirestore.instance.collection("endUsers").doc(user.uid).set(modelMap);
-
       emit(RegisterSuccessState());
+      print("Registration successful for user: ${user.uid}");
     } on FirebaseAuthException catch (e) {
       if (e.code == 'weak-password') {
         emit(AuthErrorState('Password is weak'));
@@ -101,8 +116,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       } else {
         emit(AuthErrorState(e.message ?? 'Registration error'));
       }
+      print("FirebaseAuthException in registration: ${e.code} - ${e.message}");
     } catch (e) {
       emit(AuthErrorState('Something went wrong'));
+      print("Exception during registration: $e");
     }
   }
 
@@ -120,6 +137,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
       final uid = user.uid;
+      print("Uploading ID for user: $uid");
 
       // Upload files concurrently to distinct folders.
       final results = await Future.wait([
@@ -134,6 +152,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       if (profilePicUrl == null || idFrontUrl == null || idBackUrl == null) {
         emit(AuthErrorState("Error uploading one or more files"));
+        print("Error: one or more file URLs are null");
         return;
       }
 
@@ -147,8 +166,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       });
 
       emit(UploadIdSuccessState());
+      print("ID images uploaded and Firestore updated successfully");
     } catch (e) {
       emit(AuthErrorState(e.toString()));
+      print("Exception during ID upload: $e");
     }
   }
 }

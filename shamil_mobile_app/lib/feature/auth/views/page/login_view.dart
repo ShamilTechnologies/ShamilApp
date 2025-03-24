@@ -3,15 +3,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
-import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart'; // Global SnackBar function
+import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_field_templates.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart';
 import 'package:shamil_mobile_app/core/widgets/actionScreens.dart';
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
+import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/forgotPassword_view.dart';
-import 'package:shamil_mobile_app/feature/home/home_view.dart';
+import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/oneMoreStep_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/register_view.dart';
 
@@ -22,14 +24,13 @@ class SmoothTypingText extends StatefulWidget {
   final Duration letterDelay;
 
   const SmoothTypingText({
-    super.key,
+    Key? key,
     required this.text,
     required this.style,
     this.letterDelay = const Duration(milliseconds: 100),
-  });
+  }) : super(key: key);
 
   @override
-  // ignore: library_private_types_in_public_api
   _SmoothTypingTextState createState() => _SmoothTypingTextState();
 }
 
@@ -85,8 +86,9 @@ class _SmoothTypingTextState extends State<SmoothTypingText> {
 }
 
 /// LoginView displays the login form along with an animated welcome text.
+/// It is connected to AuthBloc for handling the login process.
 class LoginView extends StatefulWidget {
-  const LoginView({super.key});
+  const LoginView({Key? key}) : super(key: key);
 
   @override
   State<LoginView> createState() => _LoginViewState();
@@ -127,35 +129,63 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
     final double welcomeFontSize = isKeyboardOpen ? 40 : 70;
     final double topPadding = isKeyboardOpen ? 40 : 120;
     // "Welcome Back" displayed in one or two lines based on keyboard visibility.
-    final String welcomeText =
-        isKeyboardOpen ? "Welcome Back" : "Welcome\nBack";
-    final double fixedHeight =
-        isKeyboardOpen ? welcomeFontSize * 1.5 : welcomeFontSize * 2.5;
+    final String welcomeText = isKeyboardOpen ? "Welcome Back" : "Welcome\nBack";
+    final double fixedHeight = isKeyboardOpen ? welcomeFontSize * 1.5 : welcomeFontSize * 2.5;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: Container(
-          color: AppColors.accentColor.withOpacity(0.6),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildWelcomeText(
-                topPadding: topPadding,
-                fixedHeight: fixedHeight,
-                welcomeText: welcomeText,
-                welcomeFontSize: welcomeFontSize,
-                isKeyboardOpen: isKeyboardOpen,
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: SlideTransition(
-                  position: _slideAnimation,
-                  child: _buildLoginForm(),
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        // Show loading dialog during login.
+        if (state is LoginLoadingState) {
+           showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (BuildContext context) {
+                            return const LoadingScreen();
+                          },
+                        );
+        } else {
+          // Dismiss any open loading dialog.
+          Navigator.of(context, rootNavigator: true).pop();
+          if (state is LoginSuccessState) {
+            // Navigate based on whether the user has uploaded ID images.
+            if (!state.user.uploadedId) {
+              pushReplacement(context, const OneMoreStepScreen());
+            } else {
+              pushReplacement(context, const ExploreScreen());
+            }
+          } else if (state is AuthErrorState) {
+            // Display error via global SnackBar.
+            showGlobalSnackBar(context, state.message, isError: true);
+          }
+        }
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        body: SafeArea(
+          child: Container(
+            color: AppColors.accentColor.withOpacity(0.6),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Animated Welcome Text.
+                _buildWelcomeText(
+                  topPadding: topPadding,
+                  fixedHeight: fixedHeight,
+                  welcomeText: welcomeText,
+                  welcomeFontSize: welcomeFontSize,
+                  isKeyboardOpen: isKeyboardOpen,
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                // Login form with slide animation.
+                Expanded(
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: _buildLoginForm(),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -255,63 +285,15 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
     );
   }
 
-  /// Handles the login action.
+  /// Handles the login action by dispatching a LoginEvent to AuthBloc.
   Future<void> _handleLogin() async {
     if (_formKey.currentState?.validate() ?? false) {
-      try {
-        // Show loading dialog.
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return const LoadingScreen();
-          },
-        );
-        final userCredential =
-            await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
-        final user = userCredential.user;
-        if (user != null) {
-          if (user.emailVerified) {
-            // Fetch user document from Firestore.
-            final doc = await FirebaseFirestore.instance
-                .collection("endUsers")
-                .doc(user.uid)
-                .get();
-            final data = doc.data();
-            final uploadedId = data != null && data.containsKey('uploadedId')
-                ? data['uploadedId'] as bool
-                : false;
-            // Dismiss loading dialog.
-            Navigator.of(context).pop();
-            if (!uploadedId) {
-              // Navigate to One More Step screen.
-              pushReplacement(context, const OneMoreStepScreen());
-            } else {
-              // Navigate to Home screen.
-              pushReplacement(context, const HomeScreen());
-            }
-          } else {
-            // Dismiss loading dialog.
-            Navigator.of(context).pop();
-            // Email is not verified: Show global SnackBar.
-            showGlobalSnackBar(
-              context,
-              "Your email is not verified. Please verify your email.",
-              isError: true,
-              duration: const Duration(seconds: 3),
-            );
-          }
-        }
-      } on FirebaseAuthException catch (e) {
-        Navigator.of(context).pop(); // Dismiss loading dialog.
-        showGlobalSnackBar(context, e.message ?? "Login error", isError: true);
-      } catch (e) {
-        Navigator.of(context).pop(); // Dismiss loading dialog.
-        showGlobalSnackBar(context, "Something went wrong", isError: true);
-      }
+      context.read<AuthBloc>().add(
+            LoginEvent(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+            ),
+          );
     }
   }
 

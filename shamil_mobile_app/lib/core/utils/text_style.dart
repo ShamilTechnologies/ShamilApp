@@ -43,3 +43,19 @@ TextStyle getSmallStyle(
     color: color ?? AppColors.secondaryColor,
   );
 }
+
+
+TextStyle getHomeHeadingStyle(
+    {double fontSize = 18,
+    fontWeight = FontWeight.normal,
+    Color? color,
+    FontStyle? fontFamily,
+    double? height}) {
+  return TextStyle(
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color ?? AppColors.primaryColor,
+    fontFamily: "Montserrat",
+    height: height,
+  );
+}
