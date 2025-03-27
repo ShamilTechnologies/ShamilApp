@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -24,11 +22,11 @@ class SmoothTypingText extends StatefulWidget {
   final Duration letterDelay;
 
   const SmoothTypingText({
-    Key? key,
+    super.key,
     required this.text,
     required this.style,
     this.letterDelay = const Duration(milliseconds: 100),
-  }) : super(key: key);
+  });
 
   @override
   _SmoothTypingTextState createState() => _SmoothTypingTextState();
@@ -88,7 +86,7 @@ class _SmoothTypingTextState extends State<SmoothTypingText> {
 /// LoginView displays the login form along with an animated welcome text.
 /// It is connected to AuthBloc for handling the login process.
 class LoginView extends StatefulWidget {
-  const LoginView({Key? key}) : super(key: key);
+  const LoginView({super.key});
 
   @override
   State<LoginView> createState() => _LoginViewState();

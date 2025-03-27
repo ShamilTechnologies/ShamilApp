@@ -4,6 +4,8 @@ import 'package:shamil_mobile_app/core/utils/colors.dart';
 /// A global custom text form field with full support for various states:
 /// enabled, disabled, error, focused, and focused error.
 /// Default borderRadius is 8 and the default border color is AppColors.primaryColor.
+
+
 class GlobalTextFormField extends StatelessWidget {
   final String? hintText;
   final String? labelText;
@@ -17,8 +19,9 @@ class GlobalTextFormField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final bool enabled;
   final bool readOnly;
-  final Widget? suffixIcon; // Optional parameter for suffix icon.
-  final VoidCallback? onTap; // Parameter for handling taps.
+  final Widget? prefixIcon; 
+  final Widget? suffixIcon;
+  final VoidCallback? onTap;
 
   const GlobalTextFormField({
     super.key,
@@ -33,7 +36,8 @@ class GlobalTextFormField extends StatelessWidget {
     this.onFieldSubmitted,
     this.textInputAction,
     this.enabled = true,
-    this.readOnly = false, // default value is false.
+    this.readOnly = false,
+    this.prefixIcon, // Initialize prefix icon.
     this.suffixIcon,
     this.onTap,
   });
@@ -43,10 +47,10 @@ class GlobalTextFormField extends StatelessWidget {
       hintText: hintText,
       labelText: labelText,
       enabled: enabled,
-      // Label text uses primary color.
       labelStyle: const TextStyle(color: AppColors.primaryColor),
       floatingLabelBehavior: FloatingLabelBehavior.auto,
       floatingLabelAlignment: FloatingLabelAlignment.start,
+      prefixIcon: prefixIcon, 
       suffixIcon: suffixIcon,
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
@@ -92,6 +96,7 @@ class GlobalTextFormField extends StatelessWidget {
     );
   }
 }
+
 
 /// Template for an email input field with a preconfigured validator.
 class EmailTextFormField extends StatelessWidget {
