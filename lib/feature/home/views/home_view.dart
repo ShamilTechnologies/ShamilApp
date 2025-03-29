@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shamil_mobile_app/core/utils/bottom_sheets.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
-import 'package:shamil_mobile_app/core/utils/text_style.dart';
 import 'package:shamil_mobile_app/feature/home/views/bloc/home_bloc.dart';
 import 'home_utils/explore_search_bar.dart';
 import 'home_utils/explore_category_list.dart';
