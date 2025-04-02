@@ -7,12 +7,12 @@ import 'package:shamil_mobile_app/secrets/cloudinary_config.dart';
 
 class CloudinaryService {
   static final _config = CloudinaryConfig.parseCloudinaryUrl();
-  static final String cloudName = _config['cloudName']!;
+  static final String cloudName = _config['drpsbbpmw']!;
   // For unsigned uploads, you still need to create an upload preset in your Cloudinary dashboard.
   // Replace the following with your actual unsigned upload preset.
   static const String uploadPreset = 'ml_default';
-  static final String apiKey = _config['apiKey']!;
-  static final String apiSecret = _config['apiSecret']!;
+  static final String apiKey = _config['947164945962871']!;
+  static final String apiSecret = _config['O9f4QCKWhnyGJ0RqRchUAzs_kvw']!;
 
   /// Uploads a file to Cloudinary.
   /// Optionally, specify a [folder] to organize uploads.

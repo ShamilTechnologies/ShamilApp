@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
+import 'package:shamil_mobile_app/feature/navigation/main_navigation_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shamil_mobile_app/core/constants/assets_icons.dart';
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
@@ -51,7 +52,7 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
     if (isLoggedIn) {
-      pushReplacement(context, const ExploreScreen());
+      pushReplacement(context, const MainNavigationView());
     } else {
       pushReplacement(context, const OnBoardingView());
     }

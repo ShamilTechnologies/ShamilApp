@@ -11,6 +11,7 @@ import 'package:shamil_mobile_app/core/widgets/actionScreens.dart';
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/forgotPassword_view.dart';
+import 'package:shamil_mobile_app/feature/auth/views/page/login_success_animation_view.dart';
 import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/oneMoreStep_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/register_view.dart';
@@ -149,7 +150,7 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
             if (!state.user.uploadedId) {
               pushReplacement(context, const OneMoreStepScreen());
             } else {
-              pushReplacement(context, const ExploreScreen());
+              pushReplacement(context, const LoginSuccessAnimationView());
             }
           } else if (state is AuthErrorState) {
             // Display error via global SnackBar.
