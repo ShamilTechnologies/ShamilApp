@@ -4,7 +4,7 @@ import 'package:shamil_mobile_app/core/utils/text_field_templates.dart';
 import 'package:shamil_mobile_app/feature/auth/data/authModel.dart'; // Import AuthModel
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart'; // Import SocialBloc
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Import AppColors
+// Import AppColors
 import 'dart:async'; // Import for Timer (debounce)
 
 class FindFriendsView extends StatefulWidget {

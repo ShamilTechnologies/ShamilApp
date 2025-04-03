@@ -197,8 +197,9 @@ class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProvid
        if (pickedImage != null && mounted) {
          setState(() {
            // Update the correct file variable based on the current step
-           if (forStep == 0) _profilePic = File(pickedImage.path);
-           else if (forStep == 1) _idFront = File(pickedImage.path);
+           if (forStep == 0) {
+             _profilePic = File(pickedImage.path);
+           } else if (forStep == 1) _idFront = File(pickedImage.path);
            else if (forStep == 2) _idBack = File(pickedImage.path);
          });
        } else if (pickedImage == null) {

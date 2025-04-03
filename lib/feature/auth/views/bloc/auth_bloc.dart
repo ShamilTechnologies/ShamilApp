@@ -288,8 +288,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
          dataToUpdate['updatedAt'] = FieldValue.serverTimestamp();
          if (dataToUpdate.isEmpty || dataToUpdate.length == 1 && dataToUpdate.containsKey('updatedAt')) {
              print("AuthBloc: No valid fields provided for profile update.");
-             if (currentState is LoginSuccessState) emit(currentState);
-             else { final doc = await _firestore.collection("endUsers").doc(uid).get(); if (doc.exists) emit(LoginSuccessState(user: AuthModel.fromFirestore(doc))); else emit(const AuthErrorState("Failed to load profile after empty update attempt.")); }
+             if (currentState is LoginSuccessState) {
+               emit(currentState);
+             } else { final doc = await _firestore.collection("endUsers").doc(uid).get(); if (doc.exists) {
+               emit(LoginSuccessState(user: AuthModel.fromFirestore(doc)));
+             } else {
+               emit(const AuthErrorState("Failed to load profile after empty update attempt."));
+             } }
              return;
          }
          print("AuthBloc: Updating Firestore profile with data: $dataToUpdate");

@@ -208,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
      // Widget for displaying the profile picture or placeholder
      Widget profileImageWidget = ClipRRect(
         borderRadius: borderRadius,
-        child: (profilePicUrl == null || profilePicUrl.isEmpty)
+        child: (profilePicUrl.isEmpty)
            ? _buildPlaceholder(avatarSize, theme, borderRadius) // Placeholder
            : FadeInImage.memoryNetwork( // Network image with fade-in
               placeholder: _transparentImageData, // Use transparent placeholder bytes

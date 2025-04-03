@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart'; // Use AppColors
-import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Use text style helpers
+// Use text style helpers
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/feature/social/views/find_friends_view.dart';
-import 'package:shamil_mobile_app/core/functions/navigation.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'dart:typed_data'; // For placeholder image data if needed locally
 

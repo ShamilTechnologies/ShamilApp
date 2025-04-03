@@ -249,8 +249,9 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
 
         if (state is! SocialError) { emit(UserSearchResult(foundUser: foundUser, searchedId: event.nationalId)); }
         // Re-emit previous state if it contained loaded data
-        if (previousState is FamilyDataLoaded) emit(previousState);
-        else if (previousState is FriendsAndRequestsLoaded) emit(previousState);
+        if (previousState is FamilyDataLoaded) {
+          emit(previousState);
+        } else if (previousState is FriendsAndRequestsLoaded) emit(previousState);
         else if (previousState is SocialInitial) add(const LoadFamilyMembers());
 
      } catch (e) {
@@ -259,8 +260,9 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
         if (e is FirebaseException && e.code == 'failed-precondition') { errorMessage = "Database index missing for user search."; }
         emit(SocialError(message: errorMessage));
         emit(UserSearchResult(foundUser: null, searchedId: event.nationalId));
-        if (previousState is FamilyDataLoaded) emit(previousState);
-        else if (previousState is FriendsAndRequestsLoaded) emit(previousState);
+        if (previousState is FamilyDataLoaded) {
+          emit(previousState);
+        } else if (previousState is FriendsAndRequestsLoaded) emit(previousState);
         else if (previousState is SocialInitial) emit(SocialInitial());
      }
   }
