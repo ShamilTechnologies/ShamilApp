@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Import for InputFormatters
 import 'package:shamil_mobile_app/core/utils/colors.dart';
+import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Import text styles
 
-/// A global custom text form field with full support for various states:
-/// enabled, disabled, error, focused, and focused error.
-/// Default borderRadius is 8 and the default border color is AppColors.primaryColor.
-
-
+/// A global custom text form field that leverages the application's theme
+/// for consistent styling, allowing specific overrides.
 class GlobalTextFormField extends StatelessWidget {
   final String? hintText;
   final String? labelText;
@@ -19,9 +18,16 @@ class GlobalTextFormField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final bool enabled;
   final bool readOnly;
-  final Widget? prefixIcon; 
+  final Widget? prefixIcon;
   final Widget? suffixIcon;
   final VoidCallback? onTap;
+  final int? maxLines;
+  final int? minLines;
+  // *** ADDED: Optional maxLength parameter ***
+  final int? maxLength;
+  // *** ADDED: Optional inputFormatters parameter ***
+  final List<TextInputFormatter>? inputFormatters;
+
 
   const GlobalTextFormField({
     super.key,
@@ -37,49 +43,37 @@ class GlobalTextFormField extends StatelessWidget {
     this.textInputAction,
     this.enabled = true,
     this.readOnly = false,
-    this.prefixIcon, // Initialize prefix icon.
+    this.prefixIcon,
     this.suffixIcon,
     this.onTap,
+    this.maxLines = 1,
+    this.minLines,
+    // *** ADDED: maxLength to constructor ***
+    this.maxLength,
+    // *** ADDED: inputFormatters to constructor ***
+    this.inputFormatters,
   });
 
-  InputDecoration _buildDecoration() {
-    return InputDecoration(
-      hintText: hintText,
-      labelText: labelText,
-      enabled: enabled,
-      labelStyle: const TextStyle(color: AppColors.primaryColor),
-      floatingLabelBehavior: FloatingLabelBehavior.auto,
-      floatingLabelAlignment: FloatingLabelAlignment.start,
-      prefixIcon: prefixIcon, 
-      suffixIcon: suffixIcon,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(
-          color: AppColors.primaryColor,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppColors.yellowColor, width: 2),
-      ),
-      disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: AppColors.primaryColor.withOpacity(0.5)),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.red),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.red, width: 2),
-      ),
-      errorStyle: const TextStyle(color: Colors.red),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
+    final InputDecorationTheme themeDecoration = Theme.of(context).inputDecorationTheme;
+    final InputDecoration effectiveDecoration = InputDecoration(
+      labelText: labelText, hintText: hintText, prefixIcon: prefixIcon, suffixIcon: suffixIcon,
+      hintStyle: themeDecoration.hintStyle, labelStyle: themeDecoration.labelStyle,
+      floatingLabelStyle: themeDecoration.floatingLabelStyle,
+      floatingLabelBehavior: themeDecoration.floatingLabelBehavior ?? FloatingLabelBehavior.auto,
+      floatingLabelAlignment: themeDecoration.floatingLabelAlignment,
+      filled: themeDecoration.filled, fillColor: themeDecoration.fillColor,
+      contentPadding: themeDecoration.contentPadding, border: themeDecoration.border,
+      enabledBorder: themeDecoration.enabledBorder, focusedBorder: themeDecoration.focusedBorder,
+      disabledBorder: themeDecoration.disabledBorder, errorBorder: themeDecoration.errorBorder,
+      focusedErrorBorder: themeDecoration.focusedErrorBorder, errorStyle: themeDecoration.errorStyle,
+      prefixIconColor: themeDecoration.prefixIconColor, suffixIconColor: themeDecoration.suffixIconColor,
+      // counterText removes the default character counter display if maxLength is set
+      counterText: "",
+    );
+
     return TextFormField(
       enabled: enabled,
       controller: controller,
@@ -90,16 +84,23 @@ class GlobalTextFormField extends StatelessWidget {
       onChanged: onChanged,
       onFieldSubmitted: onFieldSubmitted,
       textInputAction: textInputAction,
-      decoration: _buildDecoration(),
       readOnly: readOnly,
       onTap: onTap,
+      maxLines: obscureText ? 1 : maxLines,
+      minLines: obscureText ? 1 : minLines,
+      style: getbodyStyle(),
+      decoration: effectiveDecoration,
+      // *** ADDED: Pass maxLength to TextFormField ***
+      maxLength: maxLength,
+      // *** ADDED: Pass inputFormatters to TextFormField ***
+      inputFormatters: inputFormatters,
     );
   }
 }
 
 
-/// Template for an email input field with a preconfigured validator.
-class EmailTextFormField extends StatelessWidget {
+/// Template for an email input field
+class EmailTextFormField extends StatelessWidget { /* ... code as before ... */
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final ValueChanged<String>? onChanged;
@@ -116,125 +117,122 @@ class EmailTextFormField extends StatelessWidget {
   });
 
   String? _emailValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Please enter your email';
-    }
-    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-    if (!emailRegex.hasMatch(value.trim())) {
-      return 'Please enter a valid email';
-    }
+    if (value == null || value.trim().isEmpty) { return 'Please enter your email'; }
+    final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+    if (!emailRegex.hasMatch(value.trim())) { return 'Please enter a valid email address'; }
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final iconColor = Theme.of(context).inputDecorationTheme.prefixIconColor ?? AppColors.secondaryColor;
     return GlobalTextFormField(
-      hintText: 'ahmed@example.com',
-      labelText: 'Email',
-      keyboardType: TextInputType.emailAddress,
-      controller: controller,
-      focusNode: focusNode,
-      textInputAction: TextInputAction.next,
-      validator: _emailValidator,
+      labelText: 'Email', hintText: 'you@example.com',
+      keyboardType: TextInputType.emailAddress, controller: controller, focusNode: focusNode,
+      textInputAction: TextInputAction.next, validator: _emailValidator, // Uses validator
       onChanged: onChanged,
-      onFieldSubmitted: onFieldSubmitted,
-      enabled: enabled,
+      onFieldSubmitted: onFieldSubmitted, enabled: enabled,
+      prefixIcon: Icon(Icons.email_outlined, size: 20, color: iconColor),
     );
   }
 }
 
-/// Template for a password input field with a preconfigured validator
-/// and a fully functional eye icon to toggle visibility.
-class PasswordTextFormField extends StatefulWidget {
+/// Template for a standard password input field
+class PasswordTextFormField extends StatefulWidget { /* ... code as before ... */
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
   final bool enabled;
+  final String labelText;
 
   const PasswordTextFormField({
-    super.key,
-    this.controller,
-    this.focusNode,
-    this.onChanged,
-    this.onFieldSubmitted,
-    this.enabled = true,
+    super.key, this.controller, this.focusNode, this.onChanged,
+    this.onFieldSubmitted, this.enabled = true, this.labelText = 'Password',
   });
 
-  @override
-  _PasswordTextFormFieldState createState() => _PasswordTextFormFieldState();
+  @override State<PasswordTextFormField> createState() => _PasswordTextFormFieldState();
 }
 
 class _PasswordTextFormFieldState extends State<PasswordTextFormField> {
   bool _obscureText = true;
-
   String? _passwordValidator(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Please enter your password';
-    }
-    if (value.length < 6) {
-      return 'Password must be at least 6 characters';
-    }
+    if (value == null || value.isEmpty) { return 'Please enter your password'; }
+    if (value.length < 8) { return 'Password must be at least 8 characters'; }
     return null;
   }
-
-  void _toggleVisibility() {
-    setState(() {
-      _obscureText = !_obscureText;
-    });
-  }
+  void _toggleVisibility() { setState(() { _obscureText = !_obscureText; }); }
 
   @override
   Widget build(BuildContext context) {
+    final iconColor = Theme.of(context).inputDecorationTheme.prefixIconColor ?? AppColors.secondaryColor;
+    final suffixIconColor = Theme.of(context).inputDecorationTheme.suffixIconColor ?? AppColors.secondaryColor;
     return GlobalTextFormField(
-      hintText: '********',
-      labelText: 'Password',
-      obscureText: _obscureText,
-      keyboardType: TextInputType.visiblePassword,
-      controller: widget.controller,
-      focusNode: widget.focusNode,
-      textInputAction: TextInputAction.done,
-      validator: _passwordValidator,
+      labelText: widget.labelText, hintText: 'Enter your password', obscureText: _obscureText,
+      keyboardType: TextInputType.visiblePassword, controller: widget.controller, focusNode: widget.focusNode,
+      textInputAction: TextInputAction.done, validator: _passwordValidator, // Uses internal validator
       onChanged: widget.onChanged,
-      onFieldSubmitted: widget.onFieldSubmitted,
-      enabled: widget.enabled,
+      onFieldSubmitted: widget.onFieldSubmitted, enabled: widget.enabled,
+      prefixIcon: Icon(Icons.lock_outline, size: 20, color: iconColor),
       suffixIcon: IconButton(
-        icon: Icon(
-          _obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-          color: AppColors.primaryColor,
-        ),
-        onPressed: _toggleVisibility,
+        icon: Icon( _obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20, color: suffixIconColor, ),
+        onPressed: _toggleVisibility, splashRadius: 20,
       ),
     );
   }
 }
 
-/// Template for a general text input field with a basic validator.
+/// Template for a general text input field.
 class GeneralTextFormField extends StatelessWidget {
   final String? hintText;
-  final String? labelText;
+  final String labelText; // Required
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
-  final String? Function(String?)? validator;
+  final FormFieldValidator<String>? validator;
   final bool enabled;
+  final TextInputType keyboardType;
+  final TextInputAction textInputAction;
+  final int? maxLines;
+  final int? minLines;
+  final Widget? prefixIcon;
+  final bool readOnly;
+  final VoidCallback? onTap;
+  final bool obscureText;
+  // *** ADDED: Optional maxLength parameter ***
+  final int? maxLength;
+  // *** ADDED: Optional inputFormatters parameter ***
+  final List<TextInputFormatter>? inputFormatters;
+
 
   const GeneralTextFormField({
     super.key,
     this.hintText,
-    this.labelText,
+    required this.labelText,
     this.controller,
     this.focusNode,
     this.onChanged,
     this.onFieldSubmitted,
     this.validator,
     this.enabled = true,
+    this.keyboardType = TextInputType.text,
+    this.textInputAction = TextInputAction.next,
+    this.maxLines = 1,
+    this.minLines,
+    this.prefixIcon,
+    this.readOnly = false,
+    this.onTap,
+    this.obscureText = false,
+    // *** ADDED: maxLength to constructor ***
+    this.maxLength,
+    // *** ADDED: inputFormatters to constructor ***
+    this.inputFormatters,
   });
 
   String? _defaultValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return '${labelText ?? "This field"} is required';
+    if (!readOnly && (value == null || value.trim().isEmpty)) {
+       return '$labelText is required';
     }
     return null;
   }
@@ -242,82 +240,83 @@ class GeneralTextFormField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlobalTextFormField(
-      hintText: hintText ?? 'Enter text',
-      labelText: labelText ?? 'Text',
+      labelText: labelText,
+      hintText: hintText ?? 'Enter $labelText',
       controller: controller,
       focusNode: focusNode,
       onChanged: onChanged,
       onFieldSubmitted: onFieldSubmitted,
-      textInputAction: TextInputAction.next,
       validator: validator ?? _defaultValidator,
       enabled: enabled,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      maxLines: maxLines,
+      minLines: minLines,
+      prefixIcon: prefixIcon,
+      readOnly: readOnly,
+      onTap: onTap,
+      obscureText: obscureText,
+      // *** FIX: Pass maxLength down ***
+      maxLength: maxLength,
+      // *** FIX: Pass inputFormatters down ***
+      inputFormatters: inputFormatters,
     );
   }
 }
 
-/// A global custom dropdown form field that uses the same styling as GlobalTextFormField.
-class GlobalDropdownFormField<T> extends StatelessWidget {
+/// A global custom dropdown form field that uses the application's theme styling.
+class GlobalDropdownFormField<T> extends StatelessWidget { /* ... code as before ... */
   final String? hintText;
-  final String? labelText;
+  final String labelText; // Required
   final List<DropdownMenuItem<T>> items;
   final T? value;
   final ValueChanged<T?>? onChanged;
   final FormFieldValidator<T>? validator;
   final bool enabled;
+  final Widget? prefixIcon;
 
   const GlobalDropdownFormField({
     super.key,
     this.hintText,
-    this.labelText,
+    required this.labelText,
     required this.items,
     this.value,
     this.onChanged,
     this.validator,
     this.enabled = true,
+    this.prefixIcon,
   });
 
-  InputDecoration _buildDecoration() {
-    return InputDecoration(
-      hintText: hintText,
-      labelText: labelText,
-      enabled: enabled,
-      labelStyle: const TextStyle(color: AppColors.primaryColor),
-      floatingLabelBehavior: FloatingLabelBehavior.auto,
-      floatingLabelAlignment: FloatingLabelAlignment.start,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppColors.primaryColor),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppColors.yellowColor, width: 2),
-      ),
-      disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: AppColors.primaryColor.withOpacity(0.5)),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.red),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.red, width: 2),
-      ),
-      errorStyle: const TextStyle(color: Colors.red),
-    );
+   String? _defaultValidator(T? value) {
+    if (value == null) { return '$labelText is required'; }
+    return null;
   }
+
 
   @override
   Widget build(BuildContext context) {
+    final InputDecorationTheme themeDecoration = Theme.of(context).inputDecorationTheme;
+    final InputDecoration effectiveDecoration = InputDecoration( /* ... decoration properties ... */
+      labelText: labelText, hintText: hintText, prefixIcon: prefixIcon,
+      hintStyle: themeDecoration.hintStyle, labelStyle: themeDecoration.labelStyle,
+      floatingLabelStyle: themeDecoration.floatingLabelStyle,
+      floatingLabelBehavior: themeDecoration.floatingLabelBehavior ?? FloatingLabelBehavior.auto,
+      floatingLabelAlignment: themeDecoration.floatingLabelAlignment,
+      filled: themeDecoration.filled, fillColor: themeDecoration.fillColor,
+      contentPadding: themeDecoration.contentPadding, border: themeDecoration.border,
+      enabledBorder: themeDecoration.enabledBorder, focusedBorder: themeDecoration.focusedBorder,
+      disabledBorder: themeDecoration.disabledBorder, errorBorder: themeDecoration.errorBorder,
+      focusedErrorBorder: themeDecoration.focusedErrorBorder, errorStyle: themeDecoration.errorStyle,
+      prefixIconColor: themeDecoration.prefixIconColor,
+    );
+
     return DropdownButtonFormField<T>(
-      decoration: _buildDecoration(),
-      items: items,
-      value: value,
-      onChanged: onChanged,
-      validator: validator,
-      // Optionally, set a disabled hint.
-      disabledHint: value != null ? Text(value.toString()) : null,
+      decoration: effectiveDecoration, items: items, value: value,
+      onChanged: enabled ? onChanged : null,
+      validator: validator ?? _defaultValidator, // Pass validator
+      style: getbodyStyle(),
+      icon: Icon(Icons.arrow_drop_down, color: Theme.of(context).inputDecorationTheme.suffixIconColor ?? AppColors.secondaryColor),
+      isExpanded: true,
     );
   }
 }

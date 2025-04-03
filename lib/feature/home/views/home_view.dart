@@ -1,11 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart'; // Keep for potential future use if needed directly
-import 'package:firebase_auth/firebase_auth.dart'; // Keep for potential future use if needed directly
+// Keep for potential future use if needed directly
+// Keep for potential future use if needed directly
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shamil_mobile_app/core/utils/bottom_sheets.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart'; // Use AppColors if needed for specific overrides
-import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Use text style functions
+// Use text style functions
 import 'package:shamil_mobile_app/feature/home/views/bloc/home_bloc.dart';
 // Import the display model used in the state
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
@@ -101,7 +101,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     onCityTap: () => _openCityDropdown(context),
                                   ),
                                   const SizedBox(height: 24),
-                                  ExploreSearchBar(),
+                                  const ExploreSearchBar(),
                                   const SizedBox(height: 24),
                                   Text("Categories", style: theme.textTheme.headlineSmall),
                                   const SizedBox(height: 12),

@@ -9,7 +9,7 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_display_mod
 
 
 // Transparent placeholder image data (1x1 pixel PNG)
-const List<int> kTransparentImage = const <int>[ // Keep as List<int> here
+const List<int> kTransparentImage = <int>[ // Keep as List<int> here
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
     0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
     0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
@@ -116,7 +116,7 @@ class ExplorePopularSection extends StatelessWidget {
 
     final String ratingString = provider.rating.toStringAsFixed(1);
     // TODO: Add state management for isFavorite
-    final bool isFavorite = false; // Placeholder favorite state
+    const bool isFavorite = false; // Placeholder favorite state
 
     return GestureDetector(
       onTap: () {
@@ -124,7 +124,7 @@ class ExplorePopularSection extends StatelessWidget {
         print("Item tapped: ${provider.businessName} (ID: ${provider.id})");
         // Navigator.push(context, MaterialPageRoute(builder: (_) => ProviderDetailScreen(providerId: provider.id)));
       },
-      child: Container(
+      child: SizedBox(
         width: 180, // Wider cards to accommodate content better
         child: Card(
           // Use Card for elevation/shape from theme, but override if needed
@@ -203,7 +203,7 @@ class ExplorePopularSection extends StatelessWidget {
                                  color: Colors.white,
                                  fontWeight: FontWeight.bold,
                                  shadows: [ // Add subtle shadow to text for readability
-                                     Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 2, offset: Offset(0,1))
+                                     Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 2, offset: const Offset(0,1))
                                  ]
                               ),
                               maxLines: 1, // Keep single line
@@ -213,7 +213,7 @@ class ExplorePopularSection extends StatelessWidget {
                             // Rating Row
                             Row(
                               children: [
-                                Icon(Icons.star_rounded, size: 18, color: AppColors.yellowColor), // Use specific yellow/gold
+                                const Icon(Icons.star_rounded, size: 18, color: AppColors.yellowColor), // Use specific yellow/gold
                                 const SizedBox(width: 4),
                                 Text(
                                   ratingString,
@@ -251,7 +251,7 @@ class ExplorePopularSection extends StatelessWidget {
                              shape: BoxShape.circle,
                              border: Border.all(color: Colors.white.withOpacity(0.5), width: 0.5) // Subtle border
                            ),
-                           child: Icon(
+                           child: const Icon(
                              // Show filled heart if favorite, outline otherwise
                              isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                              size: 18, // Icon size

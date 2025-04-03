@@ -7,7 +7,7 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_display_mod
 // Import or define kTransparentImage and convert it
 
 // Transparent placeholder image data (1x1 pixel PNG)
-const List<int> kTransparentImage = const <int>[ // Defined locally for self-containment
+const List<int> kTransparentImage = <int>[ // Defined locally for self-containment
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
     0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
     0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
@@ -112,7 +112,7 @@ class ExploreRecommendedSection extends StatelessWidget {
 
     final String ratingString = provider.rating.toStringAsFixed(1);
     // TODO: Add state management for isFavorite
-    final bool isFavorite = false; // Placeholder favorite state (same as popular)
+    const bool isFavorite = false; // Placeholder favorite state (same as popular)
 
 
     return GestureDetector(
@@ -121,7 +121,7 @@ class ExploreRecommendedSection extends StatelessWidget {
         print("Recommended Item tapped: ${provider.businessName} (ID: ${provider.id})");
         // Navigator.push(context, MaterialPageRoute(builder: (_) => ProviderDetailScreen(providerId: provider.id)));
       },
-      child: Container(
+      child: SizedBox(
         width: 180, // Match width of popular cards
         child: Card(
           shape: RoundedRectangleBorder(borderRadius: cardBorderRadius),
@@ -177,13 +177,13 @@ class ExploreRecommendedSection extends StatelessWidget {
                           children: [
                             Text( // Title
                               provider.businessName,
-                              style: theme.textTheme.titleMedium?.copyWith( color: Colors.white, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 2, offset: Offset(0,1))]),
+                              style: theme.textTheme.titleMedium?.copyWith( color: Colors.white, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 2, offset: const Offset(0,1))]),
                               maxLines: 1, overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 5),
                             Row( // Rating
                               children: [
-                                Icon(Icons.star_rounded, size: 18, color: AppColors.yellowColor),
+                                const Icon(Icons.star_rounded, size: 18, color: AppColors.yellowColor),
                                 const SizedBox(width: 4),
                                 Text( ratingString, style: theme.textTheme.bodyMedium?.copyWith( color: Colors.white, fontWeight: FontWeight.w600)),
                               ],
@@ -199,7 +199,7 @@ class ExploreRecommendedSection extends StatelessWidget {
                          child: Container(
                            padding: const EdgeInsets.all(6),
                            decoration: BoxDecoration( color: Colors.white.withOpacity(0.2), shape: BoxShape.circle, border: Border.all(color: Colors.white.withOpacity(0.5), width: 0.5)),
-                           child: Icon( isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 18, color: isFavorite ? AppColors.redColor : Colors.white),
+                           child: const Icon( isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 18, color: isFavorite ? AppColors.redColor : Colors.white),
                          ),
                       ),
                     ],

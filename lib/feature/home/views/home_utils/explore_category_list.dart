@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart';
 
 // Callback type for when a category is selected
