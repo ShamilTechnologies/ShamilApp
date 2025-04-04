@@ -1,1 +1,46 @@
-{"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"},"flutter":{"platforms":{"android":{"default":{"projectId":"shamilapp-shamiltechnologies","appId":"1:1062952966879:android:5ef04e1f4e9afc3d06a76a","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"shamilapp-shamiltechnologies","configurations":{"android":"1:1062952966879:android:5ef04e1f4e9afc3d06a76a","ios":"1:1062952966879:ios:8dcd3f55023875a006a76a"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "shamilapp-shamiltechnologies",
+          "appId": "1:1062952966879:android:5ef04e1f4e9afc3d06a76a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "shamilapp-shamiltechnologies",
+          "configurations": {
+            "android": "1:1062952966879:android:5ef04e1f4e9afc3d06a76a",
+            "ios": "1:1062952966879:ios:8dcd3f55023875a006a76a"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "echo. Skipping default lint check during deploy..."
+      ],
+      "runtime": "nodejs22"
+    }
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

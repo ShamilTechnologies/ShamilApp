@@ -14,7 +14,6 @@ import 'package:shamil_mobile_app/feature/navigation/main_navigation_view.dart';
 // Import LoginSuccessAnimationView
 import 'package:shamil_mobile_app/feature/auth/views/page/login_success_animation_view.dart';
 // Import AuthModel to access user data from state
-import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
 
 
 // --- ModernUploadField Widget (Updated) ---

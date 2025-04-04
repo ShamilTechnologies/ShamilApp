@@ -1,4 +1,25 @@
 {
+    // --- Existing Settings ---
     "cmake.sourceDirectory": "C:/Users/ahmed/Dropbox/PC/Documents/GitHub/ShamilMobileApp/MobileApp/shamil_mobile_app/windows",
-    "java.configuration.updateBuildConfiguration": "interactive"
-}
+    "java.configuration.updateBuildConfiguration": "interactive",
+  
+    // --- Added Settings (Based on Recommendations) ---
+  
+    // General editor settings
+    "editor.tabSize": 2, // Default tab size to 2 spaces
+    "editor.insertSpaces": true, // Use spaces instead of tab characters
+    "editor.detectIndentation": false, // Don't guess indentation, use explicit settings
+    "editor.formatOnSave": false, // Temporarily disable format on save for debugging ESLint
+  
+    // Language-specific settings for JavaScript/TypeScript (overrides general if needed)
+    "[javascript]": {
+      "editor.tabSize": 2 // Ensure JS uses 2 spaces
+    },
+    "[typescript]": {
+      "editor.tabSize": 2 // Ensure TS uses 2 spaces
+    }
+  
+    // Optional: Add default formatter setting if needed later
+    // "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+  }
+  

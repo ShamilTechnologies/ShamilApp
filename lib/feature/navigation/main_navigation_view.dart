@@ -5,7 +5,7 @@ import 'package:line_icons/line_icons.dart';
 
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
-import 'package:shamil_mobile_app/feature/home/views/profile_view.dart';
+import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart';
 // Import the actual ProfileScreen
 
 // Import other screen placeholders/widgets

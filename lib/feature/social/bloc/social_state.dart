@@ -1,5 +1,10 @@
 part of 'social_bloc.dart';
 
+// Removed imports as they are moved to the library file
+
+// Enum to represent friendship status relative to the current user
+enum FriendshipStatus { none, friends, requestSent, requestReceived }
+
 // Base State
 abstract class SocialState extends Equatable {
   const SocialState();
@@ -108,26 +113,47 @@ class FriendRequest extends Equatable {
    @override List<Object?> get props => [userId, name, profilePicUrl, status];
 }
 
-/// State holding loaded friends and friend requests
+/// State holding loaded friends and friend requests (incoming and outgoing)
 class FriendsAndRequestsLoaded extends SocialState {
    final List<Friend> friends;
    final List<FriendRequest> incomingRequests;
-   // Optionally include outgoing requests if needed
-   // final List<FriendRequest> outgoingRequests;
+   // *** ADDED: List for outgoing requests ***
+   final List<FriendRequest> outgoingRequests;
 
    const FriendsAndRequestsLoaded({
       required this.friends,
       required this.incomingRequests,
-      // this.outgoingRequests = const [],
+      required this.outgoingRequests, // Add to constructor
    });
 
-    @override List<Object?> get props => [friends, incomingRequests];
+    // *** UPDATED: props ***
+    @override List<Object?> get props => [friends, incomingRequests, outgoingRequests];
 }
 
 
 // --- User Search States ---
 
-/// State indicating a user search result (for linking family OR adding friends)
+/// Represents a user found in search, including their friendship status relative to the current user.
+class UserSearchResultWithStatus extends Equatable {
+   final AuthModel user;
+   final FriendshipStatus status;
+
+   const UserSearchResultWithStatus({required this.user, required this.status});
+
+   @override List<Object?> get props => [user, status];
+}
+
+/// State holding results from searching users (includes friendship status)
+class FriendSearchResultsWithStatus extends SocialState {
+   final List<UserSearchResultWithStatus> results; // List of users with status
+   final String query; // The search query used
+
+   const FriendSearchResultsWithStatus({required this.results, required this.query});
+   @override List<Object?> get props => [results, query];
+}
+
+
+/// State indicating a user search result by National ID (for linking family)
 class UserSearchResult extends SocialState {
    final AuthModel? foundUser; // Null if not found or self
    final String searchedId; // ID/Query that was searched
@@ -136,19 +162,12 @@ class UserSearchResult extends SocialState {
     @override List<Object?> get props => [foundUser, searchedId];
 }
 
-/// State holding results from searching users to add as friends
-class FriendSearchResults extends SocialState {
-   final List<AuthModel> users; // List of potential friends found
-   final String query; // The search query used
-
-   const FriendSearchResults({required this.users, required this.query});
-   @override List<Object?> get props => [users, query];
-}
+// Removed old FriendSearchResults state
 
 
 // --- General Action States ---
 
-/// State indicating successful generic social action (add/remove family, send/accept request etc.)
+/// State indicating successful generic social action
 class SocialSuccess extends SocialState {
    final String message;
    const SocialSuccess({this.message = "Success"});

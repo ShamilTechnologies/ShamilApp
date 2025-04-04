@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Use AppColors
-// Use text style helpers
+import 'package:shamil_mobile_app/core/utils/colors.dart';
+// Import text style helpers
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
-import 'package:shamil_mobile_app/feature/social/views/find_friends_view.dart';
+import 'package:shamil_mobile_app/feature/social/views/find_friends_view.dart'; // Import Find Friends screen
+// For navigation
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'dart:typed_data'; // For placeholder image data if needed locally
 
@@ -26,12 +27,12 @@ class _FriendsViewState extends State<FriendsView> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this); // 2 Tabs: Friends, Requests
-    // Load initial data - Ensure SocialBloc is provided above this widget
-    // If provided locally in ProfileScreen, it should already be available via context.read
+    // Load initial data - Assumes SocialBloc provided above this widget
     try {
+       // Request data load when the screen initializes
        context.read<SocialBloc>().add(const LoadFriendsAndRequests());
     } catch (e) {
-       print("Error dispatching LoadFriendsAndRequests: $e. Ensure SocialBloc is provided.");
+       print("Error dispatching LoadFriendsAndRequests from FriendsView initState: $e. Ensure SocialBloc is provided.");
        // Optionally show a snackbar if Bloc is missing
        WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -39,7 +40,6 @@ class _FriendsViewState extends State<FriendsView> with SingleTickerProviderStat
           }
        });
     }
-
   }
 
   @override
@@ -54,133 +54,173 @@ class _FriendsViewState extends State<FriendsView> with SingleTickerProviderStat
     return Scaffold(
       appBar: AppBar(
         title: const Text('Friends'),
-        // Use theme settings for AppBar
-        // backgroundColor: theme.appBarTheme.backgroundColor,
-        // foregroundColor: theme.appBarTheme.foregroundColor,
-        // elevation: theme.appBarTheme.elevation,
         actions: [
+          // Button to navigate to Find Friends screen
           IconButton(
             icon: const Icon(Icons.person_add_alt_1_outlined),
             tooltip: 'Find Friends',
             onPressed: () {
-               // Navigate to Find Friends screen
-               // Ensure SocialBloc is available to the FindFriendsView
                Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                  BlocProvider.value(
-                     value: context.read<SocialBloc>(), // Pass the existing Bloc instance
+                  BlocProvider.value( // Pass the existing SocialBloc instance
+                     value: context.read<SocialBloc>(),
                      child: const FindFriendsView(),
                   )
                ));
             },
           ),
         ],
+        // TabBar for switching between Friends and Requests lists
         bottom: TabBar(
           controller: _tabController,
-          labelColor: theme.colorScheme.primary, // Use theme color
+          labelColor: theme.colorScheme.primary,
           unselectedLabelColor: Colors.grey.shade600,
-          indicatorColor: theme.colorScheme.primary, // Use theme color
-          indicatorWeight: 2.5, // Slightly thicker indicator
-          labelStyle: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold), // Style for labels
-          tabs: const [
-            Tab(text: 'My Friends'),
-            Tab(text: 'Requests'),
+          indicatorColor: theme.colorScheme.primary,
+          indicatorWeight: 2.5,
+          labelStyle: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          tabs: [
+            const Tab(text: 'My Friends'),
+            // Tab for Requests, potentially showing a badge with the count
+            Tab(
+               child: BlocBuilder<SocialBloc, SocialState>( // Badge Example
+                  builder: (context, state) {
+                     int requestCount = 0;
+                     // Get count from the loaded state
+                     if (state is FriendsAndRequestsLoaded) {
+                        requestCount = state.incomingRequests.length;
+                     }
+                     // Build the tab label with an optional badge
+                     return Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                           const Text('Requests'),
+                           // Show badge only if count > 0
+                           if (requestCount > 0) ...[
+                              const SizedBox(width: 6),
+                              CircleAvatar(
+                                 radius: 9, // Slightly larger badge
+                                 backgroundColor: AppColors.redColor, // Use app's red color
+                                 child: Text(
+                                    requestCount.toString(),
+                                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold) // Make text bold
+                                 ),
+                              )
+                           ]
+                        ],
+                     );
+                  }
+               )
+            ),
           ],
         ),
       ),
-      // Use BlocListener for side effects (snackbars after accept/decline/remove)
-      body: BlocListener<SocialBloc, SocialState>(
-         listener: (context, state) {
-            if (state is SocialSuccess) {
-               showGlobalSnackBar(context, state.message);
-            } else if (state is SocialError) {
-                showGlobalSnackBar(context, state.message, isError: true);
-            }
-         },
-         // BlocBuilder rebuilds the TabBarView based on state
+      // Use MultiBlocListener for handling side effects from SocialBloc
+      body: MultiBlocListener(
+         listeners: [
+            BlocListener<SocialBloc, SocialState>(
+               listener: (context, state) {
+                  // Show snackbar feedback for success/error messages
+                  if (state is SocialSuccess) { showGlobalSnackBar(context, state.message); }
+                  else if (state is SocialError) { showGlobalSnackBar(context, state.message, isError: true); }
+               },
+            ),
+         ],
+         // Use BlocBuilder to display content based on SocialBloc state
          child: BlocBuilder<SocialBloc, SocialState>(
            builder: (context, state) {
-             // Show loading indicator centered if initial load for friends/requests
+             // Show loading indicator during initial list load
              if (state is SocialLoading && state.isLoadingList && state is! FriendsAndRequestsLoaded) {
                 return const Center(child: CircularProgressIndicator());
              }
-             // Display tabs if data is loaded or if an action is loading (shows previous data)
+             // Display TabBarView when data is loaded or an action is in progress
              if (state is FriendsAndRequestsLoaded || (state is SocialLoading && !state.isLoadingList)) {
                 List<Friend> friends = [];
                 List<FriendRequest> requests = [];
                 bool isActionLoading = state is SocialLoading && !state.isLoadingList;
 
-                // Extract data from current or previous loaded state
-                final currentState = state is FriendsAndRequestsLoaded ? state : context.read<SocialBloc>().state;
+                // Extract data safely from current or previous loaded state
+                // Use context.watch or context.select for more targeted rebuilds if needed
+                final currentState = context.read<SocialBloc>().state;
                 if (currentState is FriendsAndRequestsLoaded) {
                    friends = currentState.friends;
                    requests = currentState.incomingRequests;
                 }
 
+                // Build the TabBarView with the two list widgets
                 return TabBarView(
                   controller: _tabController,
                   children: [
-                    // Pass loading state to disable buttons during actions
                     _buildFriendsList(context, theme, friends, isActionLoading),
                     _buildRequestsList(context, theme, requests, isActionLoading),
                   ],
                 );
              }
-              // Show error message if loading list failed
+              // Show error message if loading the list failed
              if (state is SocialError) {
                  return Center(child: Padding(
                    padding: const EdgeInsets.all(20.0),
                    child: Text("Error loading data: ${state.message}", textAlign: TextAlign.center),
                  ));
              }
-             // Default/Initial state
-             return const Center(child: CircularProgressIndicator()); // Show loader initially
+             // Default state (usually initial)
+             return const Center(child: CircularProgressIndicator());
            },
          ),
       ),
     );
   }
 
-  // Widget to build the list of accepted friends
+  /// Builds the list widget for accepted friends.
   Widget _buildFriendsList(BuildContext context, ThemeData theme, List<Friend> friends, bool isLoading) {
      if (friends.isEmpty) {
         return Center(child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: Text("You haven't added any friends yet.\nTap the '+' icon to find friends.", textAlign: TextAlign.center, style: theme.textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600)),
+          child: Text(
+             "You haven't added any friends yet.\nTap the '+' icon above to find friends.",
+             textAlign: TextAlign.center,
+             style: theme.textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600)
+          ),
         ));
      }
+     // Use RefreshIndicator for pull-to-refresh
      return RefreshIndicator(
         onRefresh: () async => context.read<SocialBloc>().add(const LoadFriendsAndRequests()),
         color: theme.colorScheme.primary,
         child: ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0), // Add padding around list
+          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
           itemCount: friends.length,
           itemBuilder: (context, index) {
             final friend = friends[index];
-            return Card( // Wrap ListTile in a Card
-              margin: const EdgeInsets.symmetric(vertical: 6.0), // Space between cards
-              elevation: 1.5, // Subtle elevation
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), // Rounded corners
+            // Build a Card for each friend
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 6.0),
+              elevation: 1.5,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0), // Padding inside ListTile
+                contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                 leading: CircleAvatar(
-                   radius: 25, // Slightly larger avatar
+                   radius: 25,
                    backgroundColor: theme.colorScheme.primaryContainer,
+                   // Use FadeInImage for friend's avatar
                    backgroundImage: (friend.profilePicUrl != null && friend.profilePicUrl!.isNotEmpty)
                       ? NetworkImage(friend.profilePicUrl!) : null,
+                   // Show initial if no image
                    child: (friend.profilePicUrl == null || friend.profilePicUrl!.isEmpty)
                       ? Text(friend.name.isNotEmpty ? friend.name[0].toUpperCase() : '?', style: TextStyle(color: theme.colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold, fontSize: 18))
                       : null,
                 ),
                 title: Text(friend.name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                 subtitle: Text(
-                   "Friend since: ${friend.friendedAt?.toDate().toString().split(' ')[0] ?? 'N/A'}", // Format date
+                   // Format the timestamp nicely
+                   "Friend since: ${friend.friendedAt != null ? MaterialLocalizations.of(context).formatShortDate(friend.friendedAt!.toDate()) : 'N/A'}",
                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
                 ),
+                // Remove Friend Button
                 trailing: IconButton(
                    icon: Icon(Icons.person_remove_outlined, color: Colors.red.shade400),
                    tooltip: 'Remove Friend',
-                   // Disable button if an action is loading elsewhere
+                   // Disable button if an action is loading elsewhere on the screen
                    onPressed: isLoading ? null : () {
+                      // Confirmation Dialog
                       showDialog(context: context, builder: (ctx) => AlertDialog(
                          title: const Text("Confirm Removal"), content: Text("Remove ${friend.name} from your friends?"),
                          actions: [
@@ -200,7 +240,7 @@ class _FriendsViewState extends State<FriendsView> with SingleTickerProviderStat
      );
   }
 
-  // Widget to build the list of incoming friend requests
+  /// Builds the list widget for incoming friend requests.
   Widget _buildRequestsList(BuildContext context, ThemeData theme, List<FriendRequest> requests, bool isLoading) {
      if (requests.isEmpty) {
         return Center(child: Padding(
@@ -216,68 +256,90 @@ class _FriendsViewState extends State<FriendsView> with SingleTickerProviderStat
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final request = requests[index];
-            return Card( // Wrap in Card
+            return Card(
                margin: const EdgeInsets.symmetric(vertical: 6.0),
                elevation: 1.5,
                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-               child: ListTile(
-                 contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                 leading: CircleAvatar(
-                   radius: 25,
-                   backgroundColor: theme.colorScheme.primaryContainer,
-                   backgroundImage: (request.profilePicUrl != null && request.profilePicUrl!.isNotEmpty)
-                      ? NetworkImage(request.profilePicUrl!) : null,
-                   child: (request.profilePicUrl == null || request.profilePicUrl!.isEmpty)
-                      ? Text(request.name.isNotEmpty ? request.name[0].toUpperCase() : '?') : null,
-                ),
-                title: Text(request.name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                subtitle: Text("Wants to be your friend", style: theme.textTheme.bodySmall),
-                trailing: isLoading // Show spinner if action is loading
-                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                   : Row(
-                     mainAxisSize: MainAxisSize.min,
-                     children: [
-                        // Accept Button (Circular Style)
-                        InkWell(
-                           onTap: () {
-                              context.read<SocialBloc>().add(AcceptFriendRequest(
-                                 requesterUserId: request.userId,
-                                 requesterUserName: request.name,
-                                 requesterUserPicUrl: request.profilePicUrl,
-                              ));
-                           },
-                           borderRadius: BorderRadius.circular(20),
-                           child: Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                 color: Colors.green.withOpacity(0.15),
-                                 shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.check_rounded, color: Colors.green.shade700, size: 20),
-                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Decline Button (Circular Style)
-                        InkWell(
-                           onTap: () {
-                              context.read<SocialBloc>().add(DeclineFriendRequest(requesterUserId: request.userId));
-                           },
-                           borderRadius: BorderRadius.circular(20),
-                           child: Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                 color: Colors.red.withOpacity(0.1),
-                                 shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.close_rounded, color: Colors.red.shade600, size: 20),
-                           ),
-                        ),
-                     ],
-                  ),
+               child: Padding(
+                 padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0), // Padding inside card
+                 child: Row( // Use Row for more control over layout
+                   children: [
+                     // Avatar
+                     CircleAvatar(
+                       radius: 25,
+                       backgroundColor: theme.colorScheme.primaryContainer,
+                       backgroundImage: (request.profilePicUrl != null && request.profilePicUrl!.isNotEmpty)
+                          ? NetworkImage(request.profilePicUrl!) : null,
+                       child: (request.profilePicUrl == null || request.profilePicUrl!.isEmpty)
+                          ? Text(request.name.isNotEmpty ? request.name[0].toUpperCase() : '?') : null,
+                     ),
+                     const SizedBox(width: 16),
+                     // Name and Subtitle
+                     Expanded(
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Text(request.name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                           const SizedBox(height: 2),
+                           Text("Wants to be your friend", style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600)),
+                         ],
+                       ),
+                     ),
+                     const SizedBox(width: 8),
+                     // Action Buttons (Rounded Squares)
+                     if (isLoading) // Show spinner if action is loading elsewhere
+                       const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                     else ...[ // Use spread operator for buttons
+                       _buildRequestActionButton( // Accept Button
+                          context: context, theme: theme, icon: Icons.check_rounded,
+                          color: Colors.green, tooltip: 'Accept',
+                          onTap: () {
+                             context.read<SocialBloc>().add(AcceptFriendRequest(
+                                requesterUserId: request.userId,
+                                requesterUserName: request.name, // Pass denormalized data
+                                requesterUserPicUrl: request.profilePicUrl,
+                             ));
+                          }
+                       ),
+                       const SizedBox(width: 8), // Space between buttons
+                       _buildRequestActionButton( // Decline Button
+                          context: context, theme: theme, icon: Icons.close_rounded,
+                          color: Colors.red, tooltip: 'Decline',
+                          onTap: () {
+                             context.read<SocialBloc>().add(DeclineFriendRequest(requesterUserId: request.userId));
+                          }
+                       ),
+                     ]
+                   ],
+                 ),
                ),
             );
           },
         ),
+     );
+  }
+
+  /// Helper to build rounded square action buttons for requests.
+  Widget _buildRequestActionButton({
+     required BuildContext context, required ThemeData theme, required IconData icon,
+     required Color color, required String tooltip, required VoidCallback onTap
+  }) {
+     return Tooltip( // Add tooltip for accessibility
+       message: tooltip,
+       child: Material( // Use Material for shape, color, InkWell
+          color: color.withOpacity(0.15), // Background color
+          borderRadius: BorderRadius.circular(8.0), // Rounded square
+          child: InkWell(
+             onTap: onTap,
+             borderRadius: BorderRadius.circular(8.0),
+             splashColor: color.withOpacity(0.3),
+             highlightColor: color.withOpacity(0.2),
+             child: Padding(
+               padding: const EdgeInsets.all(8.0), // Padding inside button
+               child: Icon(icon, color: color, size: 20), // Icon color
+             ),
+          ),
+       ),
      );
   }
 
