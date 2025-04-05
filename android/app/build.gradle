@@ -1,42 +1,102 @@
+// Apply necessary Android and Flutter plugins
 apply plugin: "com.android.application"
 apply plugin: "kotlin-android"
+// Apply Google Services plugin (ensure it's declared in the root build.gradle's dependencies)
 apply plugin: "com.google.gms.google-services"
 apply plugin: "dev.flutter.flutter-gradle-plugin"
 
-// Define Flutter version code and version name manually.
-def flutterVersionCode = 1
-def flutterVersionName = "1.0"
+// Function to read version code/name from local.properties or pubspec.yaml
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    // Fallback if not in local.properties
+    flutterVersionCode = '1' // Default if not found
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    // Fallback if not in local.properties
+    flutterVersionName = '1.0' // Default if not found
+}
+
 
 android {
+    // Set your app's namespace
     namespace "com.shamilTechnologies.shamil_mobile_app"
-    compileSdkVersion 34
 
+    // *** Use Flutter's compileSdkVersion ***
+    // This value is defined in the root android/build.gradle's ext block
+    compileSdkVersion flutter.compileSdkVersion
+
+    // Set Java compatibility options
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    // Set Kotlin JVM target
     kotlinOptions {
         jvmTarget = '1.8'
     }
 
+    // Default configuration for all build types
     defaultConfig {
         applicationId "com.shamilTechnologies.shamil_mobile_app"
-        minSdkVersion 34
-        targetSdkVersion 35
-        versionCode flutterVersionCode
+
+        // *** Use Flutter's minSdkVersion and targetSdkVersion ***
+        // These values are defined in the root android/build.gradle's ext block
+        minSdkVersion flutter.minSdkVersion // Recommended: Set to 21 or 23 in root build.gradle
+        targetSdkVersion flutter.targetSdkVersion // Recommended: Set to 34 in root build.gradle
+
+        // *** Use standard Flutter versioning ***
+        versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+
+        // Enable multidex support if needed
         multiDexEnabled true
     }
 
+    // Signing configurations (ensure you have release signing set up)
+    signingConfigs {
+        // debug {} // Default debug config is usually sufficient
+        // release { // Example release config - uncomment and configure for production
+        //     storeFile file('your_release_key.keystore')
+        //     storePassword 'your_store_password'
+        //     keyAlias 'your_key_alias'
+        //     keyPassword 'your_key_password'
+        // }
+    }
+
+
     buildTypes {
         release {
-            // For now using the debug signing config; update for production.
+            // TODO: Change signingConfigs.debug to signingConfigs.release for production builds
             signingConfig signingConfigs.debug
+            // Enable Proguard/R8 for release builds (recommended)
+            // minifyEnabled true
+            // shrinkResources true
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        // debug {} // Default debug build type
     }
 }
 
+// Flutter plugin configuration
 flutter {
-    source "../.."
+    source '../..' // Points to the root of your Flutter project
 }
+
+// *** Standard dependencies block ***
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version" // Use kotlin_version defined in root build.gradle
+    // Add other app-specific dependencies here if needed
+    // implementation 'androidx.multidex:multidex:2.0.1' // Required if multiDexEnabled is true and minSdkVersion < 21
+}
+

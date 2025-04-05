@@ -4,9 +4,9 @@ import 'package:shamil_mobile_app/core/utils/text_field_templates.dart';
 import 'package:shamil_mobile_app/feature/auth/data/authModel.dart'; // Import AuthModel
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart'; // Import SocialBloc
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Import AppColors if needed
+// Import AppColors if needed
 import 'dart:async'; // Import for Timer (debounce)
-import 'dart:typed_data'; // For placeholder image data
+// For placeholder image data
 // Import placeholder builder helper
 import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart' show buildProfilePlaceholder, transparentImageData;
 
