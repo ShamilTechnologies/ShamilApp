@@ -17,7 +17,8 @@
     },
     "[typescript]": {
       "editor.tabSize": 2 // Ensure TS uses 2 spaces
-    }
+    },
+    "cmake.ignoreCMakeListsMissing": true
   
     // Optional: Add default formatter setting if needed later
     // "editor.defaultFormatter": "dbaeumer.vscode-eslint",

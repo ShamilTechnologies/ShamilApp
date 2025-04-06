@@ -52,7 +52,7 @@ android {
 
         // *** Use Flutter's minSdkVersion and targetSdkVersion ***
         // These values are defined in the root android/build.gradle's ext block
-        minSdkVersion flutter.minSdkVersion // Recommended: Set to 21 or 23 in root build.gradle
+        minSdkVersion 23     // Recommended: Set to 21 or 23 in root build.gradle
         targetSdkVersion flutter.targetSdkVersion // Recommended: Set to 34 in root build.gradle
 
         // *** Use standard Flutter versioning ***

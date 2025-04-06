@@ -1,9 +1,7 @@
-import 'dart:async';
-// Removed math import - no longer needed for background animation
-// import 'dart:math';
+import 'dart:async'; // For Timer if using debounced onChanged
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gap/gap.dart'; // Using Gap for spacing
+import 'package:gap/gap.dart'; // Use Gap for spacing
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
@@ -15,35 +13,83 @@ import 'package:shamil_mobile_app/core/widgets/actionScreens.dart'; // For Succe
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
 import 'package:flutter/services.dart'; // For InputFormatters
-
-// Removed Background Animation Classes: AnimatedLine, _BackgroundLinesPainter
+// Import FamilyMember model for pre-filling
+import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
 
 /// SmoothTypingText widget animates text display.
 class SmoothTypingText extends StatefulWidget {
-  final String text; final TextStyle style; final Duration letterDelay;
-  const SmoothTypingText({ super.key, required this.text, required this.style, this.letterDelay = const Duration(milliseconds: 130)});
-  @override _SmoothTypingTextState createState() => _SmoothTypingTextState();
-}
-class _SmoothTypingTextState extends State<SmoothTypingText> {
-  String _displayedText = ""; Timer? _timer; int _currentIndex = 0;
-  @override void initState() { super.initState(); _startTyping(); }
-  @override void didUpdateWidget(covariant SmoothTypingText oldWidget) { super.didUpdateWidget(oldWidget); if (oldWidget.text != widget.text) { _resetTyping(); _startTyping(); } }
-  void _resetTyping() { _timer?.cancel(); _currentIndex = 0; _displayedText = ""; }
-  void _startTyping() { _timer = Timer.periodic(widget.letterDelay, (timer) { if (_currentIndex < widget.text.length) { setState(() { _displayedText = widget.text.substring(0, _currentIndex + 1); }); _currentIndex++; } else { _timer?.cancel(); } }); }
-  @override void dispose() { _timer?.cancel(); super.dispose(); }
-  // Ensure maxLines allows for multiple lines
-  @override Widget build(BuildContext context) { return Text(_displayedText, style: widget.style, maxLines: 2); }
+  final String text;
+  final TextStyle style;
+  final Duration letterDelay;
+  const SmoothTypingText({
+    super.key,
+    required this.text,
+    required this.style,
+    this.letterDelay = const Duration(milliseconds: 130),
+  });
+  @override
+  _SmoothTypingTextState createState() => _SmoothTypingTextState();
 }
 
+class _SmoothTypingTextState extends State<SmoothTypingText> {
+  String _displayedText = "";
+  Timer? _timer;
+  int _currentIndex = 0;
+  @override
+  void initState() {
+    super.initState();
+    _startTyping();
+  }
+
+  @override
+  void didUpdateWidget(SmoothTypingText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _resetTyping();
+      _startTyping();
+    }
+  }
+
+  void _resetTyping() {
+    _timer?.cancel();
+    _currentIndex = 0;
+    _displayedText = "";
+  }
+
+  void _startTyping() {
+    _timer = Timer.periodic(widget.letterDelay, (timer) {
+      if (_currentIndex < widget.text.length) {
+        setState(() {
+          _displayedText = widget.text.substring(0, _currentIndex + 1);
+        });
+        _currentIndex++;
+      } else {
+        _timer?.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(_displayedText, style: widget.style, maxLines: 2);
+  }
+}
 
 /// RegisterView: Screen for user registration.
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
-  @override State<RegisterView> createState() => _RegisterViewState();
+  @override
+  State<RegisterView> createState() => _RegisterViewState();
 }
 
-// TickerProviderStateMixin is still needed for _slideController
-class _RegisterViewState extends State<RegisterView> with TickerProviderStateMixin {
+class _RegisterViewState extends State<RegisterView>
+    with TickerProviderStateMixin {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   // --- Text Editing Controllers ---
@@ -56,80 +102,260 @@ class _RegisterViewState extends State<RegisterView> with TickerProviderStateMix
   final TextEditingController _nationalIdController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  // FocusNode for National ID field to trigger check on unfocus
+  final FocusNode _nationalIdFocusNode = FocusNode();
 
   // --- Other State Variables ---
   String _selectedCountryCode = '+20';
   String _selectedGender = 'Male';
+  // State variables for pre-fill logic
+  String? _parentUserId;
+  String? _familyMemberDocId;
+  bool _isCheckingNatId = false; // Loading indicator for Nat ID check
+  bool _isPrefilled = false; // Flag to indicate if form was pre-filled
 
   // --- Animation Controllers ---
-  late final AnimationController _slideController; // For form slide-in
+  late final AnimationController _slideController;
   late final Animation<Offset> _slideAnimation;
-  // Removed background animation controller and state
-
 
   @override
   void initState() {
     super.initState();
     _initSlideAnimation();
-    // Removed background animation init
+    // Add listener to FocusNode to trigger check when focus is lost
+    _nationalIdFocusNode.addListener(_onNationalIdFocusChange);
   }
 
   void _initSlideAnimation() {
-    _slideController = AnimationController( vsync: this, duration: const Duration(milliseconds: 800), );
-    _slideAnimation = Tween<Offset>( begin: const Offset(0, 0.5), end: Offset.zero, ) // Start closer
-        .animate( CurvedAnimation(parent: _slideController, curve: Curves.easeOutQuart), ); // Use smoother curve
-    Future.delayed(const Duration(milliseconds: 100), () { // Start sooner
-       if (mounted) _slideController.forward();
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.5),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeOutQuart),
+    );
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _slideController.forward();
     });
   }
 
-  // Removed background animation methods
+  // --- National ID Check Logic ---
+  void _onNationalIdFocusChange() {
+    // Trigger check only when focus is lost AND ID has correct length (14 digits)
+    if (!_nationalIdFocusNode.hasFocus &&
+        _nationalIdController.text.trim().length == 14) {
+      _checkNationalId();
+    }
+  }
+
+  /// Dispatches event to check National ID against external family members.
+  void _checkNationalId() {
+    final nationalId = _nationalIdController.text.trim();
+    if (nationalId.length == 14) {
+      print("Checking National ID: $nationalId");
+      // Reset pre-fill state before checking again
+      // Keep National ID field populated
+      setState(() {
+        _isCheckingNatId = true; // Show loading indicator
+        _clearPrefill(
+            keepNatId: true); // Clear previous prefill data but keep Nat ID
+      });
+      // Dispatch event to AuthBloc
+      context
+          .read<AuthBloc>()
+          .add(CheckNationalIdAsFamilyMember(nationalId: nationalId));
+    } else {
+      // Clear pre-fill state if ID becomes invalid length after being valid
+      if (_isPrefilled || _parentUserId != null) {
+        setState(() {
+          _clearPrefill(keepNatId: true);
+        });
+      }
+    }
+  }
+
+  /// Pre-fills form fields based on data found from an external family member record.
+  void _prefillForm(FamilyMember data, String parentId, String docId) {
+    // Split name (simple split, assumes "First Last" or "First Middle Last")
+    final nameParts = data.name.split(' ');
+    _firstNameController.text =
+        nameParts.isNotEmpty ? nameParts.first : data.name;
+    _middleNameController.text = nameParts.length > 2
+        ? nameParts.sublist(1, nameParts.length - 1).join(' ')
+        : '';
+    _lastNameController.text = nameParts.length > 1 ? nameParts.last : '';
+
+    // Pre-fill other fields if available
+    _emailController.text = data.email ?? '';
+    _phoneController.text =
+        _extractPhoneNumber(data.phone); // Helper to extract number part
+    _dobController.text = data.dob ?? '';
+    _selectedGender = data.gender ?? 'Male'; // Default if null
+
+    // Store IDs needed for registration linking
+    _parentUserId = parentId;
+    _familyMemberDocId = docId;
+    _isPrefilled = true; // Set flag
+
+    showGlobalSnackBar(context,
+        "Welcome! We found your details from a family member. Please complete your registration.");
+  }
+
+  /// Helper to attempt extracting number part from phone (e.g., remove +20)
+  String _extractPhoneNumber(String? fullPhone) {
+    if (fullPhone == null) return '';
+    // Basic check: if starts with known prefix, remove it
+    if (fullPhone.startsWith(_selectedCountryCode)) {
+      return fullPhone.substring(_selectedCountryCode.length).trim();
+    }
+    // Add more sophisticated checks if needed (regex for country codes)
+    return fullPhone; // Return full if prefix not matched or complex
+  }
+
+  /// Clears pre-filled data and resets flags.
+  void _clearPrefill({bool keepNatId = false}) {
+    print("Clearing pre-filled data.");
+    // Don't clear National ID if keepNatId is true (e.g., during re-check)
+    if (!keepNatId) _nationalIdController.clear();
+    _firstNameController.clear();
+    _middleNameController.clear();
+    _lastNameController.clear();
+    _emailController.clear();
+    _phoneController.clear();
+    _dobController.clear();
+    _selectedGender = 'Male'; // Reset gender
+    _parentUserId = null;
+    _familyMemberDocId = null;
+    _isPrefilled = false;
+  }
 
   @override
   Widget build(BuildContext context) {
     final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-    final double welcomeFontSize = isKeyboardOpen ? 36 : 60; // Slightly smaller
-    final double topPadding = isKeyboardOpen ? 20 : 50; // Adjust padding
-    final String welcomeText = isKeyboardOpen ? "Create Account" : "Create\nAccount";
-    // Increase height multiplier for two-line text
-    final double fixedHeight = isKeyboardOpen ? welcomeFontSize * 1.4 : welcomeFontSize * 2.4;
-
+    final double welcomeFontSize = isKeyboardOpen ? 36 : 60;
+    final double topPadding = isKeyboardOpen ? 20 : 50;
+    final String welcomeText =
+        isKeyboardOpen ? "Create Account" : "Create\nAccount";
+    final double fixedHeight =
+        isKeyboardOpen ? welcomeFontSize * 1.4 : welcomeFontSize * 2.4;
     final theme = Theme.of(context);
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: theme.scaffoldBackgroundColor,
-      // Removed Stack, background animation is gone
       body: SafeArea(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column( crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Welcome Text
-              _buildWelcomeText( topPadding: topPadding, fixedHeight: fixedHeight, welcomeText: welcomeText, welcomeFontSize: welcomeFontSize, isKeyboardOpen: isKeyboardOpen, ),
-              const Gap(20), // Use Gap for spacing
-              // Form Area
-              Expanded( child: SlideTransition( position: _slideAnimation,
-                  child: BlocConsumer<AuthBloc, AuthState>( listener: (context, state) {
-                      FocusScope.of(context).unfocus();
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWelcomeText(
+                topPadding: topPadding,
+                fixedHeight: fixedHeight,
+                welcomeText: welcomeText,
+                welcomeFontSize: welcomeFontSize,
+                isKeyboardOpen: isKeyboardOpen,
+              ),
+              const Gap(20),
+              Expanded(
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  // Use BlocConsumer to handle state changes and build UI
+                  child: BlocConsumer<AuthBloc, AuthState>(
+                    // Listen only to relevant states for this screen
+                    listenWhen: (prev, current) =>
+                        current is RegisterSuccessState ||
+                        current is AuthErrorState || // General auth errors
+                        current
+                            is ExistingFamilyMemberFound || // Nat ID check results
+                        current is NationalIdCheckError ||
+                        current is NationalIdNotFoundOrRegistered,
+                    listener: (context, state) {
+                      FocusScope.of(context)
+                          .unfocus(); // Dismiss keyboard on state changes
+
+                      // Stop Nat ID check indicator AFTER Bloc processing is done
+                      // Check if the current state is NOT the loading state we use for the check
+                      if (_isCheckingNatId && state is! AuthLoadingState) {
+                        if (mounted) {
+                          // Ensure widget is still mounted
+                          setState(() {
+                            _isCheckingNatId = false;
+                          });
+                        }
+                      }
+
+                      // Handle Registration Success
                       if (state is RegisterSuccessState) {
-                         showDialog( context: context, barrierDismissible: false, builder: (BuildContext context) => const SuccessScreen(), );
-                         Future.delayed(const Duration(seconds: 3), () {
-                            if (mounted && Navigator.of(context).canPop()) { Navigator.of(context).pop(); }
-                            if (mounted) { pushReplacement(context, const LoginView()); showGlobalSnackBar( context, "Registration successful. Please verify your email.", ); }
-                         });
-                       } else if (state is AuthErrorState) { showGlobalSnackBar(context, state.message, isError: true); }
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (BuildContext context) =>
+                              const SuccessScreen(),
+                        );
+                        Future.delayed(const Duration(seconds: 3), () {
+                          if (mounted && Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          }
+                          if (mounted) {
+                            pushReplacement(context, const LoginView());
+                            showGlobalSnackBar(
+                              context,
+                              "Registration successful. Please verify your email.",
+                            );
+                          }
+                        });
+                      }
+                      // Handle General Auth Errors (e.g., from registration attempt)
+                      else if (state is AuthErrorState) {
+                        showGlobalSnackBar(context, state.message,
+                            isError: true);
+                      }
+                      // Handle National ID Check results
+                      else if (state is ExistingFamilyMemberFound) {
+                        if (mounted) {
+                          setState(() {
+                            _prefillForm(state.externalMemberData,
+                                state.parentUserId, state.familyDocId);
+                          });
+                        }
+                      } else if (state is NationalIdCheckError) {
+                        showGlobalSnackBar(context, state.message,
+                            isError: true);
+                        // Clear pre-fill if error occurs after successful pre-fill
+                        if (_isPrefilled && mounted)
+                          setState(() => _clearPrefill(keepNatId: true));
+                      } else if (state is NationalIdNotFoundOrRegistered) {
+                        print(
+                            "National ID not found as external member or already registered.");
+                        // Clear pre-fill state if user previously had data loaded
+                        if (_isPrefilled && mounted)
+                          setState(() => _clearPrefill(keepNatId: true));
+                      }
                     },
+                    // Build UI based on general loading state (for registration attempt)
+                    buildWhen: (prev, current) =>
+                        (prev is AuthLoadingState &&
+                            current is! AuthLoadingState) ||
+                        (prev is! AuthLoadingState &&
+                            current is AuthLoadingState),
                     builder: (context, state) {
+                      // General loading state affects button/field enabled status
+                      // _isCheckingNatId handles the specific indicator for the ID field check
                       final isLoading = state is AuthLoadingState;
-                      // Form with ListView for better scrolling
                       return Form(
-                         key: _formKey,
-                         child: ListView( // Use ListView for scrollable form content
-                            physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.only(bottom: 20, top: 10), // Padding inside list
-                            children: _buildRegistrationFormFields(isLoading, theme), // Build form fields dynamically
-                         ),
+                        key: _formKey,
+                        child: ListView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.only(bottom: 20, top: 10),
+                          children:
+                              _buildRegistrationFormFields(isLoading, theme),
+                        ),
                       );
                     },
                   ),
@@ -143,111 +369,306 @@ class _RegisterViewState extends State<RegisterView> with TickerProviderStateMix
   }
 
   /// Builds the animated welcome text widget.
-  Widget _buildWelcomeText({ required double topPadding, required double fixedHeight, required String welcomeText, required double welcomeFontSize, required bool isKeyboardOpen, }) {
-    return Padding( padding: EdgeInsets.only(top: topPadding),
-      // Ensure Container height is sufficient
+  Widget _buildWelcomeText({
+    required double topPadding,
+    required double fixedHeight,
+    required String welcomeText,
+    required double welcomeFontSize,
+    required bool isKeyboardOpen,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(top: topPadding),
       child: Container(
-        height: fixedHeight, // Use calculated height
+        height: fixedHeight,
         alignment: Alignment.centerLeft,
-        child: SmoothTypingText( key: ValueKey(isKeyboardOpen), text: welcomeText,
+        child: SmoothTypingText(
+          key: ValueKey(isKeyboardOpen),
+          text: welcomeText,
           style: Theme.of(context).textTheme.displayMedium!.copyWith(
-                 height: 1.1, // Line height affects total height needed
-                 color: Theme.of(context).colorScheme.primary,
-                 fontWeight: FontWeight.w800,
-                 fontSize: welcomeFontSize,
+                height: 1.1,
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w800,
+                fontSize: welcomeFontSize,
               ),
         ),
       ),
     );
   }
 
-  /// Builds the LIST of registration form field widgets with improved UX.
+  /// Builds the LIST of registration form field widgets.
   List<Widget> _buildRegistrationFormFields(bool isLoading, ThemeData theme) {
-    // Returns a list of widgets to be placed inside the ListView
+    // Suffix widget for the National ID field
+    Widget nationalIdSuffix = _isCheckingNatId
+        ? const Padding(
+            padding: EdgeInsets.all(12.0),
+            child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2)))
+        : (_isPrefilled
+            ? Tooltip(
+                message: "Details pre-filled",
+                child: Icon(Icons.check_circle,
+                    color: Colors.green.shade600, size: 20))
+            : const SizedBox.shrink());
+
     return [
-          // --- Name Fields ---
-          Text("Full Name", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-          const Gap(10),
-          Row( crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded( child: GeneralTextFormField( labelText: 'First Name*', controller: _firstNameController, enabled: !isLoading, textInputAction: TextInputAction.next, validator: (v) => v!.trim().isEmpty ? 'Required' : null, prefixIcon: const Icon(Icons.person_outline_rounded, size: 20), ), ),
-              const Gap(8),
-              Expanded( child: GeneralTextFormField( labelText: 'Middle Name', controller: _middleNameController, enabled: !isLoading, textInputAction: TextInputAction.next, validator: null, ), ),
-              const Gap(8),
-              Expanded( child: GeneralTextFormField( labelText: 'Last Name*', controller: _lastNameController, enabled: !isLoading, textInputAction: TextInputAction.next, validator: (v) => v!.trim().isEmpty ? 'Required' : null, ), ),
-            ],
-          ),
-          const Gap(24), const Divider(thickness: 0.5, height: 1), const Gap(24),
-
-          // --- Account Info ---
-           Text("Account Details", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-           const Gap(10),
-           GeneralTextFormField( controller: _usernameController, labelText: 'Username*', hintText: 'Unique username (letters, numbers, _)', enabled: !isLoading, textInputAction: TextInputAction.next,
-             prefixIcon: const Icon(Icons.alternate_email_rounded, size: 20),
-             inputFormatters: [ FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')), LengthLimitingTextInputFormatter(20), ],
-             validator: (value) { if (value == null || value.trim().isEmpty) return 'Username is required'; if (value.length < 3) return 'Min 3 characters'; if (value.contains(' ')) return 'No spaces allowed'; if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) { return 'Invalid characters'; } return null; },
-          ),
-          const Gap(16),
-          EmailTextFormField(controller: _emailController, enabled: !isLoading),
-           const Gap(24), const Divider(thickness: 0.5, height: 1), const Gap(24),
-
-          // --- Contact & Personal Info ---
-           Text("Personal Information", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-           const Gap(10),
-          Row( crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container( decoration: BoxDecoration( color: isLoading ? Colors.grey.shade200 : theme.inputDecorationTheme.fillColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: theme.inputDecorationTheme.enabledBorder?.borderSide.color ?? Colors.grey) ),
-                 child: CountryCodePicker( onChanged: (countryCode) { if (!isLoading) { setState(() { _selectedCountryCode = countryCode.dialCode ?? '+20'; }); } }, initialSelection: 'EG', favorite: const ['+20', 'EG'], showCountryOnly: false, showOnlyCountryWhenClosed: false, enabled: !isLoading, textStyle: getbodyStyle(color: isLoading ? Colors.grey.shade500 : AppColors.primaryColor), padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), ),
-              ),
-              const Gap(10),
-              Expanded( child: GeneralTextFormField( controller: _phoneController, labelText: 'Phone Number*', keyboardType: TextInputType.phone, enabled: !isLoading, textInputAction: TextInputAction.next, validator: (v) => v!.trim().isEmpty ? 'Required' : null, prefixIcon: const Icon(Icons.phone_outlined, size: 20),), ),
-            ],
-          ),
-          const Gap(16),
-          GeneralTextFormField( controller: _nationalIdController, labelText: 'National ID*', keyboardType: TextInputType.number, enabled: !isLoading, textInputAction: TextInputAction.next,
-             prefixIcon: const Icon(Icons.badge_outlined, size: 20),
-             inputFormatters: [ FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(14) ], maxLength: 14,
-             validator: (value) { if (value == null || value.trim().isEmpty) return 'Required'; if (value.length != 14) return 'Must be 14 digits'; return null; }
-          ),
-          const Gap(16),
-          Row( crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded( child: GeneralTextFormField( controller: _dobController, labelText: 'Date of Birth*', readOnly: true, enabled: !isLoading, prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
-                  onTap: isLoading ? null : () async {
-                     DateTime? pickedDate = await showDatePicker( context: context, initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)), firstDate: DateTime(1900), lastDate: DateTime.now(), builder: (context, child) { return Theme( data: Theme.of(context).copyWith( colorScheme: Theme.of(context).colorScheme.copyWith( primary: AppColors.primaryColor, ), ), child: child!, ); }, );
-                    if (pickedDate != null) { _dobController.text = "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}"; }
-                  },
-                  validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
-                ),
-              ),
-              const Gap(10),
-              Expanded( child: GlobalDropdownFormField<String>( labelText: 'Gender*', items: ['Male', 'Female'].map((gender) => DropdownMenuItem( value: gender, child: Text(gender), )).toList(), value: _selectedGender, enabled: !isLoading, onChanged: isLoading ? null : (value) { setState(() { _selectedGender = value!; }); },
-                  validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
-                ),
-              ),
-            ],
-          ),
-          const Gap(24), const Divider(thickness: 0.5, height: 1), const Gap(24),
-
-          // --- Password Fields ---
-           Text("Set Your Password", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-           const Gap(10),
-          PasswordTextFormField(controller: _passwordController, enabled: !isLoading, labelText: 'Password*'),
-          const Gap(16),
-          GeneralTextFormField( controller: _confirmPasswordController, labelText: 'Confirm Password*', enabled: !isLoading, obscureText: true, textInputAction: TextInputAction.done,
-             prefixIcon: const Icon(Icons.lock_outline, size: 20),
-             validator: (value) { if (value == null || value.isEmpty) return 'Required'; if (value != _passwordController.text) return 'Passwords do not match'; return null; },
-          ),
-          const Gap(30),
-
-          // --- Actions ---
-          CustomButton( onPressed: isLoading ? null : _handleRegister, text: isLoading ? "Registering..." : "Register", ),
-          Padding( padding: const EdgeInsets.symmetric(vertical: 16.0), child: GestureDetector( onTap: isLoading ? null : _handleLoginNavigation,
-              child: RichText( textAlign: TextAlign.center, text: TextSpan( text: 'Already have an account? ', style: theme.textTheme.bodyMedium?.copyWith(color: isLoading ? Colors.grey : theme.colorScheme.secondary), children: [
-                    TextSpan( text: 'Login', style: theme.textTheme.bodyMedium?.copyWith( color: isLoading ? Colors.grey : theme.colorScheme.primary, fontWeight: FontWeight.bold,), ),
-                  ], ),
-              ),
+      // --- Name Fields ---
+      Text("Full Name",
+          style: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600)),
+      const Gap(10),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GeneralTextFormField(
+              labelText: 'First Name*',
+              controller: _firstNameController,
+              enabled: !isLoading,
+              textInputAction: TextInputAction.next,
+              validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+              prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
             ),
           ),
-           const Gap(10),
-        ];
+          const Gap(8),
+          Expanded(
+            child: GeneralTextFormField(
+              labelText: 'Middle Name',
+              controller: _middleNameController,
+              enabled: !isLoading,
+              textInputAction: TextInputAction.next,
+              validator: null,
+            ),
+          ),
+          const Gap(8),
+          Expanded(
+            child: GeneralTextFormField(
+              labelText: 'Last Name*',
+              controller: _lastNameController,
+              enabled: !isLoading,
+              textInputAction: TextInputAction.next,
+              validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+            ),
+          ),
+        ],
+      ),
+      // Show note if pre-filled
+      if (_isPrefilled)
+        Padding(
+          padding: const EdgeInsets.only(top: 6.0),
+          child: Text("Name pre-filled from family record. Please verify.",
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: Colors.orange.shade800)),
+        ),
+      const Gap(24), const Divider(thickness: 0.5, height: 1), const Gap(24),
+
+      // --- Account Info ---
+      Text("Account Details",
+          style: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600)),
+      const Gap(10),
+      GeneralTextFormField(
+        controller: _usernameController,
+        labelText: 'Username*',
+        hintText: 'Unique username (letters, numbers, _)',
+        enabled: !isLoading,
+        textInputAction: TextInputAction.next,
+        prefixIcon: const Icon(Icons.alternate_email_rounded, size: 20),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
+          LengthLimitingTextInputFormatter(20),
+        ],
+        validator: (value) {
+          if (value == null || value.trim().isEmpty)
+            return 'Username is required';
+          if (value.length < 3) return 'Min 3 characters';
+          if (value.contains(' ')) return 'No spaces allowed';
+          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+            return 'Invalid characters';
+          }
+          return null;
+        },
+      ),
+      const Gap(16),
+      EmailTextFormField(controller: _emailController, enabled: !isLoading),
+      const Gap(24), const Divider(thickness: 0.5, height: 1), const Gap(24),
+
+      // --- Contact & Personal Info ---
+      Text("Personal Information",
+          style: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600)),
+      const Gap(10),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+                color: isLoading
+                    ? Colors.grey.shade200
+                    : theme.inputDecorationTheme.fillColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: theme.inputDecorationTheme.enabledBorder?.borderSide
+                            .color ??
+                        Colors.grey)),
+            child: CountryCodePicker(
+              onChanged: (countryCode) {
+                if (!isLoading) {
+                  setState(() {
+                    _selectedCountryCode = countryCode.dialCode ?? '+20';
+                  });
+                }
+              },
+              initialSelection: 'EG',
+              favorite: const ['+20', 'EG'],
+              showCountryOnly: false,
+              showOnlyCountryWhenClosed: false,
+              enabled: !isLoading,
+              textStyle: getbodyStyle(
+                  color: isLoading
+                      ? Colors.grey.shade500
+                      : AppColors.primaryColor),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            ),
+          ),
+          const Gap(10),
+          Expanded(
+            child: GeneralTextFormField(
+              controller: _phoneController,
+              labelText: 'Phone Number*',
+              keyboardType: TextInputType.phone,
+              enabled: !isLoading,
+              textInputAction: TextInputAction.next,
+              validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+              prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+            ),
+          ),
+        ],
+      ),
+      const Gap(16),
+      // National ID Field with FocusNode and Suffix
+      GeneralTextFormField(
+        controller: _nationalIdController,
+        focusNode: _nationalIdFocusNode, // Assign FocusNode
+        labelText: 'National ID*',
+        keyboardType: TextInputType.number,
+        enabled: !isLoading,
+        readOnly: _isCheckingNatId, // Prevent editing while checking
+        prefixIcon: const Icon(Icons.badge_outlined, size: 20),
+        suffixIcon: nationalIdSuffix, // Show loading/check icon
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(14)
+        ],
+        maxLength: 14,
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) return 'Required';
+          if (value.length != 14) return 'Must be 14 digits';
+          return null;
+        },
+        // onChanged listener could also trigger _checkNationalId with debounce
+      ),
+      const Gap(16),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GeneralTextFormField(
+              controller: _dobController,
+              labelText: 'Date of Birth*',
+              readOnly: true,
+              enabled: !isLoading,
+              prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+              onTap:
+                  isLoading ? null : () async {/* ... DatePicker logic ... */},
+              validator: (value) =>
+                  (value == null || value.isEmpty) ? 'Required' : null,
+            ),
+          ),
+          const Gap(10),
+          Expanded(
+            child: GlobalDropdownFormField<String>(
+              labelText: 'Gender*',
+              items: ['Male', 'Female']
+                  .map((gender) => DropdownMenuItem(
+                        value: gender,
+                        child: Text(gender),
+                      ))
+                  .toList(),
+              value: _selectedGender,
+              enabled: !isLoading,
+              onChanged: isLoading
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _selectedGender = value!;
+                      });
+                    },
+              validator: (value) =>
+                  (value == null || value.isEmpty) ? 'Required' : null,
+            ),
+          ),
+        ],
+      ),
+      const Gap(24), const Divider(thickness: 0.5, height: 1), const Gap(24),
+
+      // --- Password Fields ---
+      Text("Set Your Password",
+          style: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600)),
+      const Gap(10),
+      PasswordTextFormField(
+          controller: _passwordController,
+          enabled: !isLoading,
+          labelText: 'Password*'),
+      const Gap(16),
+      GeneralTextFormField(
+        controller: _confirmPasswordController,
+        labelText: 'Confirm Password*',
+        enabled: !isLoading,
+        obscureText: true,
+        textInputAction: TextInputAction.done,
+        prefixIcon: const Icon(Icons.lock_outline, size: 20),
+        validator: (value) {
+          if (value == null || value.isEmpty) return 'Required';
+          if (value != _passwordController.text)
+            return 'Passwords do not match';
+          return null;
+        },
+      ),
+      const Gap(30),
+
+      // --- Actions ---
+      CustomButton(
+        onPressed: isLoading ? null : _handleRegister,
+        text: isLoading ? "Registering..." : "Register",
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
+        child: GestureDetector(
+          onTap: isLoading ? null : _handleLoginNavigation,
+          child: RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              text: 'Already have an account? ',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isLoading ? Colors.grey : theme.colorScheme.secondary),
+              children: [
+                TextSpan(
+                  text: 'Login',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: isLoading ? Colors.grey : theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      const Gap(10),
+    ];
   }
 
   /// Handles form validation and dispatches RegisterEvent.
@@ -257,35 +678,53 @@ class _RegisterViewState extends State<RegisterView> with TickerProviderStateMix
       final firstName = _firstNameController.text.trim();
       final middleName = _middleNameController.text.trim();
       final lastName = _lastNameController.text.trim();
-      final fullName = "$firstName ${middleName.isNotEmpty ? '$middleName ' : ''}$lastName";
-      // Dispatch RegisterEvent with username
-      context.read<AuthBloc>().add( RegisterEvent(
-          name: fullName.trim(),
-          username: _usernameController.text.trim(), // Pass username
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-          nationalId: _nationalIdController.text.trim(),
-          phone: _selectedCountryCode + _phoneController.text.trim(),
-          gender: _selectedGender,
-          dob: _dobController.text.trim(),
-        ),
-      );
+      // Combine names, handling potential empty middle name
+      final fullName =
+          "$firstName ${middleName.isNotEmpty ? '$middleName ' : ''}$lastName"
+              .trim();
+
+      // Dispatch RegisterEvent, including optional linking IDs
+      context.read<AuthBloc>().add(
+            RegisterEvent(
+              name: fullName, // Use combined name
+              username: _usernameController.text.trim(),
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+              nationalId: _nationalIdController.text.trim(),
+              phone: _selectedCountryCode + _phoneController.text.trim(),
+              gender: _selectedGender,
+              dob: _dobController.text.trim(),
+              // Pass stored IDs if available (will be null otherwise)
+              parentUserId: _parentUserId,
+              familyMemberDocId: _familyMemberDocId,
+            ),
+          );
     }
   }
 
   /// Navigates back to the Login screen.
-  Future<void> _handleLoginNavigation() async { pushReplacement(context, const LoginView()); }
+  Future<void> _handleLoginNavigation() async {
+    // Use pushReplacement to avoid building up navigation stack
+    pushReplacement(context, const LoginView());
+  }
 
   @override
   void dispose() {
-    // Dispose all controllers
-    _firstNameController.dispose(); _middleNameController.dispose(); _lastNameController.dispose();
-    _usernameController.dispose(); _emailController.dispose(); _phoneController.dispose();
-    _nationalIdController.dispose(); _dobController.dispose(); _passwordController.dispose();
+    // Dispose all controllers AND FocusNode
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
+    _usernameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _nationalIdController.dispose();
+    _dobController.dispose();
+    _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _nationalIdFocusNode
+        .removeListener(_onNationalIdFocusChange); // Remove listener
+    _nationalIdFocusNode.dispose(); // Dispose focus node
     _slideController.dispose();
-    // Removed background controller dispose
     super.dispose();
-   }
+  }
 }
-

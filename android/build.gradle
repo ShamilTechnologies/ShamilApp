@@ -1,7 +1,15 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+// Define properties accessible by the app and plugins
+ext {
+    compileSdkVersion = 34     // Define compile SDK version
+    // *** UPDATED minSdkVersion ***
+    minSdkVersion = 24         // Increase to 23 (required by firebase_auth)
+    targetSdkVersion = 34     // Define target SDK version
+}
+
 buildscript {
-    // Define versions needed for the build script itself
+    // Define Kotlin version INSIDE buildscript's ext block
     ext.kotlin_version = '1.9.22' // Match version declared in settings.gradle
 
     repositories {
@@ -10,25 +18,11 @@ buildscript {
     }
 
     dependencies {
-        // Classpath for the Android Gradle plugin (AGP)
-        // Use a version compatible with your Gradle Wrapper version and Flutter SDK
-        // Version 7.3.0 was declared in your settings.gradle plugins block
-        classpath 'com.android.tools.build:gradle:7.3.0' // Use version from settings.gradle
-
-        // Classpath for the Kotlin Gradle plugin
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version" // Use variable defined above
-
-        // Classpath for the Google Services plugin
-        // Version 4.3.15 was declared in your settings.gradle plugins block
-        classpath 'com.google.gms:google-services:4.3.15' // Use version from settings.gradle
+        // Define build tool dependencies
+        classpath 'com.android.tools.build:gradle:7.3.0' // Match version in settings.gradle
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.google.gms:google-services:4.3.15' // Match version in settings.gradle
     }
-}
-
-// Define properties accessible by the app and plugins
-ext {
-    compileSdkVersion = 34     // Or your desired compile SDK version
-    minSdkVersion = 21         // Recommended minimum SDK version for broader compatibility
-    targetSdkVersion = 34     // Or your desired target SDK version
 }
 
 // Configurations applied to all projects (app and plugins)
@@ -64,7 +58,7 @@ subprojects {
             }
         }
     }
-    // No afterEvaluate needed here if app/build.gradle uses flutter.* properties correctly
+    // Removed afterEvaluate block
 }
 
 
@@ -72,3 +66,4 @@ subprojects {
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
+

@@ -1,11 +1,12 @@
 part of 'auth_bloc.dart';
 
+// Base class for all authentication states
 @immutable
 abstract class AuthState extends Equatable {
   const AuthState();
 
   @override
-  List<Object?> get props => [];
+  List<Object?> get props => []; // Helps Equatable compare state instances
 }
 
 /// Initial state, also represents the unauthenticated/logged-out state.
@@ -67,5 +68,36 @@ class AuthErrorState extends AuthState {
    List<Object?> get props => [message];
 }
 
-// Removed states potentially related to a different (Service Provider?) flow.
+// --- States for National ID Check during Registration ---
 
+/// State emitted when the National ID matches an existing external family member
+/// who has NOT yet registered. Contains data to pre-fill the form.
+class ExistingFamilyMemberFound extends AuthState {
+  final FamilyMember externalMemberData; // Data from the familyMembers subcollection doc
+  final String parentUserId; // UID of the user who added this external member
+  final String familyDocId; // Doc ID of the external member record itself
+
+  const ExistingFamilyMemberFound({
+    required this.externalMemberData,
+    required this.parentUserId,
+    required this.familyDocId,
+  });
+
+  @override
+  List<Object?> get props => [externalMemberData, parentUserId, familyDocId];
+}
+
+/// State emitted when the National ID check fails (e.g., Firestore error,
+/// or the ID belongs to an already registered user).
+class NationalIdCheckError extends AuthState {
+  final String message;
+  const NationalIdCheckError({required this.message});
+  @override List<Object?> get props => [message];
+}
+
+/// State emitted when the National ID is not found among external family members,
+/// or if it belongs to an already registered user (handled by NationalIdCheckError).
+/// Signals the UI to proceed with normal registration flow for this ID.
+class NationalIdNotFoundOrRegistered extends AuthState {
+  const NationalIdNotFoundOrRegistered();
+}

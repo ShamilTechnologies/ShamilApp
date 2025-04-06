@@ -1,27 +1,29 @@
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gap/gap.dart'; // Use Gap for spacing
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
-import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart'; // Import global snack bar
+import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_field_templates.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart';
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
+// Removed actionScreens import as SuccessScreen isn't typically used here
+// import 'package:shamil_mobile_app/core/widgets/actionScreens.dart';
+import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
 
-/// SmoothTypingText widget animates the provided text by typing one letter at a time.
+/// SmoothTypingText widget animates text display.
 class SmoothTypingText extends StatefulWidget {
   final String text;
   final TextStyle style;
   final Duration letterDelay;
-
   const SmoothTypingText({
     super.key,
     required this.text,
     required this.style,
-    this.letterDelay = const Duration(milliseconds: 100),
+    this.letterDelay = const Duration(milliseconds: 130),
   });
-
   @override
   _SmoothTypingTextState createState() => _SmoothTypingTextState();
 }
@@ -30,7 +32,6 @@ class _SmoothTypingTextState extends State<SmoothTypingText> {
   String _displayedText = "";
   Timer? _timer;
   int _currentIndex = 0;
-
   @override
   void initState() {
     super.initState();
@@ -73,15 +74,13 @@ class _SmoothTypingTextState extends State<SmoothTypingText> {
 
   @override
   Widget build(BuildContext context) {
-    return Text(_displayedText, style: widget.style);
+    return Text(_displayedText, style: widget.style, maxLines: 2);
   }
 }
 
-/// ForgotPasswordView displays a form for users to reset their password.
-/// It follows the same design as the Login and Register screens.
+/// ForgotPasswordView: Screen for resetting user password.
 class ForgotPasswordView extends StatefulWidget {
   const ForgotPasswordView({super.key});
-
   @override
   State<ForgotPasswordView> createState() => _ForgotPasswordViewState();
 }
@@ -106,33 +105,46 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView>
       duration: const Duration(milliseconds: 800),
     );
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1), // Starts off-screen.
-      end: Offset.zero, // Ends at its final position.
+      begin: const Offset(0, 0.5),
+      end: Offset.zero,
     ).animate(
-      CurvedAnimation(parent: _slideController, curve: Curves.easeOut),
+      CurvedAnimation(parent: _slideController, curve: Curves.easeOutQuart),
     );
-    _slideController.forward();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _slideController.forward();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-    final double welcomeFontSize = isKeyboardOpen ? 40 : 70;
-    final double topPadding = isKeyboardOpen ? 40 : 120;
+    final double welcomeFontSize = isKeyboardOpen ? 36 : 60;
+    final double topPadding = isKeyboardOpen ? 30 : 80; // Adjusted padding
     final String welcomeText =
         isKeyboardOpen ? "Reset Password" : "Reset\nPassword";
+    // Adjust height based on one or two lines
     final double fixedHeight =
-        isKeyboardOpen ? welcomeFontSize * 1.5 : welcomeFontSize * 4.5;
+        isKeyboardOpen ? welcomeFontSize * 1.4 : welcomeFontSize * 2.4;
+    final theme = Theme.of(context);
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
+      // Use theme background color
+      backgroundColor: theme.scaffoldBackgroundColor,
+      // Add AppBar for back navigation and consistency
+      appBar: AppBar(
+        backgroundColor: Colors.transparent, // Transparent AppBar
+        elevation: 0,
+        iconTheme: IconThemeData(
+            color: theme.colorScheme.primary), // Themed back arrow
+      ),
       body: SafeArea(
         child: Container(
-          color: AppColors.accentColor.withOpacity(0.6),
-          padding: const EdgeInsets.symmetric(horizontal: 18),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Welcome Text
               _buildWelcomeText(
                 topPadding: topPadding,
                 fixedHeight: fixedHeight,
@@ -140,12 +152,45 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView>
                 welcomeFontSize: welcomeFontSize,
                 isKeyboardOpen: isKeyboardOpen,
               ),
+              const Gap(30), // Increased gap
+              // Form Area
               Expanded(
                 child: SlideTransition(
                   position: _slideAnimation,
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: _buildForgotPasswordForm(),
+                  // Use BlocConsumer to handle state changes and build UI
+                  child: BlocConsumer<AuthBloc, AuthState>(
+                    listener: (context, state) {
+                      FocusScope.of(context).unfocus(); // Dismiss keyboard
+                      if (state is PasswordResetEmailSentState) {
+                        // Show success message and potentially navigate back after delay
+                        showGlobalSnackBar(context,
+                            "Password reset email sent. Check your inbox.");
+                        Future.delayed(const Duration(seconds: 2), () {
+                          if (mounted) {
+                            // Navigate back to login or previous screen
+                            Navigator.maybePop(context);
+                          }
+                        });
+                      } else if (state is AuthErrorState) {
+                        // Show error message from Bloc
+                        showGlobalSnackBar(context, state.message,
+                            isError: true);
+                      }
+                    },
+                    builder: (context, state) {
+                      final isLoading = state is AuthLoadingState;
+                      // Form with ListView
+                      return Form(
+                        key: _formKey,
+                        child: ListView(
+                          // Use ListView for potential future additions
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.only(bottom: 20, top: 10),
+                          children:
+                              _buildForgotPasswordFormFields(isLoading, theme),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -156,6 +201,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView>
     );
   }
 
+  /// Builds the animated welcome text widget.
   Widget _buildWelcomeText({
     required double topPadding,
     required double fixedHeight,
@@ -164,91 +210,91 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView>
     required bool isKeyboardOpen,
   }) {
     return Padding(
-      padding: EdgeInsets.only(
-        top: topPadding,
-      ),
+      padding: EdgeInsets.only(top: topPadding),
       child: Container(
         height: fixedHeight,
         alignment: Alignment.centerLeft,
         child: SmoothTypingText(
           key: ValueKey(isKeyboardOpen),
           text: welcomeText,
-          style: getbodyStyle(
-            height: 1,
-            color: AppColors.primaryColor,
-            fontWeight: FontWeight.w900,
-            fontSize: welcomeFontSize,
-          ),
+          style: Theme.of(context).textTheme.displayMedium!.copyWith(
+                height: 1.1,
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w800,
+                fontSize: welcomeFontSize,
+              ),
         ),
       ),
     );
   }
 
-  Widget _buildForgotPasswordForm() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Email Field.
-          EmailTextFormField(controller: _emailController),
-          const SizedBox(height: 25),
-          // Reset Password Button.
-          CustomButton(
-            onPressed: _handleResetPassword,
-            text: "Reset Password",
-          ),
-          // Clickable text to navigate back to Login.
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: GestureDetector(
-              onTap: _handleLoginNavigation,
-              child: RichText(
-                text: TextSpan(
-                  text: "Remember your password? ",
-                  style: getbodyStyle(
-                    color: AppColors.secondaryColor,
-                    fontWeight: FontWeight.normal,
-                    fontSize: 16,
+  /// Builds the LIST of form field widgets.
+  List<Widget> _buildForgotPasswordFormFields(bool isLoading, ThemeData theme) {
+    return [
+      Text(
+        // Add instructional text
+        "Enter the email address associated with your account "
+        "and we'll send you a link to reset your password.",
+        style: theme.textTheme.bodyLarge
+            ?.copyWith(color: theme.colorScheme.secondary),
+      ),
+      const Gap(24),
+      // Email Field
+      EmailTextFormField(
+        controller: _emailController,
+        enabled: !isLoading, // Disable when loading
+      ),
+      const Gap(30), // More space before button
+      // Reset Password Button
+      CustomButton(
+        onPressed:
+            isLoading ? null : _handleResetPassword, // Disable when loading
+        text: isLoading ? "Sending..." : "Send Reset Link",
+      ),
+      const Gap(20), // Space before login link
+      // Clickable text to navigate back to Login.
+      Center(
+        // Center the login link
+        child: GestureDetector(
+          onTap:
+              isLoading ? null : _handleLoginNavigation, // Disable when loading
+          child: RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              text: "Remember your password? ",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isLoading ? Colors.grey : theme.colorScheme.secondary),
+              children: [
+                TextSpan(
+                  text: "Login",
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: isLoading ? Colors.grey : theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
                   ),
-                  children: [
-                    TextSpan(
-                      text: "Login",
-                      style: getbodyStyle(
-                        color: AppColors.primaryColor,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
-    );
+      const Gap(10),
+    ];
   }
 
-  Future<void> _handleResetPassword() async {
+  /// Handles form validation and dispatches event to AuthBloc.
+  void _handleResetPassword() {
+    FocusScope.of(context).unfocus();
     if (_formKey.currentState?.validate() ?? false) {
-      try {
-        await FirebaseAuth.instance.sendPasswordResetEmail(
-          email: _emailController.text.trim(),
-        );
-        // Use the global SnackBar function with vibration.
-        showGlobalSnackBar(
-            context, "Password reset email sent. Check your inbox.");
-      } on FirebaseAuthException catch (e) {
-        showGlobalSnackBar(context, e.message ?? "Reset password error.",
-            isError: true);
-      } catch (e) {
-        showGlobalSnackBar(context, "Something went wrong.", isError: true);
-      }
+      // Dispatch event to Bloc instead of calling FirebaseAuth directly
+      context.read<AuthBloc>().add(
+            SendPasswordResetEmail(email: _emailController.text.trim()),
+          );
     }
   }
 
+  /// Navigates back to the Login screen.
   Future<void> _handleLoginNavigation() async {
+    // Use pushReplacement to avoid stacking login/forgot password screens
     pushReplacement(context, const LoginView());
   }
 

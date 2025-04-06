@@ -1,11 +1,14 @@
-import 'dart:io';
+import 'dart:io'; // For File type
 import 'package:bloc/bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:meta/meta.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // Import FCM for token removal
+import 'package:meta/meta.dart'; // For @immutable
 import 'package:equatable/equatable.dart';
 import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
+// Import FamilyMember model for the check event state
+import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
 import 'package:shamil_mobile_app/cloudinary_service.dart'; // Cloudinary upload service
 
 part 'auth_event.dart';
@@ -15,9 +18,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   // Firebase instances
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseMessaging _fcm = FirebaseMessaging.instance; // FCM instance
+
+  // *** ADDED: Helper getter for current user ID ***
+  String? get _userId => _auth.currentUser?.uid;
 
   AuthBloc() : super(const AuthInitial()) {
-    // Register event handlers
+    // Register event handlers for all defined AuthEvents
     on<CheckInitialAuthStatus>(_onCheckInitialAuthStatus);
     on<RegisterEvent>(_register);
     on<LoginEvent>(_login);
@@ -27,57 +34,65 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<SendPasswordResetEmail>(_onSendPasswordResetEmail);
     on<CheckEmailVerificationStatus>(_onCheckEmailVerificationStatus);
     on<UpdateUserProfile>(_onUpdateUserProfile);
+    on<CheckNationalIdAsFamilyMember>(_onCheckNationalIdAsFamilyMember);
   }
 
   /// Handler for checking auth status on app start
   Future<void> _onCheckInitialAuthStatus( CheckInitialAuthStatus event, Emitter<AuthState> emit) async {
-     emit(const AuthLoadingState()); // Indicate checking status
-     print("AuthBloc: Checking initial auth status...");
-     final User? user = _auth.currentUser;
+    emit(const AuthLoadingState()); // Indicate checking status
+    print("AuthBloc: Checking initial auth status...");
+    // Use the getter now
+    final User? user = _auth.currentUser; // Or directly use _auth.currentUser
 
-     if (user == null) {
-        print("AuthBloc: No user currently logged in.");
-        await AppLocalStorage.cacheData(key: "isLoggedIn", value: false); // Ensure flag is false
-        emit(const AuthInitial());
-     } else {
-        print("AuthBloc: User ${user.uid} found. Checking verification and profile...");
-        try {
-           await user.reload(); // Refresh user state
-           final freshUser = _auth.currentUser; // Get potentially updated user state
+    if (user == null) {
+      print("AuthBloc: No user currently logged in.");
+      await AppLocalStorage.cacheData(key: "isLoggedIn", value: false); // Ensure flag is false
+      emit(const AuthInitial());
+    } else {
+      print("AuthBloc: User ${user.uid} found. Checking verification and profile...");
+      try {
+        await user.reload(); // Refresh user state from Firebase backend
+        final freshUser = _auth.currentUser; // Get potentially updated user state
 
-           if (freshUser == null) { // Check again after reload
-              print("AuthBloc: User became null after reload during initial check.");
-              await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
-              emit(const AuthInitial());
-              return;
-           }
-
-           if (!freshUser.emailVerified) {
-              print("AuthBloc: Initial check - Email not verified for ${freshUser.email}.");
-              await AppLocalStorage.cacheData(key: "isLoggedIn", value: false); // Treat as not fully logged in for app access
-              emit(AwaitingVerificationState(freshUser.email!));
-           } else {
-              print("AuthBloc: Initial check - Email verified. Fetching Firestore data...");
-              final DocumentSnapshot doc = await _firestore.collection("endUsers").doc(freshUser.uid).get();
-              if (doc.exists) {
-                 final authModel = AuthModel.fromFirestore(doc);
-                 print("AuthBloc: Initial check - Firestore data found for ${authModel.name}.");
-                 await AppLocalStorage.cacheData(key: "isLoggedIn", value: true); // Set logged in flag
-                 emit(LoginSuccessState(user: authModel)); // Emit success with data
-              } else {
-                 print("AuthBloc: Error - User document not found for verified user ${freshUser.uid}.");
-                 emit(const AuthErrorState("User profile data missing. Please log in again or contact support."));
-                 await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
-                 await _auth.signOut(); // Sign out if profile is corrupt/missing
-              }
-           }
-        } catch (e, s) {
-           print("AuthBloc: Error during initial auth check: $e\n$s");
-           await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
-           // Don't sign out here, could be temporary network issue
-           emit(AuthErrorState("Failed to check authentication status: ${e.toString()}"));
+        if (freshUser == null) { // Double-check user didn't become null
+          print("AuthBloc: User became null after reload during initial check.");
+          await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
+          emit(const AuthInitial());
+          return;
         }
-     }
+
+        // Check if email is verified
+        if (!freshUser.emailVerified) {
+          print("AuthBloc: Initial check - Email not verified for ${freshUser.email}.");
+          await AppLocalStorage.cacheData(key: "isLoggedIn", value: false); // Treat as not fully logged in
+          emit(AwaitingVerificationState(freshUser.email!));
+        } else {
+          // Email is verified, fetch corresponding Firestore profile
+          print("AuthBloc: Initial check - Email verified. Fetching Firestore data...");
+          final DocumentSnapshot doc = await _firestore.collection("endUsers").doc(freshUser.uid).get();
+          if (doc.exists) {
+             final authModel = AuthModel.fromFirestore(doc);
+             print("AuthBloc: Initial check - Firestore data found for ${authModel.name}.");
+             await AppLocalStorage.cacheData(key: "isLoggedIn", value: true); // Set logged in flag
+             emit(LoginSuccessState(user: authModel)); // Emit success with user data
+             // Optionally update FCM token here after successful login/initial check
+             _fcm.getToken().then((token) => _updateTokenInFirestore(token, freshUser.uid));
+          } else {
+             // Firestore document missing for a verified user - potential data issue
+             print("AuthBloc: Error - User document not found for verified user ${freshUser.uid}.");
+             emit(const AuthErrorState("User profile data missing. Please log in again or contact support."));
+             await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
+             await _auth.signOut(); // Sign out if profile is corrupt/missing
+             emit(const AuthInitial()); // Go back to initial state after sign out
+          }
+        }
+      } catch (e, s) {
+        // Handle errors during the check process (e.g., network issues)
+        print("AuthBloc: Error during initial auth check: $e\n$s");
+        await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
+        emit(AuthErrorState("Failed to check authentication status: ${e.toString()}"));
+      }
+    }
   }
 
   /// Handles the login event.
@@ -85,18 +100,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthLoadingState());
     try {
       print("Starting login for email: ${event.email}");
-      final userCredential = await _auth.signInWithEmailAndPassword( email: event.email, password: event.password, );
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: event.email,
+        password: event.password,
+      );
       final User user = userCredential.user!;
       print("User logged in: ${user.uid}");
 
       // Check email verification status immediately after login
-      await user.reload(); // Refresh user data
-      final freshUser = _auth.currentUser; // Get potentially updated user state
+      await user.reload();
+      final freshUser = _auth.currentUser;
       if (freshUser != null && !freshUser.emailVerified) {
          print("Login successful but email not verified for ${freshUser.email}. Emitting AwaitingVerificationState.");
          emit(AwaitingVerificationState(freshUser.email!));
-         // Don't cache isLoggedIn=true yet if verification is required
-         return; // Stop further processing until verified
+         return; // Stop until verified
       }
 
       // Proceed if verified
@@ -109,46 +126,62 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
          print("Error: User document not found in Firestore after login for UID: ${user.uid}");
          emit(const AuthErrorState("User profile not found. Please contact support."));
          await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
-         await _auth.signOut(); return;
+         await _auth.signOut();
+         emit(const AuthInitial()); // Go back to initial state
+         return;
       }
       final authModel = AuthModel.fromFirestore(doc);
       print("User data fetched from Firestore: ${authModel.name}");
       emit(LoginSuccessState(user: authModel));
       print("LoginSuccessState emitted");
+      // Update FCM token on successful login
+      _fcm.getToken().then((token) => _updateTokenInFirestore(token, user.uid));
 
     } on FirebaseAuthException catch (e) {
        String errorMessage = 'Authentication error';
-       if (e.code == 'user-not-found' || e.code == 'invalid-credential' || e.code == 'wrong-password') { errorMessage = "Incorrect email or password."; }
-       else if (e.code == 'user-disabled') { errorMessage = "This user account has been disabled."; }
-       else { errorMessage = e.message ?? errorMessage; }
-       emit(AuthErrorState(errorMessage)); print("FirebaseAuthException on Login: ${e.code} - ${e.message}");
-    } catch (e, s) { emit(const AuthErrorState('Something went wrong during login.')); print("General exception during login: $e\n$s"); }
+       if (e.code == 'user-not-found' || e.code == 'invalid-credential' || e.code == 'wrong-password') {
+          errorMessage = "Incorrect email or password.";
+       } else if (e.code == 'user-disabled') {
+          errorMessage = "This user account has been disabled.";
+       } else {
+          errorMessage = e.message ?? errorMessage;
+       }
+       emit(AuthErrorState(errorMessage));
+       print("FirebaseAuthException on Login: ${e.code} - ${e.message}");
+    } catch (e, s) {
+       emit(const AuthErrorState('Something went wrong during login.'));
+       print("General exception during login: $e\n$s");
+    }
   }
 
-  /// Handles the registration event.
+  /// Handles the registration event, including uniqueness checks and potential linking.
   Future<void> _register(RegisterEvent event, Emitter<AuthState> emit) async {
     emit(const AuthLoadingState());
     try {
       // 1. Check Username Uniqueness
       print("Registration: Checking username uniqueness for '${event.username}'...");
+      // Requires Firestore index on 'username' in 'endUsers' collection
       final usernameQuery = await _firestore.collection("endUsers").where('username', isEqualTo: event.username).limit(1).get();
       if (usernameQuery.docs.isNotEmpty) {
-        print("Registration: Username '${event.username}' already taken.");
         emit(const AuthErrorState('Username is already taken. Please choose another.'));
         return;
       }
       print("Registration: Username '${event.username}' appears unique.");
 
-      // 2. Check National ID Uniqueness
-      print("Registration: Checking National ID uniqueness for '${event.nationalId}'...");
-      final nationalIdQuery = await _firestore.collection("endUsers").where('nationalId', isEqualTo: event.nationalId).limit(1).get();
-      if (nationalIdQuery.docs.isNotEmpty) {
-         print("Registration: National ID '${event.nationalId}' already registered.");
-         emit(const AuthErrorState('This National ID is already registered. Try logging in.'));
-         return;
+      // 2. Check National ID Uniqueness *ONLY IF NOT PRE-FILLING*
+      if (event.familyMemberDocId == null) {
+         print("Registration: Checking National ID uniqueness for '${event.nationalId}'...");
+         // Requires index on 'nationalId' in 'endUsers' collection
+         final nationalIdQuery = await _firestore.collection("endUsers").where('nationalId', isEqualTo: event.nationalId).limit(1).get();
+         if (nationalIdQuery.docs.isNotEmpty) {
+            emit(const AuthErrorState('This National ID is already registered. Try logging in.'));
+            return;
+         }
+         print("Registration: National ID '${event.nationalId}' appears unique.");
+      } else {
+         print("Registration: Skipping National ID uniqueness check due to pre-fill from family record.");
       }
-      print("Registration: National ID '${event.nationalId}' appears unique.");
-      // IMPORTANT: Client-side checks are prone to race conditions. Use Cloud Functions/Transactions for guaranteed uniqueness.
+      // IMPORTANT: Client-side checks are prone to race conditions.
 
       // 3. Create Firebase Auth User
       final userCredential = await _auth.createUserWithEmailAndPassword( email: event.email, password: event.password, );
@@ -160,10 +193,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       // 4. Prepare Firestore Data
       final authModel = AuthModel( uid: user.uid, name: event.name, username: event.username, email: event.email, nationalId: event.nationalId, phone: event.phone, gender: event.gender, dob: event.dob, image: '', uploadedId: false, isVerified: false, isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now(), lastSeen: Timestamp.now(), profilePicUrl: null );
       final modelMap = authModel.toMap();
-      modelMap['createdAt'] = FieldValue.serverTimestamp(); modelMap['updatedAt'] = FieldValue.serverTimestamp(); modelMap['lastSeen'] = FieldValue.serverTimestamp(); modelMap['isApproved'] = false; // Default approval status
+      modelMap['createdAt'] = FieldValue.serverTimestamp(); modelMap['updatedAt'] = FieldValue.serverTimestamp(); modelMap['lastSeen'] = FieldValue.serverTimestamp(); modelMap['isApproved'] = false;
 
       // 5. Save to Firestore
-      await _firestore.collection("endUsers").doc(user.uid).set(modelMap); print("Registration: User data (including username) saved to Firestore.");
+      await _firestore.collection("endUsers").doc(user.uid).set(modelMap); print("Registration: User data saved to Firestore.");
+
+      // 6. Handle Linking if pre-filled (Requires Cloud Function)
+      if (event.parentUserId != null && event.familyMemberDocId != null) {
+         print("Registration: Linking pre-filled family member...");
+         // TODO: Cloud Function Trigger Required Here!
+         // This logic MUST be moved to a secure Cloud Function.
+         print("Registration: Cloud Function needed to complete family link for parent ${event.parentUserId} and doc ${event.familyMemberDocId}.");
+      }
+
       emit(const RegisterSuccessState()); print("Registration successful for user: ${user.uid}");
 
     } on FirebaseAuthException catch (e) {
@@ -173,59 +215,120 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
        else if (e.code == 'invalid-email') { errorMessage = 'Please enter a valid email address.'; }
        else { errorMessage = e.message ?? errorMessage; }
        emit(AuthErrorState(errorMessage)); print("FirebaseAuthException during registration: ${e.code} - ${e.message}");
-    } catch (e, s) { emit(AuthErrorState('Something went wrong during registration: ${e.toString()}')); print("Exception during registration: $e\n$s"); }
+    } catch (e, s) {
+       emit(AuthErrorState('Something went wrong during registration: ${e.toString()}'));
+       print("Exception during registration: $e\n$s");
+    }
   }
 
-  /// Handles the upload of ID images.
+  /// Handles the upload of ID images during the "One More Step" flow.
   Future<void> _uploadId(UploadIdEvent event, Emitter<AuthState> emit) async {
      emit(const AuthLoadingState());
      String? uploadedProfileUrl; String? uploadedIdFrontUrl; String? uploadedIdBackUrl;
     try {
-      final user = _auth.currentUser; if (user == null) { emit(const AuthErrorState("User not logged in. Cannot upload ID.")); return; }
-      final uid = user.uid; print("Uploading ID for user: $uid");
-      String profileFolder = 'users/$uid/profilePic'; String idFrontFolder = 'users/$uid/idFront'; String idBackFolder = 'users/$uid/idBack';
+      final user = _auth.currentUser;
+      if (user == null) { throw Exception("User not logged in."); }
+      final uid = user.uid;
+      print("Uploading ID for user: $uid");
 
-      // Upload files
-      print("Uploading profile picture..."); uploadedProfileUrl = await CloudinaryService.uploadFile(event.profilePic, folder: profileFolder);
-      if (uploadedProfileUrl == null || uploadedProfileUrl.isEmpty) throw Exception("Profile picture upload failed."); print("Profile picture uploaded: $uploadedProfileUrl");
-      print("Uploading ID front..."); uploadedIdFrontUrl = await CloudinaryService.uploadFile(event.idFront, folder: idFrontFolder);
-      if (uploadedIdFrontUrl == null || uploadedIdFrontUrl.isEmpty) throw Exception("ID front upload failed."); print("ID front uploaded: $uploadedIdFrontUrl");
-      print("Uploading ID back..."); uploadedIdBackUrl = await CloudinaryService.uploadFile(event.idBack, folder: idBackFolder);
-       if (uploadedIdBackUrl == null || uploadedIdBackUrl.isEmpty) throw Exception("ID back upload failed."); print("ID back uploaded: $uploadedIdBackUrl");
+      String profileFolder = 'users/$uid/profilePic';
+      String idFrontFolder = 'users/$uid/idFront';
+      String idBackFolder = 'users/$uid/idBack';
+
+      // Upload files concurrently
+      print("Starting parallel uploads...");
+      final uploads = await Future.wait([
+         CloudinaryService.uploadFile(event.profilePic, folder: profileFolder),
+         CloudinaryService.uploadFile(event.idFront, folder: idFrontFolder),
+         CloudinaryService.uploadFile(event.idBack, folder: idBackFolder),
+      ]);
+
+      uploadedProfileUrl = uploads[0]; uploadedIdFrontUrl = uploads[1]; uploadedIdBackUrl = uploads[2];
+
+      // Validate uploads
+      if (uploadedProfileUrl == null || uploadedProfileUrl.isEmpty) throw Exception("Profile picture upload failed.");
+      if (uploadedIdFrontUrl == null || uploadedIdFrontUrl.isEmpty) throw Exception("ID front upload failed.");
+      if (uploadedIdBackUrl == null || uploadedIdBackUrl.isEmpty) throw Exception("ID back upload failed.");
+      print("All uploads successful.");
 
       // Update Firestore
-      await _firestore.collection("endUsers").doc(uid).update({ 'uploadedId': true, 'profilePicUrl': uploadedProfileUrl, 'image': uploadedProfileUrl, 'idFrontUrl': uploadedIdFrontUrl, 'idBackUrl': uploadedIdBackUrl, 'updatedAt': FieldValue.serverTimestamp(), }); print("Firestore updated with ID image URLs.");
+      await _firestore.collection("endUsers").doc(uid).update({
+        'uploadedId': true, 'profilePicUrl': uploadedProfileUrl, 'image': uploadedProfileUrl,
+        'idFrontUrl': uploadedIdFrontUrl, 'idBackUrl': uploadedIdBackUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print("Firestore updated with ID image URLs.");
 
       // Fetch updated user model
       print("AuthBloc: Fetching updated user model after ID upload...");
       final updatedDoc = await _firestore.collection("endUsers").doc(uid).get();
       if (!updatedDoc.exists) { throw Exception("Failed to fetch updated user profile after ID upload."); }
-      final updatedAuthModel = AuthModel.fromFirestore(updatedDoc); print("AuthBloc: Updated user model fetched after ID upload.");
+      final updatedAuthModel = AuthModel.fromFirestore(updatedDoc);
+      print("AuthBloc: Updated user model fetched after ID upload.");
 
       // Emit success state WITH the updated user model
       emit(UploadIdSuccessState(user: updatedAuthModel));
       print("ID images uploaded and UploadIdSuccessState emitted successfully");
 
     } catch (e, s) {
-      print("Exception during ID upload process: $e\n$s"); emit(AuthErrorState("ID Upload Failed: ${e.toString()}"));
-      print("Error occurred during upload/update. Manual cleanup on Cloudinary might be needed if files were partially uploaded.");
-      if (uploadedProfileUrl != null) print("Profile URL succeeded: $uploadedProfileUrl"); if (uploadedIdFrontUrl != null) print("ID Front URL succeeded: $uploadedIdFrontUrl"); if (uploadedIdBackUrl != null) print("ID Back URL succeeded: $uploadedIdBackUrl");
+      print("Exception during ID upload process: $e\n$s");
+      emit(AuthErrorState("ID Upload Failed: ${e.toString()}"));
+      // Log partial success for debugging/cleanup
+      if (uploadedProfileUrl != null) print("Profile URL succeeded: $uploadedProfileUrl");
+      if (uploadedIdFrontUrl != null) print("ID Front URL succeeded: $uploadedIdFrontUrl");
+      if (uploadedIdBackUrl != null) print("ID Back URL succeeded: $uploadedIdBackUrl");
     }
   }
 
-   /// Handles LogoutEvent
+   /// Handles LogoutEvent, including FCM token removal attempt
   Future<void> _onLogout(LogoutEvent event, Emitter<AuthState> emit) async {
-     emit(const AuthLoadingState()); print("AuthBloc: Logging out user...");
+     emit(const AuthLoadingState());
+     print("AuthBloc: Logging out user...");
+     final String? currentUserId = _userId; // Get UID *before* signing out
+     String? currentToken;
+
      try {
-        await _auth.signOut(); print("AuthBloc: Firebase sign out successful.");
-        await AppLocalStorage.cacheData(key: "isLoggedIn", value: false); await AppLocalStorage.cacheData(key: AppLocalStorage.userToken, value: null); print("AuthBloc: Local storage cleared.");
-        emit(const AuthInitial()); print("AuthBloc: Emitted AuthInitial state after logout.");
-     } catch (e, s) { print("AuthBloc: Error during logout: $e\n$s"); await AppLocalStorage.cacheData(key: "isLoggedIn", value: false); await AppLocalStorage.cacheData(key: AppLocalStorage.userToken, value: null); emit(AuthErrorState("Logout failed: ${e.toString()}")); }
+        // Get the token for *this* device to remove it
+        currentToken = await _fcm.getToken();
+        print("AuthBloc: Current FCM token for removal: $currentToken");
+
+        // Sign out from Firebase Auth
+        await _auth.signOut();
+        print("AuthBloc: Firebase sign out successful.");
+
+        // Clear local storage flags
+        await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
+        await AppLocalStorage.cacheData(key: AppLocalStorage.userToken, value: null);
+        print("AuthBloc: Local storage cleared.");
+
+        // Attempt to remove the token from Firestore *after* sign out (using stored UID)
+        if (currentUserId != null && currentToken != null) {
+           await _removeTokenFromFirestore(currentToken, currentUserId);
+        } else { print("AuthBloc: Could not remove FCM token (missing UID or token)."); }
+
+        // Delete the token instance on the device itself
+        try { await _fcm.deleteToken(); print("AuthBloc: FCM token deleted from device."); }
+        catch (e) { print("AuthBloc: Error deleting FCM token from device: $e"); }
+
+        // Emit initial/unauthenticated state
+        emit(const AuthInitial());
+        print("AuthBloc: Emitted AuthInitial state after logout.");
+
+     } catch (e, s) {
+        print("AuthBloc: Error during logout: $e\n$s");
+        // Ensure local storage is cleared even on error
+        await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
+        await AppLocalStorage.cacheData(key: AppLocalStorage.userToken, value: null);
+        // Attempt removal even on error
+         if (currentUserId != null && currentToken != null) { await _removeTokenFromFirestore(currentToken, currentUserId); }
+         try { await _fcm.deleteToken(); } catch(e) { print("AuthBloc: Error deleting FCM token from device on logout error: $e"); }
+        emit(AuthErrorState("Logout failed: ${e.toString()}"));
+     }
   }
 
   /// Handles UpdateProfilePicture event
   Future<void> _onUpdateProfilePicture( UpdateProfilePicture event, Emitter<AuthState> emit) async {
-      AuthState currentState = state; emit(const AuthLoadingState()); print("AuthBloc: Updating profile picture...");
+      emit(const AuthLoadingState()); print("AuthBloc: Updating profile picture...");
      final user = _auth.currentUser; if (user == null) { emit(const AuthErrorState("User not logged in. Cannot update picture.")); return; }
      final uid = user.uid;
      try {
@@ -234,7 +337,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (newProfilePicUrl == null || newProfilePicUrl.isEmpty) { throw Exception("Cloudinary upload failed for profile picture."); }
          print("AuthBloc: New profile picture uploaded: $newProfilePicUrl");
          print("AuthBloc: Updating Firestore with new profile picture URL...");
-         // Ensure field names here match your AuthModel and Firestore exactly
          await _firestore.collection("endUsers").doc(uid).update({ 'profilePicUrl': newProfilePicUrl, 'image': newProfilePicUrl, 'updatedAt': FieldValue.serverTimestamp(), }); print("AuthBloc: Firestore updated successfully.");
          print("AuthBloc: Fetching updated user model...");
          final updatedDoc = await _firestore.collection("endUsers").doc(uid).get();
@@ -262,6 +364,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onCheckEmailVerificationStatus( CheckEmailVerificationStatus event, Emitter<AuthState> emit) async {
      print("AuthBloc: Checking email verification status..."); User? user = _auth.currentUser;
      if (user == null) { print("AuthBloc: No user found while checking verification status."); emit(const AuthInitial()); return; }
+     // Avoid emitting loading state here to prevent unnecessary UI flashes
      try {
         await user.reload(); user = _auth.currentUser;
         if (user == null) { print("AuthBloc: User became null after reload during verification check."); emit(const AuthInitial()); return; }
@@ -269,36 +372,57 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (user.emailVerified) {
            print("AuthBloc: Email verified. Fetching user data...");
            final DocumentSnapshot doc = await _firestore.collection("endUsers").doc(user.uid).get();
-           if (doc.exists) { final authModel = AuthModel.fromFirestore(doc); emit(LoginSuccessState(user: authModel)); print("AuthBloc: Emitted LoginSuccessState after verification check."); }
-           else { print("AuthBloc: Error - User document not found after email verification."); emit(AuthErrorState("User profile not found after verification. UID: ${user.uid}")); }
-        } else { print("AuthBloc: Email still not verified. Emitting AwaitingVerificationState."); emit(AwaitingVerificationState(user.email!)); }
+           if (doc.exists) {
+              final authModel = AuthModel.fromFirestore(doc);
+              // Only emit LoginSuccess if not already in that state with same user data
+              if (state is! LoginSuccessState || (state as LoginSuccessState).user != authModel) {
+                 emit(LoginSuccessState(user: authModel));
+                 print("AuthBloc: Emitted LoginSuccessState after verification check.");
+              } else { print("AuthBloc: State is already LoginSuccess with updated data."); }
+           } else { print("AuthBloc: Error - User document not found after email verification."); emit(AuthErrorState("User profile not found after verification. UID: ${user.uid}")); }
+        } else {
+           // Only emit AwaitingVerification if not already in that state
+           if (state is! AwaitingVerificationState) {
+              print("AuthBloc: Email still not verified. Emitting AwaitingVerificationState.");
+              emit(AwaitingVerificationState(user.email!));
+           } else { print("AuthBloc: State is already AwaitingVerification."); }
+        }
      } catch (e, s) { print("AuthBloc: Error checking email verification status: $e\n$s"); emit(AuthErrorState("Failed to check email status: ${e.toString()}")); }
   }
 
    /// Handles UpdateUserProfile event
    Future<void> _onUpdateUserProfile( UpdateUserProfile event, Emitter<AuthState> emit) async {
-      AuthState currentState = state; emit(const AuthLoadingState()); print("AuthBloc: Updating user profile...");
+      emit(const AuthLoadingState()); print("AuthBloc: Updating user profile...");
       final user = _auth.currentUser; if (user == null) { emit(const AuthErrorState("User not logged in. Cannot update profile.")); return; }
       final uid = user.uid;
       try {
          Map<String, dynamic> dataToUpdate = Map.from(event.updatedData); print("AuthBloc: Data received for update: $dataToUpdate");
-         // *** IMPORTANT: Add validation/sanitization for updatedData here ***
-         // Remove fields that shouldn't be updated directly
-         dataToUpdate.remove('email'); dataToUpdate.remove('uid'); dataToUpdate.remove('isApproved'); dataToUpdate.remove('isBlocked'); dataToUpdate.remove('createdAt'); dataToUpdate.remove('uploadedId'); dataToUpdate.remove('profilePicUrl'); dataToUpdate.remove('image'); dataToUpdate.remove('username'); // Don't allow username change here easily
-         dataToUpdate['updatedAt'] = FieldValue.serverTimestamp();
-         if (dataToUpdate.isEmpty || dataToUpdate.length == 1 && dataToUpdate.containsKey('updatedAt')) {
+         // Remove fields that shouldn't be updated directly or are handled elsewhere
+         dataToUpdate.remove('email'); dataToUpdate.remove('uid'); dataToUpdate.remove('isApproved'); dataToUpdate.remove('isBlocked'); dataToUpdate.remove('createdAt'); dataToUpdate.remove('uploadedId'); dataToUpdate.remove('profilePicUrl'); dataToUpdate.remove('image'); dataToUpdate.remove('username');
+         dataToUpdate.removeWhere((key, value) => value == null || (value is String && value.isEmpty)); // Remove null/empty values
+
+         // Check if there's anything valid left to update besides timestamp
+         if (dataToUpdate.isEmpty) {
              print("AuthBloc: No valid fields provided for profile update.");
-             if (currentState is LoginSuccessState) {
-               emit(currentState);
-             } else { final doc = await _firestore.collection("endUsers").doc(uid).get(); if (doc.exists) {
-               emit(LoginSuccessState(user: AuthModel.fromFirestore(doc)));
-             } else {
-               emit(const AuthErrorState("Failed to load profile after empty update attempt."));
-             } }
+             // Re-fetch current state to avoid staying in loading
+             final doc = await _firestore.collection("endUsers").doc(uid).get();
+             if (doc.exists) { emit(LoginSuccessState(user: AuthModel.fromFirestore(doc))); }
+             else { emit(const AuthErrorState("Failed to load profile after empty update attempt.")); }
              return;
          }
+
+         // Add timestamp and perform update
+         dataToUpdate['updatedAt'] = FieldValue.serverTimestamp();
          print("AuthBloc: Updating Firestore profile with data: $dataToUpdate");
          await _firestore.collection("endUsers").doc(uid).update(dataToUpdate); print("AuthBloc: Firestore profile update successful.");
+
+         // Update display name in Firebase Auth if 'name' was changed
+         if (dataToUpdate.containsKey('name')) {
+            await user.updateDisplayName(dataToUpdate['name']);
+            print("AuthBloc: Firebase Auth display name updated.");
+         }
+
+         // Fetch updated model and emit success state
          print("AuthBloc: Fetching updated user model after profile update...");
          final updatedDoc = await _firestore.collection("endUsers").doc(uid).get();
          if (!updatedDoc.exists) { throw Exception("Failed to fetch updated user profile after general update."); }
@@ -307,5 +431,89 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       } catch (e, s) { print("AuthBloc: Error updating user profile: $e\n$s"); emit(AuthErrorState("Failed to update profile: ${e.toString()}")); }
    }
 
-}
+   /// Handles checking National ID against external family members
+   Future<void> _onCheckNationalIdAsFamilyMember(CheckNationalIdAsFamilyMember event, Emitter<AuthState> emit) async {
+    // Reuse general loading state
+    emit(const AuthLoadingState()); // Indicate checking
 
+    try {
+      print("AuthBloc: Checking National ID ${event.nationalId} in familyMembers collection group...");
+      // *** Firestore Index Required: collectionGroup='familyMembers', field='nationalId' (ASC), field='status' (ASC) ***
+      final querySnapshot = await _firestore
+          .collectionGroup('familyMembers')
+          .where('nationalId', isEqualTo: event.nationalId)
+          .where('status', isEqualTo: 'external') // Only find external entries
+          .limit(1) // Expect only one match per NatID if logic is correct
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        print("AuthBloc: Found matching external family member record.");
+        final familyDoc = querySnapshot.docs.first;
+        final familyData = FamilyMember.fromFirestore(familyDoc); // Use model factory
+        final parentUserId = familyDoc.reference.parent.parent!.id; // Get parent User ID from path
+        final familyDocId = familyDoc.id; // Get the document ID of the record itself
+
+        // Check if the linked userId (if any) already exists in endUsers
+        if (familyData.userId != null && familyData.userId!.isNotEmpty) {
+           print("AuthBloc: External record has userId ${familyData.userId}. Checking if registered...");
+           final userDoc = await _firestore.collection('endUsers').doc(familyData.userId!).get();
+           if (userDoc.exists) {
+              print("AuthBloc: User ${familyData.userId} already registered for this National ID.");
+              emit(const NationalIdCheckError(message: "This National ID is linked to an already registered user."));
+              return; // Don't proceed to pre-fill
+           } else {
+              print("AuthBloc: User ${familyData.userId} not found in endUsers. Allowing pre-fill.");
+           }
+        } else {
+           print("AuthBloc: External record has no linked userId. Allowing pre-fill.");
+        }
+
+        // Emit state with data for pre-filling the registration form
+        emit(ExistingFamilyMemberFound(
+           externalMemberData: familyData,
+           parentUserId: parentUserId,
+           familyDocId: familyDocId,
+        ));
+
+      } else {
+        // No external record found for this National ID
+        print("AuthBloc: No matching external family member found for National ID ${event.nationalId}.");
+        emit(const NationalIdNotFoundOrRegistered());
+      }
+    } catch (e, s) {
+      print("AuthBloc: Error checking National ID: $e\n$s");
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+         emit(const NationalIdCheckError(message: "Database index missing for National ID check. Please contact support."));
+      } else {
+         emit(NationalIdCheckError(message: "Error checking National ID: ${e.toString()}"));
+      }
+    }
+  }
+
+  // --- Helper Methods ---
+
+  /// Helper to update FCM token in Firestore
+  Future<void> _updateTokenInFirestore(String? token, String? userId) async {
+      if (token == null || userId == null) return;
+      print("Attempting to update FCM token in Firestore for user $userId");
+      try {
+         await _firestore.collection('endUsers').doc(userId).set({
+           'fcmTokens': FieldValue.arrayUnion([token]) // Add token to array if not present
+         }, SetOptions(merge: true)); // Merge to avoid overwriting other fields
+         print("FCM Token update/add attempted in Firestore.");
+      } catch (e) { print("Error saving FCM token to Firestore: $e"); }
+   }
+
+   /// Helper to remove FCM token from Firestore
+   Future<void> _removeTokenFromFirestore(String? token, String? userId) async {
+      if (token == null || userId == null) return;
+       print("Attempting to remove FCM token $token for user $userId");
+      try {
+         await _firestore.collection("endUsers").doc(userId).update({
+           'fcmTokens': FieldValue.arrayRemove([token]) // Remove specific token
+         });
+         print("FCM Token removal attempted in Firestore.");
+      } catch (e) { print("AuthBloc: Warning - Failed to remove FCM token from Firestore (might require backend): $e"); }
+   }
+
+} // End of AuthBloc
