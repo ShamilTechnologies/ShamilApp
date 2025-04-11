@@ -3,8 +3,10 @@ import 'package:bloc/bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // Import FCM for token removal
+import 'package:flutter/material.dart';
 import 'package:meta/meta.dart'; // For @immutable
 import 'package:equatable/equatable.dart';
+import 'package:shamil_mobile_app/core/functions/navigation.dart';
 import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
 // Import FamilyMember model for the check event state
@@ -301,6 +303,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         await AppLocalStorage.cacheData(key: AppLocalStorage.userToken, value: null);
         print("AuthBloc: Local storage cleared.");
 
+
+
+
         // Attempt to remove the token from Firestore *after* sign out (using stored UID)
         if (currentUserId != null && currentToken != null) {
            await _removeTokenFromFirestore(currentToken, currentUserId);
@@ -313,6 +318,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         // Emit initial/unauthenticated state
         emit(const AuthInitial());
         print("AuthBloc: Emitted AuthInitial state after logout.");
+
+
 
      } catch (e, s) {
         print("AuthBloc: Error during logout: $e\n$s");
