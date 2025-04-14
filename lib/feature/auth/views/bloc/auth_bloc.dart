@@ -6,7 +6,6 @@ import 'package:firebase_messaging/firebase_messaging.dart'; // Import FCM for t
 import 'package:flutter/material.dart';
 import 'package:meta/meta.dart'; // For @immutable
 import 'package:equatable/equatable.dart';
-import 'package:shamil_mobile_app/core/functions/navigation.dart';
 import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
 // Import FamilyMember model for the check event state

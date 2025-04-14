@@ -1,11 +1,10 @@
-import 'dart:async';
 import 'dart:math'; // Import for Random and pi
 import 'dart:typed_data'; // Import for Uint8List
 import 'package:flutter/material.dart';
-import 'package:shamil_mobile_app/core/functions/navigation.dart'; // Keep for other potential uses
+// Keep for other potential uses
 import 'package:shamil_mobile_app/feature/navigation/main_navigation_view.dart'; // Import main navigation
 import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Import text styles
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Import AppColors if needed by placeholder
+// Import AppColors if needed by placeholder
 
 // Placeholder for transparent image data (1x1 pixel PNG)
 // Consider moving this to a shared constants file (e.g., lib/core/constants/image_constants.dart)

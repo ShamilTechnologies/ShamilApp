@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Keep for fallback/specific colors if needed
-import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Can likely remove if theme covers all styles
+// Keep for fallback/specific colors if needed
+// Can likely remove if theme covers all styles
 
 // Callback type for when a category is selected
 typedef CategorySelectedCallback = void Function(String category);

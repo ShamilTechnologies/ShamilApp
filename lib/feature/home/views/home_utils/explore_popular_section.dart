@@ -182,7 +182,7 @@ class ExplorePopularSection extends StatelessWidget {
         : 'https://placehold.co/340x400/e0e0e0/757575?text=No+Image'; // Placeholder URL
 
     final String ratingString =
-        provider.rating?.toStringAsFixed(1) ?? 'N/A'; // Handle null rating
+        provider.rating.toStringAsFixed(1) ?? 'N/A'; // Handle null rating
     // TODO: Add state management for isFavorite
     const bool isFavorite = false; // Placeholder favorite state
 
@@ -329,7 +329,7 @@ class ExplorePopularSection extends StatelessWidget {
                                         color: Colors.white.withOpacity(0.5),
                                         width: 0.5) // Subtle border
                                     ),
-                                child: Icon(
+                                child: const Icon(
                                   // Show filled heart if favorite, outline otherwise
                                   isFavorite
                                       ? Icons.favorite_rounded

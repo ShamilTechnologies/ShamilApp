@@ -18,7 +18,8 @@ class ExploreSearchBar extends StatelessWidget {
         Icons.search_rounded, // Use rounded icon
         // *** Use color from the theme's InputDecorationTheme ***
         // Provide a fallback color if the theme doesn't define one.
-        color: theme.inputDecorationTheme.prefixIconColor ?? AppColors.secondaryColor.withOpacity(0.7),
+        color: theme.inputDecorationTheme.prefixIconColor ??
+            AppColors.secondaryColor.withOpacity(0.7),
         size: 22, // Optional: Adjust size
       ),
       textInputAction: TextInputAction.search,

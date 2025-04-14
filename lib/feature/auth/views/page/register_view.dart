@@ -328,14 +328,16 @@ class _RegisterViewState extends State<RegisterView>
                         showGlobalSnackBar(context, state.message,
                             isError: true);
                         // Clear pre-fill if error occurs after successful pre-fill
-                        if (_isPrefilled && mounted)
+                        if (_isPrefilled && mounted) {
                           setState(() => _clearPrefill(keepNatId: true));
+                        }
                       } else if (state is NationalIdNotFoundOrRegistered) {
                         print(
                             "National ID not found as external member or already registered.");
                         // Clear pre-fill state if user previously had data loaded
-                        if (_isPrefilled && mounted)
+                        if (_isPrefilled && mounted) {
                           setState(() => _clearPrefill(keepNatId: true));
+                        }
                       }
                     },
                     // Build UI based on general loading state (for registration attempt)
@@ -480,8 +482,9 @@ class _RegisterViewState extends State<RegisterView>
           LengthLimitingTextInputFormatter(20),
         ],
         validator: (value) {
-          if (value == null || value.trim().isEmpty)
+          if (value == null || value.trim().isEmpty) {
             return 'Username is required';
+          }
           if (value.length < 3) return 'Min 3 characters';
           if (value.contains(' ')) return 'No spaces allowed';
           if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
@@ -632,8 +635,9 @@ class _RegisterViewState extends State<RegisterView>
         prefixIcon: const Icon(Icons.lock_outline, size: 20),
         validator: (value) {
           if (value == null || value.isEmpty) return 'Required';
-          if (value != _passwordController.text)
+          if (value != _passwordController.text) {
             return 'Passwords do not match';
+          }
           return null;
         },
       ),

@@ -225,7 +225,7 @@ class _FindFriendsViewState extends State<FindFriendsView> {
                     // Squared Photo Logic
                     const double listAvatarSize = 48.0;
                     final listBorderRadius = BorderRadius.circular(10.0);
-                    final String? profilePicUrl =
+                    final String profilePicUrl =
                         user.profilePicUrl ?? user.image;
                     Widget leadingWidget = SizedBox(
                       width: listAvatarSize,
@@ -302,7 +302,7 @@ class _FindFriendsViewState extends State<FindFriendsView> {
         // Already friends - show disabled "Friends" button
         return OutlinedButton(
           style: outlinedButtonStyle.copyWith(
-              foregroundColor: MaterialStateProperty.all(Colors.grey)),
+              foregroundColor: WidgetStateProperty.all(Colors.grey)),
           onPressed: null,
           child: const Text("Friends"),
         );
@@ -311,8 +311,8 @@ class _FindFriendsViewState extends State<FindFriendsView> {
         return OutlinedButton(
           style: outlinedButtonStyle.copyWith(
               foregroundColor:
-                  MaterialStateProperty.all(Colors.orange.shade800),
-              side: MaterialStateProperty.all(
+                  WidgetStateProperty.all(Colors.orange.shade800),
+              side: WidgetStateProperty.all(
                   BorderSide(color: Colors.orange.shade300))),
           onPressed: () => _unsendRequest(targetUser), // Call unsend handler
           child: const Text("Sent"),
@@ -329,7 +329,7 @@ class _FindFriendsViewState extends State<FindFriendsView> {
           },
           style: buttonStyle.copyWith(
               backgroundColor:
-                  MaterialStateProperty.all(Colors.green.shade600)),
+                  WidgetStateProperty.all(Colors.green.shade600)),
           child: const Text("Accept"),
         );
       case FriendshipStatus.none:

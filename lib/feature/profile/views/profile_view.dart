@@ -7,7 +7,6 @@ import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Keep for poten
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shamil_mobile_app/core/widgets/actionScreens.dart'; // For LoadingScreen
-import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
 import 'dart:typed_data'; // Import for Uint8List for placeholder
 
 // Import Social Bloc & Event

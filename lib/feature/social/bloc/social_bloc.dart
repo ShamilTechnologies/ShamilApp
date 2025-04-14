@@ -148,10 +148,14 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
       if (querySnapshot.docs.isNotEmpty) { if (querySnapshot.docs.first.id != _userId) { foundUser = AuthModel.fromFirestore(querySnapshot.docs.first); print("SocialBloc: Found user by ID: ${foundUser.name}"); } else { print("SocialBloc: User tried to link themselves."); emit(const SocialError(message: "You cannot add yourself as a family member.")); emit(UserSearchResult(foundUser: null, searchedId: event.nationalId)); if (previousState is FamilyDataLoaded) emit(previousState); return; } }
       else { print("SocialBloc: No user found with National ID: ${event.nationalId}"); }
       emit(UserSearchResult(foundUser: foundUser, searchedId: event.nationalId));
-      if (previousState is FamilyDataLoaded) emit(previousState); else if (previousState is FriendsAndRequestsLoaded) emit(previousState); else if (previousState is SocialInitial || previousState is SocialLoading) { add(const LoadFamilyMembers()); }
+      if (previousState is FamilyDataLoaded) {
+        emit(previousState);
+      } else if (previousState is FriendsAndRequestsLoaded) emit(previousState); else if (previousState is SocialInitial || previousState is SocialLoading) { add(const LoadFamilyMembers()); }
     } catch (e) {
       print("SocialBloc: Error searching user by National ID: $e"); String errorMessage = "Error searching user: ${e.toString()}"; if (e is FirebaseException && e.code == 'failed-precondition') { errorMessage = "Database index missing for user search."; } emit(SocialError(message: errorMessage)); emit(UserSearchResult(foundUser: null, searchedId: event.nationalId));
-      if (previousState is FamilyDataLoaded) emit(previousState); else if (previousState is FriendsAndRequestsLoaded) emit(previousState); else if (previousState is SocialInitial) emit(SocialInitial());
+      if (previousState is FamilyDataLoaded) {
+        emit(previousState);
+      } else if (previousState is FriendsAndRequestsLoaded) emit(previousState); else if (previousState is SocialInitial) emit(SocialInitial());
     }
   }
 

@@ -185,7 +185,7 @@ class ExploreRecommendedSection extends StatelessWidget {
         ? provider.imageUrl!
         : 'https://placehold.co/340x400/e0e0e0/757575?text=No+Image'; // Placeholder
 
-    final String ratingString = provider.rating?.toStringAsFixed(1) ?? 'N/A';
+    final String ratingString = provider.rating.toStringAsFixed(1) ?? 'N/A';
     // TODO: Add state management for isFavorite
     const bool isFavorite = false; // Placeholder favorite state
 
@@ -312,7 +312,7 @@ class ExploreRecommendedSection extends StatelessWidget {
                                     border: Border.all(
                                         color: Colors.white.withOpacity(0.5),
                                         width: 0.5)),
-                                child: Icon(
+                                child: const Icon(
                                     isFavorite
                                         ? Icons.favorite_rounded
                                         : Icons.favorite_border_rounded,

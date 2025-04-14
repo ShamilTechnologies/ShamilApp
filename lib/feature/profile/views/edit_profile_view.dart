@@ -194,7 +194,7 @@ class _EditProfileViewState extends State<EditProfileView> {
       ),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state is LoginSuccessState && state.user.updatedAt != null && state.user.updatedAt!.millisecondsSinceEpoch > DateTime.now().millisecondsSinceEpoch - 2000) {
+          if (state is LoginSuccessState && state.user.updatedAt.millisecondsSinceEpoch > DateTime.now().millisecondsSinceEpoch - 2000) {
             // Check if the state update is recent (indicating success from *this* update)
             showGlobalSnackBar(context, "Profile updated successfully!");
             // Pop back to profile screen after successful update

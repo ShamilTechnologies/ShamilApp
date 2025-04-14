@@ -37,7 +37,7 @@ class ProfileOptionsSection extends StatelessWidget {
             context, Icons.person_outline_rounded, 'Edit Profile', () {
           print("Navigate to Edit Profile");
           Navigator.push(
-              context, MaterialPageRoute(builder: (_) => EditProfileView()));
+              context, MaterialPageRoute(builder: (_) => const EditProfileView()));
         }),
         _buildProfileOption(context, Icons.people_alt_outlined, 'Friends', () {
           // Navigate to Friends screen, passing the SocialBloc instance
