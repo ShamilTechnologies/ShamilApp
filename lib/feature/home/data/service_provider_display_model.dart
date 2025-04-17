@@ -1,9 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:equatable/equatable.dart'; // Import Equatable
+import 'package:cloud_firestore/cloud_firestore.dart'; // Keep for GeoPoint if needed, or remove if location removed
+import 'package:equatable/equatable.dart';
 
-/// Represents the data needed to display a service provider
-/// in the home screen lists (Popular, Recommended) or detail views.
-class ServiceProviderDisplayModel extends Equatable { // Extend Equatable
+/// Represents the data needed specifically to display a service provider
+/// in the home screen lists (Popular, Recommended).
+/// This model is typically created by mapping data from the full ServiceProvider model.
+class ServiceProviderDisplayModel extends Equatable {
   final String id; // Document ID from Firestore
   final String businessName;
   final String category; // e.g., "Sports & Fitness", "Entertainment"
@@ -11,57 +12,34 @@ class ServiceProviderDisplayModel extends Equatable { // Extend Equatable
   final double rating; // Average rating
   final int reviewCount; // Number of reviews
   final String city; // City/Governorate where the provider is located
-  final String? address; // Full display address
-  final GeoPoint? location; // Geographic coordinates
+  // Removed address and location as they are less likely needed for card display
 
-  const ServiceProviderDisplayModel({ // Use const constructor
+  const ServiceProviderDisplayModel({
     required this.id,
     required this.businessName,
     required this.category,
     this.imageUrl,
     this.rating = 0.0,
-    this.reviewCount = 0, // Default review count
+    this.reviewCount = 0,
     required this.city,
-    this.address, // Make address optional
-    this.location, // Make location optional
   });
 
-  /// Factory constructor to create a ServiceProviderDisplayModel from a Firestore document snapshot.
-  factory ServiceProviderDisplayModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  // Removed fromFirestore factory - mapping should happen in the Bloc
 
-    // Safely extract data, providing defaults
-    // NOTE: Adjust field names ('businessName', 'category', 'mainImageUrl', 'averageRating', 'reviewCount', 'city', 'address', 'location')
-    //       to match the actual field names in your 'serviceProviders' Firestore collection!
-    return ServiceProviderDisplayModel(
-      id: doc.id,
-      businessName: data['businessName'] as String? ?? 'Unknown Name',
-      category: data['category'] as String? ?? 'Uncategorized',
-      imageUrl: data['mainImageUrl'] as String?, // Assuming 'mainImageUrl'
-      rating: (data['averageRating'] as num?)?.toDouble() ?? 0.0, // Assuming 'averageRating'
-      reviewCount: (data['reviewCount'] as num?)?.toInt() ?? 0, // Assuming 'reviewCount'
-      city: data['city'] as String? ?? 'Unknown City',
-      address: data['address'] as String?, // Assuming 'address'
-      location: data['location'] as GeoPoint?, // Assuming 'location' is a GeoPoint
-    );
-  }
-
-  /// Converts the model instance to a Map. Useful for debugging or potential future use.
+  /// Converts the model instance to a Map. Useful for debugging.
   Map<String, dynamic> toMap() {
     return {
-      'id': id, // Include ID in map
+      'id': id,
       'businessName': businessName,
       'category': category,
       'imageUrl': imageUrl,
       'rating': rating,
       'reviewCount': reviewCount,
       'city': city,
-      'address': address,
-      'location': location,
     };
   }
 
-   /// Creates a copy of this instance with potentially modified fields.
+  /// Creates a copy of this instance with potentially modified fields.
   ServiceProviderDisplayModel copyWith({
     String? id,
     String? businessName,
@@ -70,23 +48,17 @@ class ServiceProviderDisplayModel extends Equatable { // Extend Equatable
     double? rating,
     int? reviewCount,
     String? city,
-    String? address,
-    GeoPoint? location,
   }) {
     return ServiceProviderDisplayModel(
       id: id ?? this.id,
       businessName: businessName ?? this.businessName,
       category: category ?? this.category,
-      // Handle potential null assignment for optional fields if needed
       imageUrl: imageUrl ?? this.imageUrl,
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       city: city ?? this.city,
-      address: address ?? this.address,
-      location: location ?? this.location,
     );
   }
-
 
   // Override props for Equatable comparison
   @override
@@ -98,13 +70,12 @@ class ServiceProviderDisplayModel extends Equatable { // Extend Equatable
         rating,
         reviewCount,
         city,
-        address,
-        location,
+        // Removed address, location
       ];
 
   // Optional: Override toString for better debugging output
   @override
   String toString() {
-    return 'ServiceProviderDisplayModel(id: $id, businessName: $businessName, category: $category, rating: $rating, city: $city)';
+    return 'ServiceProviderDisplayModel(id: $id, name: $businessName, category: $category, rating: $rating, city: $city)';
   }
 }

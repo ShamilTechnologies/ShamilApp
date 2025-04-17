@@ -1,13 +1,11 @@
-part of 'home_bloc.dart';
+part of 'home_bloc.dart'; // Ensures this is part of the home_bloc library
 
-// Import the necessary models
-
-
+@immutable // Mark states as immutable
 abstract class HomeState extends Equatable {
   const HomeState();
 
   @override
-  List<Object?> get props => [];
+  List<Object?> get props => []; // Default props for states without specific data
 }
 
 /// Initial state before any loading starts.
@@ -34,7 +32,7 @@ class HomeLoaded extends HomeState {
         homeModel,
         popularProviders,
         recommendedProviders,
-      ]; // Include new lists in props
+      ]; // Include all fields in props for Equatable comparison
 
   /// Creates a copy of the HomeLoaded state with potentially updated values.
   /// Useful for immutable state updates in the Bloc.
@@ -53,7 +51,7 @@ class HomeLoaded extends HomeState {
    // Optional: Override toString for better debugging output
   @override
   String toString() {
-    return 'HomeLoaded(homeModel: $homeModel, popularProviders: ${popularProviders.length}, recommendedProviders: ${recommendedProviders.length})';
+    return 'HomeLoaded(city: ${homeModel.city}, popular: ${popularProviders.length}, recommended: ${recommendedProviders.length})';
   }
 }
 
@@ -64,5 +62,5 @@ class HomeError extends HomeState {
   const HomeError({required this.message});
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message]; // Include message in props
 }

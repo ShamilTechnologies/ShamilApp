@@ -1,116 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Keep if AppColors are used for specifics
-import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Keep if getSmallStyle is used, otherwise prefer theme
-import 'package:gap/gap.dart'; // For spacing
-import 'dart:typed_data'; // For Uint8List (though constant is imported now)
+import 'package:shamil_mobile_app/core/utils/colors.dart'; // Use AppColors
+import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Use text styles if needed, else rely on theme
+import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart'; // Import display model
+import 'package:shamil_mobile_app/core/constants/image_constants.dart'; // Import image constant
+import 'package:shamil_mobile_app/core/functions/navigation.dart'; // Import navigation helper
 
-// *** Import the CORRECT display model ***
-import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
-// *** Import shared image constants ***
-import 'package:shamil_mobile_app/core/constants/image_constants.dart';
-// Import navigation helper
-import 'package:shamil_mobile_app/core/functions/navigation.dart';
-// Import placeholder detail screen (or actual screen when created)
+class ServiceProviderCard extends StatelessWidget {
+  final ServiceProviderDisplayModel provider;
 
-// --- REMOVED local constants ---
-// const List<int> kTransparentImage = <int>[ ... ];
-// final Uint8List _transparentImageData = Uint8List.fromList(kTransparentImage);
-
-class ExplorePopularSection extends StatelessWidget {
-  // Accept a list of ServiceProviderDisplayModel (passed from parent widget)
-  final List<ServiceProviderDisplayModel> popularProviders;
-
-  const ExplorePopularSection({
+  const ServiceProviderCard({
     super.key,
-    required this.popularProviders,
+    required this.provider,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    // Section Header (using theme)
-    Widget header = Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            "Popular", // Or "Popular Near You"
-            style: theme.textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold), // Use titleLarge
-          ),
-          TextButton(
-            onPressed: () {
-              // TODO: Handle "See all" navigation.
-              print("See all Popular tapped");
-            },
-            child: Text(
-              'See all',
-              // Use theme text style for consistency
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    // Handle empty state
-    if (popularProviders.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          header,
-          Container(
-            width: double.infinity,
-            padding:
-                const EdgeInsets.symmetric(vertical: 40.0, horizontal: 16.0),
-            alignment: Alignment.center,
-            child: Text(
-              "No popular places found nearby yet.",
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.secondary), // Use theme color
-              textAlign: TextAlign.center,
-            ),
-          ),
-          // const SizedBox(height: 10), // Gap handles spacing now
-        ],
-      );
-    }
-
-    // Build the section with the horizontal list
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        header,
-        SizedBox(
-          height: 220, // Height for the horizontal list container
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(), // Use bouncy scroll
-            itemCount: popularProviders.length,
-            // Padding handled by parent in home_view now
-            padding:
-                const EdgeInsets.symmetric(vertical: 4.0), // Padding for shadow
-            clipBehavior: Clip.none, // Allow shadows to be visible
-            separatorBuilder: (context, index) =>
-                const SizedBox(width: 16), // Space between cards
-            itemBuilder: (context, index) {
-              final provider = popularProviders[index];
-              // Build the card item using the provided design
-              return _buildNewCardItem(context, provider);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Builds a single card item with the new design.
-  Widget _buildNewCardItem(
-      BuildContext context, ServiceProviderDisplayModel provider) {
     final theme = Theme.of(context);
     final cardBorderRadius = BorderRadius.circular(16.0);
     // Use placeholder if imageUrl is null or empty
@@ -136,10 +40,9 @@ class ExplorePopularSection extends StatelessWidget {
         child: InkWell(
           // Make card tappable with ripple
           onTap: () {
-            // *** ADDED Navigation ***
-            print("Item tapped: ${provider.businessName} (ID: ${provider.id})");
             // Navigate to detail screen, passing the provider ID
-            // push(context, ServiceProviderDetailScreen(providerId: provider.id));
+            print("Card tapped: ${provider.businessName} (ID: ${provider.id})");
+            //push(context, ServiceProviderDetailScreen(providerId: provider.id));
           },
           borderRadius: cardBorderRadius,
           child: Stack(
@@ -148,7 +51,7 @@ class ExplorePopularSection extends StatelessWidget {
               // Background Image
               Positioned.fill(
                 child: FadeInImage.memoryNetwork(
-                  // *** Use imported constant ***
+                  // Use imported constant
                   placeholder: transparentImageData,
                   image: imageUrl,
                   fit: BoxFit.cover,
@@ -171,8 +74,7 @@ class ExplorePopularSection extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.vertical(
-                        bottom: cardBorderRadius
-                            .bottomLeft // Apply radius only to bottom
+                        bottom: cardBorderRadius.bottomLeft // Apply radius only to bottom
                         ),
                     gradient: LinearGradient(
                       colors: [
@@ -236,19 +138,14 @@ class ExplorePopularSection extends StatelessWidget {
                                               fontWeight: FontWeight.w600),
                                     ),
                                     // Optional: Review Count
-                                    if (provider.reviewCount > 0)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(left: 4.0),
-                                        child: Text(
-                                          "(${provider.reviewCount})",
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                  color: Colors.white
-                                                      .withOpacity(0.8),
-                                                  fontSize: 12),
-                                        ),
-                                      ),
+                                     if (provider.reviewCount > 0)
+                                       Padding(
+                                         padding: const EdgeInsets.only(left: 4.0),
+                                         child: Text(
+                                           "(${provider.reviewCount})",
+                                           style: theme.textTheme.bodySmall?.copyWith(color: Colors.white.withOpacity(0.8), fontSize: 12),
+                                          ),
+                                       ),
                                   ],
                                 ),
                               ],
