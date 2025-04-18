@@ -1,4 +1,5 @@
 import 'dart:async'; // For Timer if using debounced onChanged
+import 'dart:io'; // For File type (needed by UploadIdEvent, though not used directly here)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart'; // Use Gap for spacing
@@ -13,10 +14,13 @@ import 'package:shamil_mobile_app/core/widgets/actionScreens.dart'; // For Succe
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
 import 'package:flutter/services.dart'; // For InputFormatters
-// Import FamilyMember model for pre-filling
+import 'package:intl/intl.dart'; // For DateFormat
+// *** CORRECTED IMPORT: Import FamilyMember model for pre-filling ***
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
 
-/// SmoothTypingText widget animates text display.
+// Assuming SmoothTypingText is defined elsewhere or replace with standard Text
+// If SmoothTypingText is local, keep its definition here.
+// For brevity, assuming it exists or replacing with Text for now.
 class SmoothTypingText extends StatefulWidget {
   final String text;
   final TextStyle style;
@@ -108,8 +112,8 @@ class _RegisterViewState extends State<RegisterView>
   final FocusNode _nationalIdFocusNode = FocusNode();
 
   // --- Other State Variables ---
-  String _selectedCountryCode = '+20';
-  String _selectedGender = 'Male';
+  String _selectedCountryCode = '+20'; // Default to Egypt
+  String _selectedGender = 'Male'; // Default Gender
   // State variables for pre-fill logic
   String? _parentUserId;
   String? _familyMemberDocId;
@@ -134,11 +138,12 @@ class _RegisterViewState extends State<RegisterView>
       duration: const Duration(milliseconds: 800),
     );
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.5),
+      begin: const Offset(0, 0.5), // Start slightly below center
       end: Offset.zero,
     ).animate(
       CurvedAnimation(parent: _slideController, curve: Curves.easeOutQuart),
     );
+    // Start animation shortly after build
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) _slideController.forward();
     });
@@ -153,7 +158,7 @@ class _RegisterViewState extends State<RegisterView>
     }
   }
 
-  /// Dispatches event to check National ID against external family members.
+  /// Dispatches event to check National ID against registered users and external family members.
   void _checkNationalId() {
     final nationalId = _nationalIdController.text.trim();
     if (nationalId.length == 14) {
@@ -194,7 +199,7 @@ class _RegisterViewState extends State<RegisterView>
     _emailController.text = data.email ?? '';
     _phoneController.text =
         _extractPhoneNumber(data.phone); // Helper to extract number part
-    _dobController.text = data.dob ?? '';
+    _dobController.text = data.dob ?? ''; // Use DOB if available
     _selectedGender = data.gender ?? 'Male'; // Default if null
 
     // Store IDs needed for registration linking
@@ -214,13 +219,13 @@ class _RegisterViewState extends State<RegisterView>
       return fullPhone.substring(_selectedCountryCode.length).trim();
     }
     // Add more sophisticated checks if needed (regex for country codes)
-    return fullPhone; // Return full if prefix not matched or complex
+    return fullPhone
+        .trim(); // Return trimmed full if prefix not matched or complex
   }
 
   /// Clears pre-filled data and resets flags.
   void _clearPrefill({bool keepNatId = false}) {
     print("Clearing pre-filled data.");
-    // Don't clear National ID if keepNatId is true (e.g., during re-check)
     if (!keepNatId) _nationalIdController.clear();
     _firstNameController.clear();
     _middleNameController.clear();
@@ -232,6 +237,23 @@ class _RegisterViewState extends State<RegisterView>
     _parentUserId = null;
     _familyMemberDocId = null;
     _isPrefilled = false;
+  }
+
+  /// Shows the date picker dialog.
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now()
+          .subtract(const Duration(days: 365 * 18)), // Default to 18 years ago
+      firstDate: DateTime(1920), // Reasonable earliest date
+      lastDate: DateTime.now(), // Cannot select future date
+    );
+    if (picked != null) {
+      setState(() {
+        // Format the date as yyyy-MM-dd (or your preferred format)
+        _dobController.text = DateFormat('yyyy-MM-dd').format(picked);
+      });
+    }
   }
 
   @override
@@ -273,17 +295,16 @@ class _RegisterViewState extends State<RegisterView>
                         current is AuthErrorState || // General auth errors
                         current
                             is ExistingFamilyMemberFound || // Nat ID check results
-                        current is NationalIdCheckError ||
-                        current is NationalIdNotFoundOrRegistered,
+                        current is NationalIdCheckFailed || // Renamed state
+                        current is NationalIdAlreadyRegistered || // Added state
+                        current is NationalIdAvailable, // Renamed state
                     listener: (context, state) {
-                      FocusScope.of(context)
-                          .unfocus(); // Dismiss keyboard on state changes
+                      FocusScope.of(context).unfocus(); // Dismiss keyboard
 
                       // Stop Nat ID check indicator AFTER Bloc processing is done
-                      // Check if the current state is NOT the loading state we use for the check
-                      if (_isCheckingNatId && state is! AuthLoadingState) {
+                      bool wasChecking = _isCheckingNatId;
+                      if (wasChecking && state is! AuthLoadingState) {
                         if (mounted) {
-                          // Ensure widget is still mounted
                           setState(() {
                             _isCheckingNatId = false;
                           });
@@ -324,20 +345,34 @@ class _RegisterViewState extends State<RegisterView>
                                 state.parentUserId, state.familyDocId);
                           });
                         }
-                      } else if (state is NationalIdCheckError) {
+                      }
+                      // Handle National ID Check Failure (Index error, network error, etc.)
+                      else if (state is NationalIdCheckFailed) {
                         showGlobalSnackBar(context, state.message,
                             isError: true);
-                        // Clear pre-fill if error occurs after successful pre-fill
                         if (_isPrefilled && mounted) {
                           setState(() => _clearPrefill(keepNatId: true));
                         }
-                      } else if (state is NationalIdNotFoundOrRegistered) {
-                        print(
-                            "National ID not found as external member or already registered.");
-                        // Clear pre-fill state if user previously had data loaded
+                      }
+                      // Handle National ID Already Registered by another user
+                      else if (state is NationalIdAlreadyRegistered) {
+                        // *** ADDED HANDLER ***
+                        showGlobalSnackBar(context,
+                            "This National ID is already registered to another user.",
+                            isError: true);
                         if (_isPrefilled && mounted) {
                           setState(() => _clearPrefill(keepNatId: true));
                         }
+                      }
+                      // Handle National ID Available (Not found anywhere)
+                      else if (state is NationalIdAvailable) {
+                        print("National ID is available.");
+                        // Clear pre-fill state if user previously had data loaded then entered a different, available ID
+                        if (_isPrefilled && mounted) {
+                          setState(() => _clearPrefill(keepNatId: true));
+                        }
+                        // Optionally show a subtle success indicator or just allow proceeding
+                        // showGlobalSnackBar(context, "National ID is available.", isError: false);
                       }
                     },
                     // Build UI based on general loading state (for registration attempt)
@@ -349,10 +384,15 @@ class _RegisterViewState extends State<RegisterView>
                     builder: (context, state) {
                       // General loading state affects button/field enabled status
                       // _isCheckingNatId handles the specific indicator for the ID field check
-                      final isLoading = state is AuthLoadingState;
+                      final isLoading = state is AuthLoadingState &&
+                          state.message ==
+                              null; // Use general loading state, ignore Nat ID check loading state here
                       return Form(
                         key: _formKey,
+                        // *** ADDED Autovalidate Mode ***
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
                         child: ListView(
+                          // Use ListView for scrollability
                           physics: const BouncingScrollPhysics(),
                           padding: const EdgeInsets.only(bottom: 20, top: 10),
                           children:
@@ -381,13 +421,14 @@ class _RegisterViewState extends State<RegisterView>
     return Padding(
       padding: EdgeInsets.only(top: topPadding),
       child: Container(
-        height: fixedHeight,
+        height: fixedHeight, // Ensure enough height for text
         alignment: Alignment.centerLeft,
         child: SmoothTypingText(
+          // Use ValueKey to force rebuild when keyboard state changes text
           key: ValueKey(isKeyboardOpen),
           text: welcomeText,
           style: Theme.of(context).textTheme.displayMedium!.copyWith(
-                height: 1.1,
+                height: 1.1, // Adjust line height
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.w800,
                 fontSize: welcomeFontSize,
@@ -427,7 +468,7 @@ class _RegisterViewState extends State<RegisterView>
             child: GeneralTextFormField(
               labelText: 'First Name*',
               controller: _firstNameController,
-              enabled: !isLoading,
+              enabled: !isLoading && !_isPrefilled,
               textInputAction: TextInputAction.next,
               validator: (v) => v!.trim().isEmpty ? 'Required' : null,
               prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
@@ -438,7 +479,7 @@ class _RegisterViewState extends State<RegisterView>
             child: GeneralTextFormField(
               labelText: 'Middle Name',
               controller: _middleNameController,
-              enabled: !isLoading,
+              enabled: !isLoading && !_isPrefilled,
               textInputAction: TextInputAction.next,
               validator: null,
             ),
@@ -448,14 +489,13 @@ class _RegisterViewState extends State<RegisterView>
             child: GeneralTextFormField(
               labelText: 'Last Name*',
               controller: _lastNameController,
-              enabled: !isLoading,
+              enabled: !isLoading && !_isPrefilled,
               textInputAction: TextInputAction.next,
               validator: (v) => v!.trim().isEmpty ? 'Required' : null,
             ),
           ),
         ],
       ),
-      // Show note if pre-filled
       if (_isPrefilled)
         Padding(
           padding: const EdgeInsets.only(top: 6.0),
@@ -482,19 +522,18 @@ class _RegisterViewState extends State<RegisterView>
           LengthLimitingTextInputFormatter(20),
         ],
         validator: (value) {
-          if (value == null || value.trim().isEmpty) {
-            return 'Username is required';
-          }
+          if (value == null || value.trim().isEmpty) return 'Required';
           if (value.length < 3) return 'Min 3 characters';
           if (value.contains(' ')) return 'No spaces allowed';
-          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value))
             return 'Invalid characters';
-          }
           return null;
         },
       ),
       const Gap(16),
-      EmailTextFormField(controller: _emailController, enabled: !isLoading),
+      EmailTextFormField(
+          controller: _emailController,
+          enabled: !isLoading && !_isPrefilled), // Disable if prefilled
       const Gap(24), const Divider(thickness: 0.5, height: 1), const Gap(24),
 
       // --- Contact & Personal Info ---
@@ -505,7 +544,7 @@ class _RegisterViewState extends State<RegisterView>
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
+          /* ... Country Code Picker ... */ Container(
             decoration: BoxDecoration(
                 color: isLoading
                     ? Colors.grey.shade200
@@ -541,7 +580,7 @@ class _RegisterViewState extends State<RegisterView>
               controller: _phoneController,
               labelText: 'Phone Number*',
               keyboardType: TextInputType.phone,
-              enabled: !isLoading,
+              enabled: !isLoading && !_isPrefilled,
               textInputAction: TextInputAction.next,
               validator: (v) => v!.trim().isEmpty ? 'Required' : null,
               prefixIcon: const Icon(Icons.phone_outlined, size: 20),
@@ -550,16 +589,15 @@ class _RegisterViewState extends State<RegisterView>
         ],
       ),
       const Gap(16),
-      // National ID Field with FocusNode and Suffix
       GeneralTextFormField(
         controller: _nationalIdController,
-        focusNode: _nationalIdFocusNode, // Assign FocusNode
+        focusNode: _nationalIdFocusNode,
         labelText: 'National ID*',
         keyboardType: TextInputType.number,
         enabled: !isLoading,
-        readOnly: _isCheckingNatId, // Prevent editing while checking
+        readOnly: _isCheckingNatId,
         prefixIcon: const Icon(Icons.badge_outlined, size: 20),
-        suffixIcon: nationalIdSuffix, // Show loading/check icon
+        suffixIcon: nationalIdSuffix,
         inputFormatters: [
           FilteringTextInputFormatter.digitsOnly,
           LengthLimitingTextInputFormatter(14)
@@ -570,7 +608,6 @@ class _RegisterViewState extends State<RegisterView>
           if (value.length != 14) return 'Must be 14 digits';
           return null;
         },
-        // onChanged listener could also trigger _checkNationalId with debounce
       ),
       const Gap(16),
       Row(
@@ -581,10 +618,11 @@ class _RegisterViewState extends State<RegisterView>
               controller: _dobController,
               labelText: 'Date of Birth*',
               readOnly: true,
-              enabled: !isLoading,
+              enabled: !isLoading && !_isPrefilled,
               prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+              // *** IMPLEMENTED Date Picker onTap ***
               onTap:
-                  isLoading ? null : () async {/* ... DatePicker logic ... */},
+                  isLoading || _isPrefilled ? null : () => _selectDate(context),
               validator: (value) =>
                   (value == null || value.isEmpty) ? 'Required' : null,
             ),
@@ -600,8 +638,8 @@ class _RegisterViewState extends State<RegisterView>
                       ))
                   .toList(),
               value: _selectedGender,
-              enabled: !isLoading,
-              onChanged: isLoading
+              enabled: !isLoading && !_isPrefilled,
+              onChanged: isLoading || _isPrefilled
                   ? null
                   : (value) {
                       setState(() {
@@ -635,9 +673,8 @@ class _RegisterViewState extends State<RegisterView>
         prefixIcon: const Icon(Icons.lock_outline, size: 20),
         validator: (value) {
           if (value == null || value.isEmpty) return 'Required';
-          if (value != _passwordController.text) {
+          if (value != _passwordController.text)
             return 'Passwords do not match';
-          }
           return null;
         },
       ),
@@ -682,15 +719,13 @@ class _RegisterViewState extends State<RegisterView>
       final firstName = _firstNameController.text.trim();
       final middleName = _middleNameController.text.trim();
       final lastName = _lastNameController.text.trim();
-      // Combine names, handling potential empty middle name
       final fullName =
           "$firstName ${middleName.isNotEmpty ? '$middleName ' : ''}$lastName"
               .trim();
 
-      // Dispatch RegisterEvent, including optional linking IDs
       context.read<AuthBloc>().add(
             RegisterEvent(
-              name: fullName, // Use combined name
+              name: fullName,
               username: _usernameController.text.trim(),
               email: _emailController.text.trim(),
               password: _passwordController.text,
@@ -698,8 +733,7 @@ class _RegisterViewState extends State<RegisterView>
               phone: _selectedCountryCode + _phoneController.text.trim(),
               gender: _selectedGender,
               dob: _dobController.text.trim(),
-              // Pass stored IDs if available (will be null otherwise)
-              parentUserId: _parentUserId,
+              parentUserId: _parentUserId, // Pass linking info if available
               familyMemberDocId: _familyMemberDocId,
             ),
           );
@@ -708,7 +742,6 @@ class _RegisterViewState extends State<RegisterView>
 
   /// Navigates back to the Login screen.
   Future<void> _handleLoginNavigation() async {
-    // Use pushReplacement to avoid building up navigation stack
     pushReplacement(context, const LoginView());
   }
 

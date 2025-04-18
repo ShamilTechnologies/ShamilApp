@@ -1,4 +1,4 @@
-part of 'auth_bloc.dart';
+part of 'auth_bloc.dart'; // Links this file to auth_bloc.dart
 
 // Base class for all authentication-related events
 @immutable
@@ -23,7 +23,7 @@ class RegisterEvent extends AuthEvent {
   final String nationalId;
   final String phone;
   final String gender;
-  final String dob;
+  final String dob; // Consider using DateTime if parsed earlier
   // Optional fields for linking an existing external family member during registration
   final String? parentUserId;
   final String? familyMemberDocId;
