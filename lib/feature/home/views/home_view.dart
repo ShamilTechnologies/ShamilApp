@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
+// Import necessary functions, models, widgets etc.
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
-// Import extracted widgets and constants
-import 'package:shamil_mobile_app/core/utils/bottom_sheets.dart'; // Assume this exists
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Keep for potential use
-import 'package:shamil_mobile_app/core/constants/app_constants.dart'; // Import governorates
+import 'package:shamil_mobile_app/core/utils/bottom_sheets.dart';
+import 'package:shamil_mobile_app/core/utils/colors.dart';
+import 'package:shamil_mobile_app/core/constants/app_constants.dart';
 import 'package:shamil_mobile_app/feature/home/views/bloc/home_bloc.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
-import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart'; // For user name/pic
-import 'package:shamil_mobile_app/feature/auth/data/authModel.dart'; // For user name/pic
-import 'dart:typed_data'; // For Uint8List (used in shimmer)
+import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
+import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
+import 'dart:typed_data'; // For Uint8List
 
 // Import the section widgets
 import 'home_utils/explore_search_bar.dart';
@@ -18,11 +18,16 @@ import 'home_utils/explore_category_list.dart';
 import 'home_utils/explore_popular_section.dart';
 import 'home_utils/explore_recommended_section.dart';
 import 'home_utils/explore_top_section.dart';
-// Import extracted widgets
+import 'package:shamil_mobile_app/feature/home/widgets/explore_banner_carousel.dart';
+import 'package:shamil_mobile_app/feature/home/widgets/explore_offers_section.dart';
+import 'package:shamil_mobile_app/feature/home/widgets/explore_nearby_section.dart';
+// Import extracted helper widgets
 import 'package:shamil_mobile_app/feature/home/widgets/home_loading_shimmer.dart';
 import 'package:shamil_mobile_app/feature/home/widgets/home_error_widget.dart';
-// Import the access code content widget for the bottom sheet
-import 'package:shamil_mobile_app/feature/access/widgets/access_code_content.dart';
+// Import the AccessCodeView screen for navigation
+import 'package:shamil_mobile_app/feature/access/views/access_code_view.dart';
+// Import navigation helper
+import 'package:shamil_mobile_app/core/functions/navigation.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -32,18 +37,15 @@ class ExploreScreen extends StatefulWidget {
 }
 
 class _ExploreScreenState extends State<ExploreScreen> {
-  // Use imported governorates list
   final List<String> _governorates = kGovernorates;
-
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Load data when the screen initializes, using the Bloc provided higher up
+    // Load initial data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        // Ensure HomeBloc is accessible via context (provided higher up)
         final homeState = context.read<HomeBloc>().state;
         if (homeState is HomeInitial) {
           context.read<HomeBloc>().add(LoadHomeData());
@@ -63,12 +65,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Get user data from AuthBloc state - Use context.read or BlocBuilder if needed dynamically
-    final authState =
-        context.read<AuthBloc>().state; // Read once for initial build
+    final authState = context.read<AuthBloc>().state;
     String firstName = "User";
     String? profileImageUrl;
-    String? currentUserId; // Needed for bottom sheet content if passed there
+    String? currentUserId;
 
     if (authState is LoginSuccessState) {
       final nameParts = authState.user.name.split(' ');
@@ -79,25 +79,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
       if (profileImageUrl != null && profileImageUrl.isEmpty) {
         profileImageUrl = null;
       }
-      currentUserId = authState.user.uid; // Get user ID
+      currentUserId = authState.user.uid;
     }
 
-    // HomeBloc provided by MainNavigationView
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor, // Use theme background
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        // BlocBuilder now uses the HomeBloc provided by an ancestor
         child: BlocBuilder<HomeBloc, HomeState>(
           builder: (context, state) {
             // --- Loading State ---
             if (state is HomeLoading || state is HomeInitial) {
-              // Use extracted shimmer widget
               return Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0, vertical: 16.0),
-                // Use ListView for shimmer, allowing scrolling
+                padding: const EdgeInsets.all(16.0),
                 child: ListView(
-                  // *** REMOVED physics: const NeverScrollableScrollPhysics() to FIX OVERFLOW ***
+                  // Use ListView for shimmer
                   children: [
                     HomeLoadingShimmer(
                       userName: firstName,
@@ -109,16 +104,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
             }
             // --- Error State ---
             else if (state is HomeError) {
-              // Use extracted error widget
               return HomeErrorWidget(
                 message: state.message,
-                // Pass the callback to reload data
                 onRetry: () {
-                  try {
-                    context.read<HomeBloc>().add(LoadHomeData());
-                  } catch (e) {
-                    print("Error dispatching LoadHomeData on retry: $e");
-                  }
+                  context.read<HomeBloc>().add(LoadHomeData());
                 },
               );
             }
@@ -129,69 +118,141 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   state.popularProviders;
               final List<ServiceProviderDisplayModel> recommended =
                   state.recommendedProviders;
+              // TODO: Get banner, offer, and NEARBY data from state when implemented
+              final List<BannerModel> banners = []; // Placeholder
+              final List<ServiceProviderDisplayModel> offers =
+                  []; // Placeholder
+              final List<ServiceProviderDisplayModel> nearby =
+                  []; // Placeholder
 
               return RefreshIndicator(
                 onRefresh: () async {
-                  try {
-                    context.read<HomeBloc>().add(LoadHomeData());
-                    await Future.delayed(const Duration(milliseconds: 500));
-                  } catch (e) {
-                    print("Error dispatching LoadHomeData on refresh: $e");
-                  }
+                  context.read<HomeBloc>().add(LoadHomeData());
+                  await Future.delayed(const Duration(milliseconds: 500));
                 },
                 color: theme.colorScheme.primary,
                 child: CustomScrollView(
+                  // Use CustomScrollView for flexible layout
                   physics: const BouncingScrollPhysics(),
                   slivers: [
+                    // --- Top Section ---
                     SliverPadding(
-                      padding: const EdgeInsets.all(16.0),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          ExploreTopSection(
-                            currentCity: currentCity,
-                            userName: firstName,
-                            profileImageUrl: profileImageUrl,
-                            onCityTap: () => _openCityDropdown(context),
-                            onProfileTap: () => _showAccessBottomSheet(context,
-                                currentUserId, firstName, profileImageUrl),
-                            // Pass flag to start revolve animation
-                          ),
-                          const Gap(24),
-                          const ExploreSearchBar(),
-                          const Gap(24),
-                          Text("Categories",
-                              style: theme.textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.bold)),
-                          const Gap(12),
-                          ExploreCategoryList(
-                            categories: const [
-                              'All',
-                              'Sports',
-                              'Gym',
-                              'Entertainment',
-                              'Outdoors',
-                              'Dining',
-                              'Cafe',
-                              'Health'
-                            ],
-                            onCategorySelected: (category) {
-                              print("Category selected: $category");
-                            },
-                          ),
-                          const Gap(32),
-                          ExplorePopularSection(popularProviders: popular),
-                          const Gap(32),
-                          ExploreRecommendedSection(
-                              recommendedProviders: recommended),
-                          const Gap(20),
-                        ]),
+                      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+                      sliver: SliverToBoxAdapter(
+                        child: ExploreTopSection(
+                          currentCity: currentCity,
+                          userName: firstName,
+                          profileImageUrl: profileImageUrl,
+                          onCityTap: () => _openCityDropdown(context),
+                          onProfileTap: () {
+                            push(context, const AccessCodeView());
+                          },
+                        ),
                       ),
                     ),
+                    const SliverToBoxAdapter(child: Gap(16)),
+
+                    // --- Search Bar ---
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      sliver:
+                          const SliverToBoxAdapter(child: ExploreSearchBar()),
+                    ),
+                    const SliverToBoxAdapter(child: Gap(24)),
+
+                    // --- Banner Carousel ---
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal:
+                              10.0), // Less horizontal padding for full-width feel
+                      sliver: SliverToBoxAdapter(
+                        child: ExploreBannerCarousel(
+                            banners: banners), // Placeholder data
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: Gap(24)),
+
+                    // --- Categories ---
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Categories",
+                                style: theme.textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold)),
+                            const Gap(12),
+                            ExploreCategoryList(
+                              categories: const [
+                                'All',
+                                'Sports',
+                                'Gym',
+                                'Entertainment',
+                                'Outdoors',
+                                'Dining',
+                                'Cafe',
+                                'Health'
+                              ],
+                              onCategorySelected: (category) {
+                                print("Category selected: $category");
+                                context.read<HomeBloc>().add(FilterByCategory(
+                                    category:
+                                        category == 'All' ? '' : category));
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(
+                        child: Gap(32)), // More space after categories
+
+                    // --- Nearby Places Section ---
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      sliver: SliverToBoxAdapter(
+                        // TODO: Replace [] with state.nearbyProviders when implemented
+                        child: ExploreNearbySection(nearbyProviders: nearby),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: Gap(32)),
+
+                    // --- Popular Section ---
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      sliver: SliverToBoxAdapter(
+                        child: ExplorePopularSection(popularProviders: popular),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: Gap(32)),
+
+                    // --- Offers Section ---
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      sliver: SliverToBoxAdapter(
+                        // TODO: Replace [] with state.offerProviders when implemented
+                        child: ExploreOffersSection(offerProviders: offers),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: Gap(32)),
+
+                    // --- Recommended Section ---
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      sliver: SliverToBoxAdapter(
+                        child: ExploreRecommendedSection(
+                            recommendedProviders: recommended),
+                      ),
+                    ),
+                    // Vertical Spacer (Bottom Padding)
+                    const SliverToBoxAdapter(child: Gap(20)),
                   ],
                 ),
               );
             }
-            return const Center(child: Text("Unknown state."));
+            // Fallback / Unknown State
+            return const Center(child: Text("Something went wrong."));
           },
         ),
       ),
@@ -200,7 +261,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   /// Opens the global bottom sheet for governorate selection.
   Future<void> _openCityDropdown(BuildContext context) async {
-    // Now uses context directly
     String? currentBlocCity;
     try {
       final currentState = context.read<HomeBloc>().state;
@@ -229,35 +289,4 @@ class _ExploreScreenState extends State<ExploreScreen> {
       }
     }
   }
-
-  /// Shows the Access Code content in a sliding bottom sheet.
-  void _showAccessBottomSheet(BuildContext context, String? userId,
-      String? userName, String? profileImageUrl) {
-    if (userId == null) {
-      showGlobalSnackBar(context, "User data not available.", isError: true);
-      return;
-    }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SingleChildScrollView(
-          child: AccessCodeContent(
-            userId: userId,
-            userName: userName,
-            profileImageUrl: profileImageUrl,
-            isBottomSheet: true,
-          ),
-        );
-      },
-    );
-  }
-
-  // Removed _buildErrorWidget and _buildShimmerLoading methods
 } // End of _ExploreScreenState
-
-// Removed buildProfilePlaceholder function and constants - should be imported
