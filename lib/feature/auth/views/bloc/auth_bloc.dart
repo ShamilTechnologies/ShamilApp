@@ -332,12 +332,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       uploadedIdBackUrl = uploads[2];
 
       // Validate uploads
-      if (uploadedProfileUrl == null || uploadedProfileUrl.isEmpty)
+      if (uploadedProfileUrl == null || uploadedProfileUrl.isEmpty) {
         throw Exception("Profile picture upload failed.");
-      if (uploadedIdFrontUrl == null || uploadedIdFrontUrl.isEmpty)
+      }
+      if (uploadedIdFrontUrl == null || uploadedIdFrontUrl.isEmpty) {
         throw Exception("ID front upload failed.");
-      if (uploadedIdBackUrl == null || uploadedIdBackUrl.isEmpty)
+      }
+      if (uploadedIdBackUrl == null || uploadedIdBackUrl.isEmpty) {
         throw Exception("ID back upload failed.");
+      }
       print("All uploads successful.");
 
       // Update Firestore
@@ -366,12 +369,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       print("Exception during ID upload process: $e\n$s");
       emit(AuthErrorState("ID Upload Failed: ${e.toString()}"));
       // Log partial success for debugging/cleanup
-      if (uploadedProfileUrl != null)
+      if (uploadedProfileUrl != null) {
         print("Profile URL succeeded: $uploadedProfileUrl");
-      if (uploadedIdFrontUrl != null)
+      }
+      if (uploadedIdFrontUrl != null) {
         print("ID Front URL succeeded: $uploadedIdFrontUrl");
-      if (uploadedIdBackUrl != null)
+      }
+      if (uploadedIdBackUrl != null) {
         print("ID Back URL succeeded: $uploadedIdBackUrl");
+      }
     }
   }
 
@@ -398,7 +404,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       print("AuthBloc: Local storage cleared.");
 
       // Attempt to remove the token from Firestore *after* sign out (using stored UID)
-      if (currentUserId != null && currentToken != null) {
+      if (currentUserId != null) {
         await _removeTokenFromFirestore(currentToken, currentUserId);
       } else {
         print("AuthBloc: Could not remove FCM token (missing UID or token).");

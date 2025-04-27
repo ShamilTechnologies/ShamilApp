@@ -1,5 +1,7 @@
 part of 'home_bloc.dart'; // Ensures this is part of the home_bloc library
 
+// Import necessary models
+
 @immutable // Mark states as immutable
 abstract class HomeState extends Equatable {
   const HomeState();
@@ -17,14 +19,20 @@ class HomeLoading extends HomeState {}
 /// State indicating that home data has been successfully loaded.
 class HomeLoaded extends HomeState {
   final HomeModel homeModel; // Contains user ID, city, and last update time
-  final List<ServiceProviderDisplayModel> popularProviders; // List of popular providers
-  final List<ServiceProviderDisplayModel> recommendedProviders; // List of recommended providers
-  // Add other lists if needed (e.g., categories fetched dynamically)
+  final List<ServiceProviderDisplayModel> popularProviders;
+  final List<ServiceProviderDisplayModel> recommendedProviders;
+  // *** ADDED fields for other sections ***
+  final List<BannerModel> banners;
+  final List<ServiceProviderDisplayModel> offers; // Assuming offers use DisplayModel
+  final List<ServiceProviderDisplayModel> nearbyProviders;
 
   const HomeLoaded({
     required this.homeModel,
-    this.popularProviders = const [], // Default to empty list
-    this.recommendedProviders = const [], // Default to empty list
+    this.popularProviders = const [],
+    this.recommendedProviders = const [],
+    this.banners = const [],          // <<< ADDED with default
+    this.offers = const [],           // <<< ADDED with default
+    this.nearbyProviders = const [],  // <<< ADDED with default
   });
 
   @override
@@ -32,26 +40,34 @@ class HomeLoaded extends HomeState {
         homeModel,
         popularProviders,
         recommendedProviders,
-      ]; // Include all fields in props for Equatable comparison
+        banners,          // <<< ADDED to props
+        offers,           // <<< ADDED to props
+       nearbyProviders,  // <<< ADDED to props
+      ];
 
   /// Creates a copy of the HomeLoaded state with potentially updated values.
-  /// Useful for immutable state updates in the Bloc.
   HomeLoaded copyWith({
     HomeModel? homeModel,
     List<ServiceProviderDisplayModel>? popularProviders,
     List<ServiceProviderDisplayModel>? recommendedProviders,
+    List<BannerModel>? banners,          // <<< ADDED
+    List<ServiceProviderDisplayModel>? offers,           // <<< ADDED
+    List<ServiceProviderDisplayModel>? nearbyProviders,  // <<< ADDED
   }) {
     return HomeLoaded(
       homeModel: homeModel ?? this.homeModel,
       popularProviders: popularProviders ?? this.popularProviders,
       recommendedProviders: recommendedProviders ?? this.recommendedProviders,
+      banners: banners ?? this.banners,                   // <<< ADDED
+      offers: offers ?? this.offers,                      // <<< ADDED
+      nearbyProviders: nearbyProviders ?? this.nearbyProviders, // <<< ADDED
     );
   }
 
    // Optional: Override toString for better debugging output
   @override
   String toString() {
-    return 'HomeLoaded(city: ${homeModel.city}, popular: ${popularProviders.length}, recommended: ${recommendedProviders.length})';
+    return 'HomeLoaded(city: ${homeModel.city}, popular: ${popularProviders.length}, recommended: ${recommendedProviders.length}, banners: ${banners.length}, offers: ${offers.length}, nearby: ${nearbyProviders.length})'; // <<< UPDATED toString
   }
 }
 
@@ -64,3 +80,8 @@ class HomeError extends HomeState {
   @override
   List<Object?> get props => [message]; // Include message in props
 }
+
+// Optional: Consider adding specific states for actions like favorite toggle success/error
+// if you want to show specific feedback (e.g., Snackbars) via BlocListener.
+// class HomeFavoriteToggleSuccess extends HomeState { ... }
+// class HomeFavoriteToggleError extends HomeState { ... }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:shimmer/shimmer.dart';
-import 'dart:typed_data'; // For Uint8List
+// For Uint8List
 // Import shared constants/helpers
 import 'package:shamil_mobile_app/core/constants/image_constants.dart';
 import 'package:shamil_mobile_app/core/widgets/placeholders.dart';

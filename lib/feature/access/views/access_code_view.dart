@@ -20,7 +20,7 @@ class AccessCodeView extends StatelessWidget {
       userId = authState.user.uid;
       userName = authState.user.name;
       profileImageUrl = authState.user.profilePicUrl ?? authState.user.image;
-      if (profileImageUrl != null && profileImageUrl.isEmpty) {
+      if (profileImageUrl.isEmpty) {
         profileImageUrl = null;
       }
     } else {

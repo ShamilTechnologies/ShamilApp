@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // For fallback colors
+// For fallback colors
 
 class HomeErrorWidget extends StatelessWidget {
   final String message;

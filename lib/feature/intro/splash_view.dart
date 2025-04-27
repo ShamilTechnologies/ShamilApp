@@ -5,7 +5,7 @@ import 'package:lottie/lottie.dart';
 // Import AuthBloc and Event
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 // Import navigation targets
-import 'package:shamil_mobile_app/feature/navigation/main_navigation_view.dart';
+import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
 import 'package:shamil_mobile_app/feature/intro/onBoarding/on_boarding_view.dart';
 import 'package:shamil_mobile_app/core/constants/assets_icons.dart';

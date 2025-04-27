@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart'; // Keep if AppColors are used for specifics
 import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Keep if getSmallStyle is used, otherwise prefer theme
 import 'package:gap/gap.dart'; // For spacing
-// Removed Uint8List import
 
-// *** Import the CORRECT display model ***
+// Import the display model
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
-// *** Import the new reusable card widget ***
+// Import the reusable card widget
 import 'package:shamil_mobile_app/feature/home/widgets/service_provider_card.dart';
-// Removed unused image constants import
-
-// --- REMOVED local constants ---
+// Import navigation helper
+import 'package:shamil_mobile_app/core/functions/navigation.dart';
+// Import placeholder screen for "See All" (Create this screen later)
+// import 'package:shamil_mobile_app/feature/home/views/all_recommended_screen.dart';
 
 class ExploreRecommendedSection extends StatelessWidget {
   // Accept a list of ServiceProviderDisplayModel (passed from parent widget)
+  // This list should be populated and sorted by the HomeBloc
   final List<ServiceProviderDisplayModel> recommendedProviders;
 
   const ExploreRecommendedSection({
@@ -27,25 +28,29 @@ class ExploreRecommendedSection extends StatelessWidget {
 
     // Section Header
     Widget header = Padding(
-      padding: const EdgeInsets.only(bottom: 12.0), // Add padding below header
+      padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             "Recommended For You", // Title
-            // Use consistent theme text style as Popular section
             style: theme.textTheme.titleLarge
                 ?.copyWith(fontWeight: FontWeight.bold),
           ),
           TextButton(
-            // Use TextButton
             onPressed: () {
-              // TODO: Handle "See all" navigation for recommended items.
+              // TODO: Implement navigation to a dedicated "All Recommended" screen
               print("See all Recommended tapped");
+              // Example Navigation (create AllRecommendedScreen later):
+              // push(context, const AllRecommendedScreen());
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content:
+                      Text("Navigate to 'All Recommended' (Not Implemented)"),
+                  duration: Duration(seconds: 2)));
             },
             child: Text(
               'See all',
-              // Use consistent theme text style as Popular section
               style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w600),
@@ -55,7 +60,7 @@ class ExploreRecommendedSection extends StatelessWidget {
       ),
     );
 
-    // Handle empty state
+    // Handle empty state with an icon
     if (recommendedProviders.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,15 +71,25 @@ class ExploreRecommendedSection extends StatelessWidget {
             padding:
                 const EdgeInsets.symmetric(vertical: 40.0, horizontal: 16.0),
             alignment: Alignment.center,
-            child: Text(
-              "No recommendations found right now.", // User-friendly message
-              // Use theme text style
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.secondary), // Use theme color
-              textAlign: TextAlign.center,
+            child: Column(
+              // Wrap icon and text
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.sentiment_dissatisfied_outlined, // Example icon
+                  size: 40,
+                  color: theme.colorScheme.secondary.withOpacity(0.6),
+                ),
+                const Gap(12),
+                Text(
+                  "No recommendations found right now.", // User-friendly message
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: theme.colorScheme.secondary),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
-          // const SizedBox(height: 10), // Gap handles spacing
         ],
       );
     }
@@ -90,14 +105,14 @@ class ExploreRecommendedSection extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             itemCount: recommendedProviders.length,
-            // Padding handled by parent in home_view now
-            padding: const EdgeInsets.symmetric(vertical: 4.0), // Padding for shadow
+            padding:
+                const EdgeInsets.symmetric(vertical: 4.0), // Padding for shadow
             clipBehavior: Clip.none, // Allow shadows to be visible
             separatorBuilder: (context, index) =>
                 const SizedBox(width: 16), // Space between cards
             itemBuilder: (context, index) {
               final provider = recommendedProviders[index];
-              // *** Use the reusable ServiceProviderCard widget ***
+              // Use the reusable ServiceProviderCard widget
               return ServiceProviderCard(provider: provider);
             },
           ),
@@ -105,6 +120,4 @@ class ExploreRecommendedSection extends StatelessWidget {
       ],
     );
   }
-
-  // *** REMOVED _buildCardItem method - logic moved to ServiceProviderCard ***
 }

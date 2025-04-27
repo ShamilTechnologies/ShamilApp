@@ -10,7 +10,7 @@ import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart';
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
-import 'package:shamil_mobile_app/feature/navigation/main_navigation_view.dart';
+import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart';
 // Import LoginSuccessAnimationView
 import 'package:shamil_mobile_app/feature/auth/views/page/login_success_animation_view.dart';
 // Import AuthModel to access user data from state

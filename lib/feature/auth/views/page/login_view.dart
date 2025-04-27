@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shamil_mobile_app/core/functions/navigation.dart'; // Use navigation functions
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart'; // Import global snack bar
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Import AppColors if needed
+// Import AppColors if needed
 import 'package:shamil_mobile_app/core/utils/text_field_templates.dart';
-import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Import text styles
+// Import text styles
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart'; // Imports AuthBloc, AuthState etc.
 // Ensure AuthModel is imported if LoginSuccessState uses it directly (it does)
-import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/forgotPassword_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/login_success_animation_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/oneMoreStep_view.dart';

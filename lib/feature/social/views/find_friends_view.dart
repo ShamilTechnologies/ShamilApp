@@ -232,7 +232,7 @@ class _FindFriendsViewState extends State<FindFriendsView> {
                       height: listAvatarSize,
                       child: ClipRRect(
                         borderRadius: listBorderRadius,
-                        child: (profilePicUrl == null || profilePicUrl.isEmpty)
+                        child: (profilePicUrl.isEmpty)
                             ? buildProfilePlaceholder(listAvatarSize, theme,
                                 listBorderRadius) // Use helper
                             : FadeInImage.memoryNetwork(

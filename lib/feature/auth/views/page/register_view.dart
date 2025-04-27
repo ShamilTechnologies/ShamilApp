@@ -525,8 +525,9 @@ class _RegisterViewState extends State<RegisterView>
           if (value == null || value.trim().isEmpty) return 'Required';
           if (value.length < 3) return 'Min 3 characters';
           if (value.contains(' ')) return 'No spaces allowed';
-          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value))
+          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
             return 'Invalid characters';
+          }
           return null;
         },
       ),
@@ -673,8 +674,9 @@ class _RegisterViewState extends State<RegisterView>
         prefixIcon: const Icon(Icons.lock_outline, size: 20),
         validator: (value) {
           if (value == null || value.isEmpty) return 'Required';
-          if (value != _passwordController.text)
+          if (value != _passwordController.text) {
             return 'Passwords do not match';
+          }
           return null;
         },
       ),

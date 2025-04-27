@@ -14,7 +14,7 @@ import 'package:shamil_mobile_app/storage_service.dart'; // Keep if used elsewhe
 
 // Import necessary views for global listeners/navigation
 import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
-import 'package:shamil_mobile_app/feature/navigation/main_navigation_view.dart';
+import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart';
 import 'package:shamil_mobile_app/feature/social/views/friends_view.dart'; // For navigation target
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart'; // For providing to FriendsView if needed
 

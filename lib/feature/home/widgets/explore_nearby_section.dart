@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 // Import the display model and the reusable card
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 import 'package:shamil_mobile_app/feature/home/widgets/service_provider_card.dart'; // Reusable card

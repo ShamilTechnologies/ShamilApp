@@ -2,7 +2,7 @@ import 'dart:math'; // Import for Random and pi
 import 'dart:typed_data'; // Import for Uint8List
 import 'package:flutter/material.dart';
 // Keep for other potential uses
-import 'package:shamil_mobile_app/feature/navigation/main_navigation_view.dart'; // Import main navigation
+import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart'; // Import main navigation
 import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Import text styles
 // Import AppColors if needed by placeholder
 
