@@ -22,6 +22,12 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // --- Firestore Collection Name Constants (Added for fix consistency) ---
+  static const String _usersCollection = 'endUsers';
+  static const String _providersCollection = 'serviceProviders';
+  static const String _favoritesSubCollection = 'favorites';
+  // --- End Constants ---
+
   HomeBloc() : super(HomeInitial()) {
     // --- ENSURE ALL HANDLERS ARE REGISTERED HERE ---
     on<LoadHomeData>(_onLoadHomeData);
@@ -44,7 +50,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   Future<String?> _fetchLastKnownCity(String uid) async {
     /* ... */
     try {
-      final doc = await _firestore.collection("endUsers").doc(uid).get();
+      // *** Use Constant ***
+      final doc = await _firestore.collection(_usersCollection).doc(uid).get();
       if (doc.exists && doc.data() != null && doc.data()!.containsKey('city')) {
         final city = doc.data()!['city'] as String?;
         print("HomeBloc: Fetched last known city '$city' for UID $uid");
@@ -62,7 +69,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       String uid, String city, Timestamp timestamp) async {
     /* ... */
     try {
-      await _firestore.collection("endUsers").doc(uid).set({
+      // *** Use Constant ***
+      await _firestore.collection(_usersCollection).doc(uid).set({
         'city': city,
         'lastUpdatedLocation': timestamp,
       }, SetOptions(merge: true));
@@ -77,13 +85,14 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   Future<Set<String>> _fetchUserFavoriteIds(String userId) async {
     /* ... */
     try {
+      // *** FIX: Use Constants for correct path ***
       final snapshot = await _firestore
-          .collection('users')
+          .collection(_usersCollection) // <<< CORRECTED
           .doc(userId)
-          .collection('favorites')
+          .collection(_favoritesSubCollection) // <<< CORRECTED (using constant)
           .get(const GetOptions(source: Source.cache));
       print(
-          "HomeBloc: Fetched ${snapshot.docs.length} favorite IDs for $userId from cache/server.");
+          "HomeBloc: Fetched ${snapshot.docs.length} favorite IDs for $userId from $_usersCollection/$_favoritesSubCollection."); // Updated log
       return snapshot.docs.map((doc) => doc.id).toSet();
     } catch (e) {
       print("HomeBloc: Error fetching user favorite IDs for $userId: $e");
@@ -121,7 +130,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
   Future<void> _onLoadHomeData(
       LoadHomeData event, Emitter<HomeState> emit) async {
-    // ... (Full implementation as provided previously, ensures helpers are called) ...
+    // (Keep existing implementation - it uses the updated helpers)
     emit(HomeLoading());
     print("HomeBloc: Starting LoadHomeData...");
     try {
@@ -170,10 +179,35 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       // Fetch Providers
       List<ServiceProviderDisplayModel> popularForDisplay = [];
       List<ServiceProviderDisplayModel> recommendedForDisplay = [];
+      // *** Added lists for consistency with HomeLoaded state ***
+      List<BannerModel> banners = [];
+      List<ServiceProviderDisplayModel> offersForDisplay = [];
+      List<ServiceProviderDisplayModel> nearbyForDisplay = [];
       try {
-        final Set<String> favoriteIds = await _fetchUserFavoriteIds(userId);
+        final Set<String> favoriteIds =
+            await _fetchUserFavoriteIds(userId); // Uses updated helper
+        // --- Fetch Banners (Example Query - kept from previous full rewrite) ---
+        try {
+          final bannerSnapshot = await _firestore
+              .collection('banners') // Example collection name
+              .where('isActive', isEqualTo: true) // Filter for active banners
+              .orderBy('priority',
+                  descending: true) // Optional: order by priority
+              .limit(5) // Limit number of banners
+              .get();
+          banners = bannerSnapshot.docs
+              .map((doc) => BannerModel.fromMap(doc.data(), doc.id))
+              .toList();
+          print("HomeBloc: Fetched ${banners.length} banners.");
+        } catch (e) {
+          print(
+              "HomeBloc: Error fetching banners: $e"); // Log error but continue
+        }
+        // --- End Fetch Banners ---
+
+        // --- Fetch Providers (Main Query) ---
         Query query = _firestore
-            .collection("serviceProviders")
+            .collection(_providersCollection) // *** Use Constant ***
             .where('isActive', isEqualTo: true);
         bool isValidCityForFilter = city != "Unknown" &&
             city != "Location Off" &&
@@ -191,11 +225,13 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
               try {
                 return ServiceProviderModel.fromFirestore(doc);
               } catch (e) {
+                print("Error parsing provider ${doc.id}: $e");
                 return null;
               }
             })
             .whereType<ServiceProviderModel>()
             .toList();
+        // --- Process fetched providers ---
         final popularProvidersFull = allProviders
             .where((p) => p.isFeatured)
             .toList()
@@ -204,14 +240,31 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
             .where((p) => !p.isFeatured)
             .toList()
           ..sort((a, b) => b.rating.compareTo(a.rating));
+        // --- TODO: Add specific logic for offers/nearby ---
+        final offersProvidersFull = popularProvidersFull; // Placeholder
+        final nearbyProvidersFull = recommendedProvidersFull; // Placeholder
+
+        // --- Map to Display Models ---
         popularForDisplay = popularProvidersFull
             .take(10)
-            .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
+            .map((p) => _mapProviderToDisplayModel(
+                p, favoriteIds)) // Uses updated helper
             .toList();
         recommendedForDisplay = recommendedProvidersFull
             .take(10)
-            .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
+            .map((p) => _mapProviderToDisplayModel(
+                p, favoriteIds)) // Uses updated helper
             .toList();
+        offersForDisplay = offersProvidersFull
+            .take(10)
+            .map((p) => _mapProviderToDisplayModel(
+                p, favoriteIds)) // Uses updated helper
+            .toList(); // Placeholder
+        nearbyForDisplay = nearbyProvidersFull
+            .take(10)
+            .map((p) => _mapProviderToDisplayModel(
+                p, favoriteIds)) // Uses updated helper
+            .toList(); // Placeholder
       } catch (e, stacktrace) {
         print("HomeBloc: Error fetching/processing providers: $e\n$stacktrace");
         emit(HomeError(message: "Could not load places: ${e.toString()}"));
@@ -220,9 +273,14 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       final homeModel =
           HomeModel(uid: userId, city: city, lastUpdatedLocation: lastUpdated);
       emit(HomeLoaded(
-          homeModel: homeModel,
-          popularProviders: popularForDisplay,
-          recommendedProviders: recommendedForDisplay));
+        homeModel: homeModel,
+        popularProviders: popularForDisplay,
+        recommendedProviders: recommendedForDisplay,
+        // *** Pass other lists ***
+        banners: banners,
+        offers: offersForDisplay,
+        nearbyProviders: nearbyForDisplay,
+      ));
       print("HomeBloc: HomeLoaded emitted successfully.");
     } catch (e, stacktrace) {
       print("HomeBloc: Critical Error in _onLoadHomeData: $e\n$stacktrace");
@@ -232,7 +290,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
   Future<void> _onUpdateCityManually(
       UpdateCityManually event, Emitter<HomeState> emit) async {
-    // ... (Full implementation as provided previously, ensures helpers are called) ...
+    // (Keep existing implementation - it uses the updated helpers)
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
       emit(const HomeError(message: "User not logged in."));
@@ -241,16 +299,22 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     final userId = currentUser.uid;
     final newCity = event.newCity;
     print("HomeBloc: Starting _onUpdateCityManually for city: $newCity");
-    emit(HomeLoading());
+    emit(HomeLoading()); // Show loading while fetching new city data
     try {
       final lastUpdated = Timestamp.now();
-      await _updateCityInFirestore(userId, newCity, lastUpdated);
+      await _updateCityInFirestore(
+          userId, newCity, lastUpdated); // Uses constant
       final Set<String> favoriteIds =
-          await _fetchUserFavoriteIds(userId); // Fetch favorites
+          await _fetchUserFavoriteIds(userId); // Uses constant
+
+      List<BannerModel> currentBanners =
+          (state is HomeLoaded) ? (state as HomeLoaded).banners : [];
+
       Query query = _firestore
-          .collection("serviceProviders")
+          .collection(_providersCollection) // *** Use Constant ***
           .where('isActive', isEqualTo: true)
-          .where('address.governorate', isEqualTo: newCity);
+          .where('address.governorate',
+              isEqualTo: newCity); // Filter by NEW city
       final querySnapshot = await query.limit(50).get();
       final allProviders = querySnapshot.docs
           .map((doc) {
@@ -262,6 +326,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           })
           .whereType<ServiceProviderModel>()
           .toList();
+
       final popularProvidersFull = allProviders
           .where((p) => p.isFeatured)
           .toList()
@@ -270,7 +335,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           .where((p) => !p.isFeatured)
           .toList()
         ..sort((a, b) => b.rating.compareTo(a.rating));
-      // Map using helper
+      final offersProvidersFull = popularProvidersFull; // Placeholder
+      final nearbyProvidersFull = recommendedProvidersFull; // Placeholder
+
       final popularForDisplay = popularProvidersFull
           .take(10)
           .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
@@ -279,15 +346,28 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           .take(10)
           .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
           .toList();
+      final offersForDisplay = offersProvidersFull
+          .take(10)
+          .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
+          .toList(); // Placeholder
+      final nearbyForDisplay = nearbyProvidersFull
+          .take(10)
+          .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
+          .toList(); // Placeholder
+
       final updatedHomeModel = HomeModel(
         uid: userId,
         city: newCity,
         lastUpdatedLocation: lastUpdated,
       );
+
       emit(HomeLoaded(
         homeModel: updatedHomeModel,
         popularProviders: popularForDisplay,
         recommendedProviders: recommendedForDisplay,
+        banners: currentBanners,
+        offers: offersForDisplay,
+        nearbyProviders: nearbyForDisplay,
       ));
       print("HomeBloc: HomeLoaded emitted after manual city update: $newCity");
     } catch (e, stacktrace) {
@@ -299,24 +379,30 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
   Future<void> _onFilterByCategory(
       FilterByCategory event, Emitter<HomeState> emit) async {
-    // ... (Full implementation as provided previously, ensures helpers are called) ...
+    // (Keep existing implementation - it uses the updated helpers)
     print(
         "HomeBloc: FilterByCategory event received for category: ${event.category}");
     final currentState = state;
     final currentUser = _auth.currentUser;
     if (currentState is HomeLoaded && currentUser != null) {
       final userId = currentUser.uid;
+      final String currentCity = currentState.homeModel.city;
+      final String categoryToFilter = event.category;
+
       emit(HomeLoading());
       try {
         final Set<String> favoriteIds =
-            await _fetchUserFavoriteIds(userId); // Fetch favorites
+            await _fetchUserFavoriteIds(userId); // Uses constant
+
         Query query = _firestore
-            .collection("serviceProviders")
+            .collection(_providersCollection) // *** Use Constant ***
             .where('isActive', isEqualTo: true)
-            .where('address.governorate',
-                isEqualTo: currentState.homeModel.city)
-            .where('businessCategory',
-                isEqualTo: event.category); // Use correct field name
+            .where('address.governorate', isEqualTo: currentCity);
+
+        if (categoryToFilter.isNotEmpty && categoryToFilter != 'All') {
+          query = query.where('businessCategory', isEqualTo: categoryToFilter);
+        }
+
         final querySnapshot = await query.limit(50).get();
         final allProviders = querySnapshot.docs
             .map((doc) {
@@ -328,6 +414,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
             })
             .whereType<ServiceProviderModel>()
             .toList();
+
         final popularProvidersFull = allProviders
             .where((p) => p.isFeatured)
             .toList()
@@ -336,7 +423,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
             .where((p) => !p.isFeatured)
             .toList()
           ..sort((a, b) => b.rating.compareTo(a.rating));
-        // Map using helper
+        final offersProvidersFull = popularProvidersFull; // Placeholder
+        final nearbyProvidersFull = recommendedProvidersFull; // Placeholder
+
         final popularForDisplay = popularProvidersFull
             .take(10)
             .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
@@ -345,13 +434,25 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
             .take(10)
             .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
             .toList();
+        final offersForDisplay = offersProvidersFull
+            .take(10)
+            .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
+            .toList(); // Placeholder
+        final nearbyForDisplay = nearbyProvidersFull
+            .take(10)
+            .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
+            .toList(); // Placeholder
+
         emit(HomeLoaded(
           homeModel: currentState.homeModel,
           popularProviders: popularForDisplay,
           recommendedProviders: recommendedForDisplay,
+          banners: currentState.banners,
+          offers: offersForDisplay,
+          nearbyProviders: nearbyForDisplay,
         ));
         print(
-            "HomeBloc: Emitted HomeLoaded with category filter '${event.category}' applied.");
+            "HomeBloc: Emitted HomeLoaded with category filter '$categoryToFilter' applied.");
       } catch (e, s) {
         print("HomeBloc: Error filtering by category: $e\n$s");
         emit(HomeError(
@@ -366,30 +467,33 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
   Future<void> _onSearchProviders(
       SearchProviders event, Emitter<HomeState> emit) async {
-    // ... (Full implementation as provided previously, ensures helpers are called) ...
+    // (Keep existing implementation - it uses the updated helpers)
     print("HomeBloc: SearchProviders event received for query: ${event.query}");
     final currentState = state;
     final currentUser = _auth.currentUser;
     final searchQuery = event.query.trim();
+
     if (searchQuery.isEmpty) {
       add(const LoadHomeData());
       return;
     }
+
     if (currentState is HomeLoaded && currentUser != null) {
       final userId = currentUser.uid;
+      final String currentCity = currentState.homeModel.city;
       emit(HomeLoading());
       try {
         final Set<String> favoriteIds =
-            await _fetchUserFavoriteIds(userId); // Fetch favorites
+            await _fetchUserFavoriteIds(userId); // Uses constant
+        final lowercaseQuery = searchQuery.toLowerCase();
         Query query = _firestore
-            .collection("serviceProviders")
+            .collection(_providersCollection) // *** Use Constant ***
             .where('isActive', isEqualTo: true)
-            .where('address.governorate',
-                isEqualTo: currentState.homeModel.city)
-            .where('businessName', isGreaterThanOrEqualTo: searchQuery)
-            .where('businessName',
-                isLessThanOrEqualTo:
-                    '$searchQuery\uf8ff'); // \uf8ff is a high code point for prefix matching
+            .where('address.governorate', isEqualTo: currentCity)
+            .where('name_lowercase', isGreaterThanOrEqualTo: lowercaseQuery)
+            .where('name_lowercase',
+                isLessThanOrEqualTo: '$lowercaseQuery\uf8ff');
+
         final querySnapshot = await query.limit(20).get();
         final allProviders = querySnapshot.docs
             .map((doc) {
@@ -401,33 +505,33 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
             })
             .whereType<ServiceProviderModel>()
             .toList();
-        final popularProvidersFull = allProviders
-            .where((p) => p.isFeatured)
-            .toList()
-          ..sort((a, b) => b.rating.compareTo(a.rating));
-        final recommendedProvidersFull = allProviders
-            .where((p) => !p.isFeatured)
-            .toList()
-          ..sort((a, b) => b.rating.compareTo(a.rating));
-        // Map using helper
-        final popularForDisplay = popularProvidersFull
-            .take(10)
+
+        final searchResultsForDisplay = allProviders
             .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
-            .toList();
-        final recommendedForDisplay = recommendedProvidersFull
-            .take(10)
-            .map((p) => _mapProviderToDisplayModel(p, favoriteIds))
-            .toList();
+            .toList()
+          ..sort((a, b) => a.businessName.compareTo(b.businessName));
+
         emit(HomeLoaded(
           homeModel: currentState.homeModel,
-          popularProviders: popularForDisplay,
-          recommendedProviders: recommendedForDisplay,
+          popularProviders:
+              searchResultsForDisplay, // Show search results in popular
+          recommendedProviders: const [], // Clear others
+          banners: currentState.banners,
+          offers: const [],
+          nearbyProviders: const [],
         ));
         print(
-            "HomeBloc: Emitted HomeLoaded with search results for '${event.query}'.");
+            "HomeBloc: Emitted HomeLoaded with search results for '$searchQuery'. Found ${searchResultsForDisplay.length} results.");
       } catch (e, s) {
         print("HomeBloc: Error searching providers: $e\n$s");
-        emit(HomeError(message: "Failed to search providers: ${e.toString()}"));
+        if (e is FirebaseException && e.code == 'failed-precondition') {
+          emit(const HomeError(
+              message:
+                  "Search requires a database index. Please check Firestore configuration for 'name_lowercase'."));
+        } else {
+          emit(HomeError(
+              message: "Failed to search providers: ${e.toString()}"));
+        }
         emit(currentState);
       }
     } else {
@@ -451,79 +555,61 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       print(
           "HomeBloc: Toggling favorite for $providerId. Current: $currentStatus -> New: $newFavoriteStatus");
 
-      // *** ADD LOGGING HERE to check state *before* mapping/copyWith ***
-      ServiceProviderDisplayModel? providerBeingToggled;
-      providerBeingToggled = currentState.popularProviders
-          .firstWhereOrNull((p) => p.id == providerId);
-      providerBeingToggled ??= currentState.recommendedProviders
-          .firstWhereOrNull((p) => p.id == providerId);
-
-      if (providerBeingToggled != null) {
-        print(
-            "HomeBloc(Toggle-DEBUG): Found provider in currentState. ImageUrl = '${providerBeingToggled.imageUrl}', isFavorite = ${providerBeingToggled.isFavorite}");
-      } else {
-        print(
-            "HomeBloc(Toggle-DEBUG): Provider $providerId NOT FOUND in currentState lists before update.");
-      }
-      // *********************************************************************
-
+      // *** Use Constants for Firestore Path ***
       final favoriteDocRef = _firestore
-          .collection('users')
+          .collection(_usersCollection) // <<< CORRECTED
           .doc(userId)
-          .collection('favorites')
+          .collection(_favoritesSubCollection) // <<< CORRECTED (using constant)
           .doc(providerId);
+
       try {
-        // Firestore Update First
+        // Perform Firestore Update FIRST
         if (newFavoriteStatus == true) {
-          await favoriteDocRef.set({});
+          await favoriteDocRef.set({}); // Add to favorites
         } else {
-          await favoriteDocRef.delete();
+          await favoriteDocRef.delete(); // Remove from favorites
         }
-        print("HomeBloc: Firestore favorite status updated successfully.");
+        print(
+            "HomeBloc: Firestore favorite status updated successfully using path: ${favoriteDocRef.path}"); // Log path
 
         // Update Local State IMMUTABLY
-        ServiceProviderDisplayModel?
-            updatedProviderCheck; // For logging after update
-
-        final updatedPopular = currentState.popularProviders.map((provider) {
-          if (provider.id == providerId) {
-            final updated = provider.copyWith(isFavorite: newFavoriteStatus);
-            updatedProviderCheck = updated; // Store for logging
-            return updated;
-          }
-          return provider;
-        }).toList();
-
-        final updatedRecommended =
-            currentState.recommendedProviders.map((provider) {
-          if (provider.id == providerId) {
-            final updated = provider.copyWith(isFavorite: newFavoriteStatus);
-            updatedProviderCheck ??= updated; // Store if not found in popular
-            return updated;
-          }
-          return provider;
-        }).toList();
-
-        // Log the state *after* copyWith but before emitting
-        if (updatedProviderCheck != null) {
-          print(
-              "HomeBloc(Toggle): Provider data **before emitting** new state: ID=${updatedProviderCheck!.id}, Name=${updatedProviderCheck!.businessName}, ImageUrl=${updatedProviderCheck!.imageUrl}, IsFavorite=${updatedProviderCheck!.isFavorite}");
-        } else {
-          print(
-              "HomeBloc(Toggle): Provider with ID $providerId not found during update mapping.");
+        List<ServiceProviderDisplayModel> updateList(
+            List<ServiceProviderDisplayModel> list) {
+          return list.map((provider) {
+            if (provider.id == providerId) {
+              print(
+                  "HomeBloc(Toggle): Updating provider ${provider.id} in list. OldFav: ${provider.isFavorite}, NewFav: $newFavoriteStatus");
+              return provider.copyWith(isFavorite: newFavoriteStatus);
+            }
+            return provider;
+          }).toList();
         }
 
-        // Emit the new state with the updated lists
+        // Apply the update to all relevant lists
+        final updatedPopular = updateList(currentState.popularProviders);
+        final updatedRecommended =
+            updateList(currentState.recommendedProviders);
+        final updatedOffers = updateList(currentState.offers);
+        final updatedNearby = updateList(currentState.nearbyProviders);
+
+        // Emit the new state with ALL updated lists
         emit(currentState.copyWith(
           popularProviders: updatedPopular,
           recommendedProviders: updatedRecommended,
+          offers: updatedOffers,
+          nearbyProviders: updatedNearby,
         ));
         print(
             "HomeBloc: Emitted updated HomeLoaded state after favorite toggle.");
       } catch (e, s) {
         print(
             "HomeBloc: Error toggling favorite in Firestore for home: $e\n$s");
-        // Don't change state if Firestore fails
+        // If Firestore update fails, emit an error state and revert
+        emit(HomeError(
+            message: "Could not update favorite status: ${e.toString()}"));
+        await Future.delayed(const Duration(
+            milliseconds: 100)); // Allow time for error message display
+        emit(currentState); // Re-emit previous state
       }
     } else {
       print(
@@ -531,3 +617,4 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     }
   }
 }
+// --- End of HomeBloc Class ---
