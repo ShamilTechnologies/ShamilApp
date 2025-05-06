@@ -1,146 +1,299 @@
 // lib/feature/reservation/bloc/reservation_state.dart
 
-part of 'reservation_bloc.dart';
-
-// Helper function to convert TimeOfDay to minutes since midnight for comparison
-int _timeOfDayToMinutes(TimeOfDay time) {
-  return time.hour * 60 + time.minute;
-}
-
-// Helper function to check if a list of TimeOfDay is sorted and consecutive
-bool _areSlotsConsecutive(List<TimeOfDay> slots, int durationMinutes) {
-  if (slots.length <= 1) return true;
-  // Sort first (create a copy to avoid modifying original)
-  final sortedSlots = List<TimeOfDay>.from(slots)..sort((a, b) => _timeOfDayToMinutes(a).compareTo(_timeOfDayToMinutes(b)));
-  for (int i = 0; i < sortedSlots.length - 1; i++) {
-    final currentMinutes = _timeOfDayToMinutes(sortedSlots[i]);
-    final nextMinutes = _timeOfDayToMinutes(sortedSlots[i + 1]);
-    // Check if the next slot starts exactly after the current one ends
-    if (nextMinutes != currentMinutes + durationMinutes) {
-      return false;
-    }
-  }
-  return true;
-}
+part of 'reservation_bloc.dart'; // Link to the bloc file
 
 
+// Base class using Equatable for state comparison
 @immutable
-sealed class ReservationState extends Equatable {
-   // Common properties
-   final BookableService? selectedService;
-   final DateTime? selectedDate;
-   // *** CHANGED: Use a List for selected slots ***
-   final List<TimeOfDay> selectedSlots; // Store multiple selected slots
+abstract class ReservationState extends Equatable {
+  // Common properties available in most states AFTER initial state
+  final ServiceProviderModel? provider;
+  final ReservationType? selectedReservationType;
+  final BookableService? selectedService;
+  final DateTime? selectedDate;
+  final TimeOfDay? selectedStartTime;
+  final TimeOfDay? selectedEndTime;
+  final List<TimeOfDay> availableSlots;
+  final List<AttendeeModel> selectedAttendees;
+
+  // Note: isLoadingSlots is NOT defined here in the base class
 
   const ReservationState({
+    this.provider,
+    this.selectedReservationType,
     this.selectedService,
     this.selectedDate,
-    this.selectedSlots = const [], // Default to empty list
+    this.selectedStartTime,
+    this.selectedEndTime,
+    this.availableSlots = const [],
+    this.selectedAttendees = const [],
+  });
+
+  // Properties included for Equatable comparison
+  @override
+  List<Object?> get props => [
+        provider,
+        selectedReservationType,
+        selectedService,
+        selectedDate,
+        selectedStartTime,
+        selectedEndTime,
+        availableSlots,
+        selectedAttendees,
+      ];
+
+  // Helper to easily get the primary user making the booking
+  AttendeeModel? get bookingUser =>
+      selectedAttendees.firstWhereOrNull((a) => a.type == 'self');
+
+  // Base copyWith method - MUST be overridden by concrete subclasses
+  ReservationState copyWith({
+    ServiceProviderModel? provider,
+    List<AttendeeModel>? selectedAttendees,
+  }) {
+    throw UnimplementedError(
+        'copyWith must be implemented by concrete subclasses of ReservationState');
+  }
+}
+
+// --- Concrete State Classes ---
+
+/// Initial state when the reservation flow starts. Requires provider context.
+class ReservationInitial extends ReservationState {
+  const ReservationInitial({required ServiceProviderModel provider})
+      : super(provider: provider);
+
+  @override
+  ReservationInitial copyWith({
+    ServiceProviderModel? provider,
+    List<AttendeeModel>? selectedAttendees,
+  }) {
+    // Create a new instance, passing attendees to the super constructor
+    return ReservationInitial(
+      provider: provider ?? this.provider!,
+    ).._internalSetAttendees(selectedAttendees ?? this.selectedAttendees);
+  }
+
+   ReservationInitial _internalSetAttendees(List<AttendeeModel> attendees) {
+      // This helper is a bit redundant as the super constructor handles attendees.
+      // We just need to return a new instance of the correct type.
+      return ReservationInitial(provider: provider!);
+   }
+}
+
+/// State after the user selects the reservation type (if multiple options).
+class ReservationTypeSelected extends ReservationState {
+  const ReservationTypeSelected({
+    required super.provider,
+    required super.selectedReservationType,
+    required super.selectedAttendees,
   });
 
   @override
-  // *** UPDATED props ***
-  List<Object?> get props => [selectedService, selectedDate, selectedSlots];
+  ReservationTypeSelected copyWith({
+    ServiceProviderModel? provider,
+    ReservationType? selectedReservationType,
+    List<AttendeeModel>? selectedAttendees,
+  }) {
+    return ReservationTypeSelected(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+    );
+  }
 }
 
-/// Initial state, nothing selected.
-final class ReservationInitial extends ReservationState {
-   const ReservationInitial() : super();
+/// State after a specific service is selected.
+class ReservationServiceSelected extends ReservationState {
+  // Service is guaranteed non-null in this state via constructor
+  const ReservationServiceSelected({
+    required super.provider,
+    required super.selectedReservationType,
+    required BookableService service,
+    required super.selectedAttendees,
+  }) : super(selectedService: service);
+
+  @override
+  ReservationServiceSelected copyWith({
+    ServiceProviderModel? provider,
+    ReservationType? selectedReservationType,
+    BookableService? selectedService,
+    List<AttendeeModel>? selectedAttendees,
+  }) {
+    return ReservationServiceSelected(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      service: selectedService ?? this.selectedService!, // Use non-null assertion
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+    );
+  }
 }
 
-/// State after a service is selected.
-final class ReservationServiceSelected extends ReservationState {
-    const ReservationServiceSelected({required BookableService service})
-       : super(selectedService: service);
+/// State after a date is selected, potentially loading available slots/seats.
+class ReservationDateSelected extends ReservationState {
+  // *** isLoadingSlots is DEFINED HERE ***
+  final bool isLoadingSlots;
+
+  // Date is guaranteed non-null in this state via constructor
+  const ReservationDateSelected({
+    required super.provider,
+    required super.selectedReservationType,
+    required super.selectedService,
+    required DateTime date,
+    required super.availableSlots,
+    required super.selectedAttendees,
+    this.isLoadingSlots = false,
+  }) : super(selectedDate: date);
+
+  @override
+  ReservationDateSelected copyWith({
+    ServiceProviderModel? provider,
+    ReservationType? selectedReservationType,
+    BookableService? selectedService,
+    DateTime? selectedDate,
+    List<TimeOfDay>? availableSlots,
+    List<AttendeeModel>? selectedAttendees,
+    bool? isLoadingSlots,
+    // Reset times when copying
+    TimeOfDay? selectedStartTime,
+    TimeOfDay? selectedEndTime,
+  }) {
+    return ReservationDateSelected(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      selectedService: selectedService ?? this.selectedService,
+      date: selectedDate ?? this.selectedDate!, // Use non-null assertion
+      availableSlots: availableSlots ?? this.availableSlots,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      isLoadingSlots: isLoadingSlots ?? this.isLoadingSlots,
+      // selectedStartTime and selectedEndTime are implicitly reset
+    );
+  }
+
+  @override
+  List<Object?> get props => super.props..add(isLoadingSlots);
 }
 
-/// State after a date is selected (fetches/includes available slots).
-final class ReservationDateSelected extends ReservationState {
-    final List<TimeOfDay> availableSlots;
-    final bool isLoadingSlots;
+/// State after a valid time range is selected (for time-based reservations).
+class ReservationRangeSelected extends ReservationState {
+  // Date, StartTime, EndTime are guaranteed non-null via constructor
+  const ReservationRangeSelected({
+    required super.provider,
+    required super.selectedReservationType,
+    required super.selectedService,
+    required DateTime date,
+    required TimeOfDay startTime,
+    required TimeOfDay endTime,
+    required super.availableSlots,
+    required super.selectedAttendees,
+  }) : super(selectedDate: date, selectedStartTime: startTime, selectedEndTime: endTime);
 
-    const ReservationDateSelected({
-      required BookableService service,
-      required DateTime date,
-      required this.availableSlots, // Available slots are now required here
-      this.isLoadingSlots = false,
-      // selectedSlots remains empty initially after date selection
-    }) : super(selectedService: service, selectedDate: date, selectedSlots: const []);
-
-     @override
-     List<Object?> get props => super.props..addAll([availableSlots, isLoadingSlots]);
-
-     // Helper for immutable updates
-     ReservationDateSelected copyWith({
-        List<TimeOfDay>? availableSlots,
-        bool? isLoadingSlots,
-        // Allow updating selectedSlots within this state during swipe interaction maybe?
-        // Or transition to a different state like ReservationSlotsUpdating
-        List<TimeOfDay>? selectedSlots,
-     }) {
-       return ReservationDateSelected(
-         service: selectedService!,
-         date: selectedDate!,
-         availableSlots: availableSlots ?? this.availableSlots,
-         isLoadingSlots: isLoadingSlots ?? this.isLoadingSlots,
-         // If selectedSlots is passed, update it (used carefully)
-         // selectedSlots: selectedSlots ?? this.selectedSlots,
-       );
-     }
-}
-
-/// State when one or more consecutive slots are selected.
-final class ReservationSlotsSelected extends ReservationState {
-   final List<TimeOfDay> availableSlots; // Keep available slots for UI context
-
-   const ReservationSlotsSelected({
-      required BookableService service,
-      required DateTime date,
-      required List<TimeOfDay> slots, // Pass the list of selected slots
-      required this.availableSlots,
-    // Add assertion to ensure slots are consecutive if needed, or handle in Bloc
-    // assert(slots.isNotEmpty && _areSlotsConsecutive(slots, service.durationMinutes)),
-    }) : super(selectedService: service, selectedDate: date, selectedSlots: slots);
-
-     @override
-     List<Object?> get props => super.props..addAll([availableSlots]);
+  @override
+  ReservationRangeSelected copyWith({
+    ServiceProviderModel? provider,
+    ReservationType? selectedReservationType,
+    BookableService? selectedService,
+    DateTime? selectedDate,
+    TimeOfDay? selectedStartTime,
+    TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots,
+    List<AttendeeModel>? selectedAttendees,
+  }) {
+    return ReservationRangeSelected(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      selectedService: selectedService ?? this.selectedService,
+      date: selectedDate ?? this.selectedDate!, // Use non-null assertion
+      startTime: selectedStartTime ?? this.selectedStartTime!, // Use non-null assertion
+      endTime: selectedEndTime ?? this.selectedEndTime!, // Use non-null assertion
+      availableSlots: availableSlots ?? this.availableSlots,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+    );
+  }
 }
 
 
 /// State indicating the reservation creation is in progress (calling backend).
-final class ReservationCreating extends ReservationState {
-    // Keep previous selections for context
-    const ReservationCreating({
-      required BookableService service,
-      required DateTime date,
-      required List<TimeOfDay> slots, // Pass the list of slots being created
-    }) : super(selectedService: service, selectedDate: date, selectedSlots: slots);
+class ReservationCreating extends ReservationState {
+  const ReservationCreating({
+    required super.provider,
+    required super.selectedReservationType,
+    required super.selectedService,
+    required super.selectedDate,
+    required super.selectedStartTime,
+    required super.selectedEndTime,
+    required super.availableSlots,
+    required super.selectedAttendees,
+  });
+
+   @override
+   ReservationCreating copyWith({ ServiceProviderModel? provider, List<AttendeeModel>? selectedAttendees}) {
+       throw UnimplementedError('Cannot copy ReservationCreating state.');
+   }
 }
 
-/// State indicating the reservation(s) were successfully created.
-final class ReservationSuccess extends ReservationState {
-    final String message;
-    // Keep selected slots for potential display on success message?
-    const ReservationSuccess({
-        this.message = "Reservation confirmed!",
-        List<TimeOfDay> slots = const []
-      }) : super(selectedSlots: slots); // Pass empty list or confirmed slots
+/// State indicating the reservation was successfully created.
+class ReservationSuccess extends ReservationState {
+  final String message;
+  const ReservationSuccess({
+    required this.message,
+    required super.provider,
+    required super.selectedReservationType,
+    required super.selectedService,
+    required super.selectedDate,
+    required super.selectedStartTime,
+    required super.selectedEndTime,
+    required super.availableSlots,
+    required super.selectedAttendees,
+  });
 
-     @override
-     List<Object?> get props => [message];
+  @override List<Object?> get props => super.props..add(message);
+
+   @override
+   ReservationSuccess copyWith({ ServiceProviderModel? provider, List<AttendeeModel>? selectedAttendees}) {
+       throw UnimplementedError('Cannot copy ReservationSuccess state.');
+   }
 }
 
 /// State indicating an error occurred during the reservation process.
-final class ReservationError extends ReservationState {
+class ReservationError extends ReservationState {
   final String message;
-  // Keep previous selections for context if needed for retry logic
   const ReservationError({
-     required this.message,
-     BookableService? service,
-     DateTime? date,
-     List<TimeOfDay> slots = const [],
-    }) : super(selectedService: service, selectedDate: date, selectedSlots: slots);
+    required this.message,
+    required super.provider,
+    super.selectedReservationType,
+    super.selectedService,
+    super.selectedDate,
+    super.selectedStartTime,
+    super.selectedEndTime,
+    super.availableSlots = const [],
+    super.selectedAttendees = const [],
+  });
+
+  @override List<Object?> get props => super.props..add(message);
 
   @override
-  List<Object?> get props => super.props..addAll([message]);
+  ReservationError copyWith({
+    ServiceProviderModel? provider,
+    List<AttendeeModel>? selectedAttendees,
+    String? message,
+    ReservationType? selectedReservationType,
+    BookableService? selectedService,
+    DateTime? selectedDate,
+    TimeOfDay? selectedStartTime,
+    TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots,
+  }) {
+    return ReservationError(
+      message: message ?? this.message,
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      selectedService: selectedService ?? this.selectedService,
+      selectedDate: selectedDate ?? this.selectedDate,
+      selectedStartTime: selectedStartTime ?? this.selectedStartTime,
+      selectedEndTime: selectedEndTime ?? this.selectedEndTime,
+      availableSlots: availableSlots ?? this.availableSlots,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+    );
+  }
 }

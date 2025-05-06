@@ -1,26 +1,32 @@
+// lib/feature/home/widgets/service_provider_card.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
-import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart'; // Includes isFavorite
-// import 'package:shamil_mobile_app/core/constants/image_constants.dart'; // Not needed if transparentImageData is handled differently or not used
+import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
+// Import placeholder image data
+import 'package:shamil_mobile_app/core/constants/image_constants.dart'; // Use constant
 import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
 import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/feature/home/views/bloc/home_bloc.dart';
 
 class ServiceProviderCard extends StatelessWidget {
   final ServiceProviderDisplayModel provider;
+  // Optional: Add a prefix for the hero tag if needed for uniqueness across different lists
+  final String heroTagPrefix;
 
   const ServiceProviderCard({
     super.key,
     required this.provider,
+    this.heroTagPrefix = 'provider', // Default prefix
   });
 
   // Consistent styling
   static final BorderRadius _cardRadius = BorderRadius.circular(12.0);
-  static final BorderRadius _squareRadius = BorderRadius.circular(8.0);
+  // static final BorderRadius _squareRadius = BorderRadius.circular(8.0); // Defined in _buildFavoriteButton
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +34,9 @@ class ServiceProviderCard extends StatelessWidget {
     final String imageUrl = provider.imageUrl ?? '';
     final String ratingString = provider.rating.toStringAsFixed(1);
     final bool isFavorite = provider.isFavorite;
-    final String heroTag = 'providerImage_${provider.id}';
+    // *** Generate a potentially more unique hero tag ***
+    // Combining prefix and ID should be sufficient in most cases
+    final String uniqueHeroTag = '${heroTagPrefix}_${provider.id}';
     const double favoriteButtonSize = 32.0;
 
     return SizedBox(
@@ -38,19 +46,20 @@ class ServiceProviderCard extends StatelessWidget {
         elevation: 4.0,
         shadowColor: theme.colorScheme.shadow.withOpacity(0.2),
         clipBehavior: Clip.antiAlias,
-        margin: const EdgeInsets.only(bottom: 4.0),
+        margin: const EdgeInsets.only(bottom: 4.0), // For shadow visibility
         child: InkWell(
           onTap: () {
-            // *** MODIFICATION START ***
-            // Navigate and pass the full 'provider' object as 'initialProviderData'
+            print("Tapping card with Hero Tag: $uniqueHeroTag"); // Debug log
+            // *** Navigate passing the uniqueHeroTag ***
             Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => ServiceProviderDetailScreen(
                 providerId: provider.id,
-                initialImageUrl: provider.imageUrl, // Keep for Hero transition continuity
-                initialProviderData: provider,    // Pass the display model
+                initialImageUrl: provider.imageUrl,
+                initialProviderData: provider,
+                // *** Pass the generated unique heroTag ***
+                heroTag: uniqueHeroTag,
               ),
             ));
-            // *** MODIFICATION END ***
           },
           borderRadius: _cardRadius,
           child: Stack(
@@ -59,8 +68,14 @@ class ServiceProviderCard extends StatelessWidget {
               // Background Image (Portrait Aspect Ratio)
               Positioned.fill(
                 child: Hero(
-                  tag: heroTag,
+                  // *** Use the generated unique hero tag ***
+                  tag: uniqueHeroTag,
+                  // Add a flightShuttleBuilder for smoother transitions if needed
+                  // flightShuttleBuilder: (flightContext, animation, flightDirection, fromHeroContext, toHeroContext) {
+                  //   // ... custom transition widget ...
+                  // },
                   child: ClipRRect(
+                    // Ensure image is clipped
                     borderRadius: _cardRadius,
                     child: AspectRatio(
                       aspectRatio: 2.0 / 3.0, // Portrait ratio
@@ -86,10 +101,9 @@ class ServiceProviderCard extends StatelessWidget {
                 right: 0,
                 height: 90,
                 child: Container(
-                  /* ... gradient ... */
                   decoration: BoxDecoration(
-                    borderRadius:
-                        BorderRadius.vertical(bottom: _cardRadius.bottomLeft),
+                    borderRadius: BorderRadius.vertical(
+                        bottom: _cardRadius.bottomLeft), // Match card radius
                     gradient: LinearGradient(
                       colors: [
                         Colors.black.withOpacity(0.85),
@@ -123,7 +137,6 @@ class ServiceProviderCard extends StatelessWidget {
                               children: [
                                 Text(
                                   provider.businessName,
-                                  /* ... styling ... */
                                   style: theme.textTheme.titleSmall?.copyWith(
                                       color: AppColors.white,
                                       fontWeight: FontWeight.bold,
@@ -139,7 +152,7 @@ class ServiceProviderCard extends StatelessWidget {
                                 ),
                                 const Gap(4),
                                 Row(
-                                  /* ... rating ... */
+                                  // Rating Row
                                   children: [
                                     Icon(Icons.star_rounded,
                                         size: 16, color: AppColors.yellowColor),
@@ -170,7 +183,7 @@ class ServiceProviderCard extends StatelessWidget {
                           ),
                           const Gap(8), // Space between info and button
 
-                          // 2. Favorite Button (Square, 8px radius, Animated)
+                          // 2. Favorite Button
                           _buildFavoriteButton(context, theme, provider,
                               isFavorite, favoriteButtonSize),
                         ],
@@ -182,19 +195,18 @@ class ServiceProviderCard extends StatelessWidget {
     );
   }
 
-  // --- Placeholder and Error Widgets for CachedNetworkImage ---
+  // --- Placeholder and Error Widgets ---
   Widget _buildImagePlaceholder(BuildContext context) {
-    // ... implementation remains the same ...
     final shimmerBaseColor = AppColors.accentColor.withOpacity(0.4);
     final shimmerHighlightColor = AppColors.accentColor.withOpacity(0.1);
     return Shimmer.fromColors(
-      baseColor: shimmerBaseColor, highlightColor: shimmerHighlightColor,
-      child: Container(color: AppColors.white), // Base color for shimmer
+      baseColor: shimmerBaseColor,
+      highlightColor: shimmerHighlightColor,
+      child: Container(color: AppColors.white),
     );
   }
 
   Widget _buildImageErrorWidget(BuildContext context, String message) {
-    // ... implementation remains the same ...
     return Container(
       decoration: BoxDecoration(
         color: AppColors.secondaryColor.withOpacity(0.1),
@@ -229,15 +241,14 @@ class ServiceProviderCard extends StatelessWidget {
       ServiceProviderDisplayModel provider,
       bool isFavorite,
       double buttonSize) {
-    // ... implementation remains the same ...
-    final Color backgroundColor =
-        theme.colorScheme.background.withOpacity(0.5); // Darker shade
+    final Color backgroundColor = theme.colorScheme.background.withOpacity(0.5);
     final Color defaultIconColor = AppColors.white;
     final Color favoriteIconColor = AppColors.redColor;
+    final BorderRadius squareRadius = BorderRadius.circular(8.0); // Define here
 
     return Material(
       color: backgroundColor,
-      borderRadius: _squareRadius, // Use 8px radius for square shape
+      borderRadius: squareRadius,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
@@ -245,7 +256,7 @@ class ServiceProviderCard extends StatelessWidget {
           context.read<HomeBloc>().add(ToggleFavoriteHome(
               providerId: provider.id, currentStatus: isFavorite));
         },
-        borderRadius: _squareRadius,
+        borderRadius: squareRadius,
         splashColor: AppColors.primaryColor.withOpacity(0.3),
         child: Container(
           width: buttonSize,
@@ -260,7 +271,8 @@ class ServiceProviderCard extends StatelessWidget {
               );
             },
             child: Icon(
-              key: ValueKey<bool>(isFavorite), // Key for switcher
+              key: ValueKey<bool>(
+                  isFavorite), // Use ValueKey to trigger animation
               isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
               size: 18,
               color: isFavorite ? favoriteIconColor : defaultIconColor,

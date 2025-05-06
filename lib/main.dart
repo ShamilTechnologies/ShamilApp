@@ -1,9 +1,12 @@
+// lib/main.dart
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart'; // For App Check
 import 'package:firebase_messaging/firebase_messaging.dart'; // Import FCM
+import 'package:flutter/foundation.dart'; // Required for kDebugMode check
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart'; // Needed for basic Provider
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/core/utils/themes.dart';
@@ -16,38 +19,40 @@ import 'package:shamil_mobile_app/storage_service.dart'; // Keep if used elsewhe
 import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
 import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart';
 import 'package:shamil_mobile_app/feature/social/views/friends_view.dart'; // For navigation target
-import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart'; // For providing to FriendsView if needed
+import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart'; // For providing SocialBloc
 
 // Import Firestore and Auth for token management
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+// *** Import Repositories ***
+import 'package:shamil_mobile_app/feature/reservation/repository/reservation_repository.dart';
+import 'package:shamil_mobile_app/feature/social/repository/social_repository.dart';
+// ACTION: Import SubscriptionRepository when created
+// import 'package:shamil_mobile_app/feature/subscription/repository/subscription_repository.dart';
+
 // --- FCM Background Handler ---
-// Needs to be a top-level function (outside of any class)
-// This handles messages received when the app is terminated or in the background (but not tapped)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // If you're going to use other Firebase services in the background, like Firestore,
-  // make sure you call `initializeApp` before using other Firebase services.
-  // IMPORTANT: Keep this handler lightweight.
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); // Usually needed if accessing Firebase services
+  // If you need Firebase services here, ensure initialization
+  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   print("Handling a background message: ${message.messageId}");
   print('Message data: ${message.data}');
   if (message.notification != null) {
     print(
         'Message also contained a notification: ${message.notification?.title}');
-    // You cannot update UI from here directly.
-    // You could potentially use flutter_local_notifications to show a notification.
   }
 }
 
 Future<void> main() async {
+  // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
-  await AppLocalStorage.init(); // Initialize SharedPreferences
+  // Initialize SharedPreferences
+  await AppLocalStorage.init();
 
   // Load environment variables
   try {
-    await dotenv.load(fileName: "assets/env/.env"); // Ensure path is correct
+    await dotenv.load(fileName: "assets/env/.env");
     print(".env file loaded successfully.");
   } catch (e) {
     print("Error loading .env file: $e");
@@ -58,75 +63,93 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Activate Firebase App Check (Optional but recommended)
+  // Activate Firebase App Check
   try {
     await FirebaseAppCheck.instance.activate(
       androidProvider:
-          AndroidProvider.playIntegrity, // Use playIntegrity for release
-      // androidProvider: AndroidProvider.debug, // Use debug for testing
-      // appleProvider: AppleProvider.appAttest, // Use appAttest for release
-      // appleProvider: AppleProvider.debug, // Use debug for testing
+          kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
     );
-    print("Firebase App Check activated.");
+    if (kDebugMode) {
+      print("Firebase App Check activated with DEBUG provider.");
+    } else {
+      print("Firebase App Check activated with release provider.");
+    }
   } catch (e) {
     print("Error activating Firebase App Check: $e");
   }
 
-  // --- Initialize Firebase Messaging Background Handler ---
+  // Initialize Firebase Messaging Background Handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  // --- End FCM Init ---
 
   runApp(
-    // Provide necessary services and Blocs globally
-    MultiProvider(
+    // Provide Repositories first
+    MultiRepositoryProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => StorageService()), // If used
-        // Provide AuthBloc globally as it manages core auth state
-        BlocProvider<AuthBloc>(
-          create: (context) => AuthBloc(),
-          lazy: false, // Create immediately to handle initial state
+        RepositoryProvider<ReservationRepository>(
+          create: (context) => FirebaseReservationRepository(),
         ),
-        // Provide SocialBloc globally IF multiple screens need access easily
-        // Otherwise, providing it locally in ProfileScreen (as done previously) is fine
-        BlocProvider<SocialBloc>(
-          create: (context) => SocialBloc(),
-          lazy: true, // Can be lazy if only needed later
+        RepositoryProvider<SocialRepository>(
+          create: (context) => FirebaseSocialRepository(),
         ),
+        // ACTION: Provide SubscriptionRepository when created
+        // RepositoryProvider<SubscriptionRepository>(
+        //   create: (context) => FirebaseSubscriptionRepository(),
+        // ),
       ],
-      child: const MainApp(),
+      // Then provide Blocs that might depend on Repositories
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthBloc>(
+            create: (context) => AuthBloc(),
+            lazy: false, // Check auth state immediately
+          ),
+          BlocProvider<SocialBloc>(
+            create: (context) => SocialBloc(
+              // Inject the repository provided above
+              socialRepository: context.read<SocialRepository>(),
+            ),
+            lazy: true, // Load social data when needed
+          ),
+          // ACTION: Provide SubscriptionBloc when created, injecting its repository
+          // BlocProvider<SubscriptionBloc>(
+          //   create: (context) => SubscriptionBloc(
+          //     subscriptionRepository: context.read<SubscriptionRepository>(),
+          //   ),
+          //   lazy: true,
+          // ),
+          // Provide StorageService if used via Provider
+          // Provider<StorageService>(create: (_) => StorageService()),
+        ],
+        child: const MainApp(), // Your main application widget
+      ),
     ),
   );
 }
 
-// Convert MainApp to StatefulWidget to handle FCM setup in initState
+/// The root application widget.
 class MainApp extends StatefulWidget {
   const MainApp({super.key});
-
   @override
   State<MainApp> createState() => _MainAppState();
 }
 
 class _MainAppState extends State<MainApp> {
-  // Use a GlobalKey for navigation from notification taps if needed outside build context
-  // static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
   @override
   void initState() {
     super.initState();
-    // Setup FCM listeners and request permissions AFTER the first frame
+    // Setup FCM listeners after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _setupFcmListenersAndPermissions();
-        _handleTerminatedNotification(); // Check if app opened from terminated notification
+        _handleTerminatedNotification();
       }
     });
   }
 
-  /// Request permissions and set up foreground/background tap listeners
+  /// Request notification permissions and set up FCM message listeners.
   Future<void> _setupFcmListenersAndPermissions() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-    // Request permission
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
       announcement: false,
@@ -139,52 +162,45 @@ class _MainAppState extends State<MainApp> {
     print(
         'User granted notification permission: ${settings.authorizationStatus}');
 
-    // Handle permission status
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
       print(
-          'Notification Permission Granted (or provisional). Setting up listeners and token handling.');
-      // Get initial token and listen for refreshes
+          'Notification Permission Granted. Setting up listeners and token handling.');
       _getAndSaveFcmToken();
       messaging.onTokenRefresh.listen(_updateTokenInFirestore);
 
-      // Handle foreground messages (when app is open and visible)
+      // Handle foreground messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         print('Foreground Message received:');
         print('Message data: ${message.data}');
         if (message.notification != null) {
           print(
               'Message notification: ${message.notification?.title} / ${message.notification?.body}');
-          // TODO: Show local notification using flutter_local_notifications
-          // Example: display local notification with message.notification details
-          // Or update a badge count in the UI using a Bloc/Provider
+          // TODO: Implement local notification display (e.g., flutter_local_notifications)
         }
       });
 
-      // Handle notification tap when app is in background (but running)
+      // Handle notification tap when app is in background
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         print(
             'Message clicked (background)! Navigating based on data: ${message.data}');
-        // Use the current context for navigation if possible and safe
         if (mounted) {
           _handleNotificationTap(context, message.data);
         }
       });
     } else {
       print('User declined or has not accepted notification permission');
-      // Optionally show a message explaining why notifications are useful
     }
   }
 
-  /// Check if the app was launched from a terminated state via notification
+  /// Check if the app was launched from a terminated state via a notification tap.
   Future<void> _handleTerminatedNotification() async {
     RemoteMessage? initialMessage =
         await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       print(
           'Message clicked (terminated)! Navigating based on data: ${initialMessage.data}');
-      // Handle navigation after app is initialized
-      // Use a short delay to ensure context/navigator is ready
+      // Delay slightly to ensure UI is ready
       Future.delayed(const Duration(milliseconds: 1000), () {
         if (mounted) {
           _handleNotificationTap(context, initialMessage.data);
@@ -193,51 +209,49 @@ class _MainAppState extends State<MainApp> {
     }
   }
 
-  /// Handle navigation based on notification data payload
-  /// Needs context to access Navigator and potentially Blocs
+  /// Handle navigation based on the data payload of a tapped notification.
   void _handleNotificationTap(
       BuildContext navContext, Map<String, dynamic> data) {
     print("Handling notification tap with data: $data");
-    final String? type =
-        data['type'] as String?; // Get notification type from data
+    final String? type = data['type'] as String?;
 
-    // Example: Navigate to Friends screen requests tab if it's a friend request
+    // Example navigation logic
     if (type == 'friend_request' || type == 'family_request') {
       print("Navigating to Friends/Family Requests...");
-      // Use the provided context (should be valid from listeners/initial message handling)
-      // Ensure SocialBloc is available via context before navigating
       try {
+        // Navigate to FriendsView, assuming SocialBloc is globally provided
+        // You might need to pass arguments to show the 'Requests' tab specifically
         Navigator.of(navContext).push(MaterialPageRoute(
-            builder: (_) => BlocProvider.value(
-                  value: BlocProvider.of<SocialBloc>(
-                      navContext), // Provide existing SocialBloc
-                  child: const FriendsView(), // Navigate to FriendsView
-                  // TODO: Add logic inside FriendsView to switch to 'Requests' tab based on incoming data
-                )));
+          builder: (_) => const FriendsView(),
+          // settings: RouteSettings(arguments: {'initialTab': 'requests'}), // Example argument passing
+        ));
       } catch (e) {
-        print(
-            "Error navigating from notification tap (maybe Bloc not found?): $e");
-        // Fallback navigation if push fails
-        // Navigator.of(navContext).pushReplacement(MaterialPageRoute(builder: (_) => const MainNavigationView(initialIndex: 3)));
+        print("Error navigating from notification tap: $e");
+        // Fallback navigation if specific route fails
+        Navigator.of(navContext)
+            .pushNamedAndRemoveUntil('/home', (route) => false);
       }
     }
-    // Handle other notification types if necessary
-    // else if (type == 'some_other_type') { ... }
+    // TODO: Add handlers for other notification types
   }
 
-  /// Get FCM Token and save/update it in Firestore
+  /// Get the current FCM Token and save/update it in Firestore.
   Future<void> _getAndSaveFcmToken() async {
-    // Request token (for APNS on iOS, FCM token on Android)
-    // String? apnsToken = await FirebaseMessaging.instance.getAPNSToken(); // iOS only
-    String? fcmToken = await FirebaseMessaging.instance.getToken();
-    print("Initial FCM Token: $fcmToken");
-    // TODO: Consider platform specific logic if needed (e.g. using APNS token)
-    _updateTokenInFirestore(fcmToken);
+    try {
+      String? fcmToken = await FirebaseMessaging.instance.getToken();
+      print("Initial FCM Token: $fcmToken");
+      if (fcmToken != null) {
+        _updateTokenInFirestore(fcmToken);
+      } else {
+        print("Failed to get FCM token.");
+      }
+    } catch (e) {
+      print("Error getting FCM token: $e");
+    }
   }
 
-  /// Update token in Firestore (needs user to be logged in)
+  /// Update token in Firestore for the currently logged-in user.
   Future<void> _updateTokenInFirestore(String? token) async {
-    // Get current user directly from FirebaseAuth instance
     final user = FirebaseAuth.instance.currentUser;
     if (token == null || user == null) {
       print("Cannot update FCM token: Token is null or User is null.");
@@ -245,38 +259,17 @@ class _MainAppState extends State<MainApp> {
     }
     print("Attempting to update FCM token in Firestore for user ${user.uid}");
     try {
-      // Use set with merge: true to add/update the fcmTokens array field
+      // Use 'endUsers' collection as per AuthBloc
       await FirebaseFirestore.instance
           .collection('endUsers')
           .doc(user.uid)
           .set({
-        'fcmTokens':
-            FieldValue.arrayUnion([token]) // Add token to array if not present
+        'fcmTokens': FieldValue.arrayUnion([token]),
+        'lastTokenUpdate': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       print("FCM Token update/add attempted in Firestore.");
     } catch (e) {
       print("Error saving FCM token to Firestore: $e");
-    }
-  }
-
-  /// Remove specific token from Firestore (needs user ID before logout)
-  Future<void> _removeTokenFromFirestore(String? token, String? userId) async {
-    if (token == null || userId == null) {
-      print("Cannot remove FCM token: Token or UserID is null.");
-      return;
-    }
-    print("Attempting to remove FCM token $token for user $userId");
-    try {
-      await FirebaseFirestore.instance
-          .collection('endUsers')
-          .doc(userId)
-          .update({
-        'fcmTokens': FieldValue.arrayRemove([token]) // Remove specific token
-      });
-      print("FCM Token removal attempted in Firestore.");
-    } catch (e) {
-      print("Error removing FCM token from Firestore: $e");
-      // This might fail if rules require auth, best done server-side
     }
   }
 
@@ -285,15 +278,15 @@ class _MainAppState extends State<MainApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Shamil App',
-      theme: AppThemes.lightTheme,
-      // navigatorKey: navigatorKey, // Assign key if needed for navigation without context
-      home: const SplashView(), // Initial route
+      theme: AppThemes.lightTheme, // Apply light theme
+      home: const SplashView(), // Start with the splash screen
       routes: {
-        // Define named routes if used
+        // Define named routes for cleaner navigation
         '/login': (context) => const LoginView(),
         '/home': (context) => const MainNavigationView(),
+        // Add other routes as needed
       },
-      // Global BlocListener for Auth state (handles logout navigation & token removal)
+      // Global BlocListener for Auth state changes (handles logout navigation)
       builder: (context, child) {
         return BlocListener<AuthBloc, AuthState>(
           listener: (context, state) {
@@ -301,25 +294,20 @@ class _MainAppState extends State<MainApp> {
             print(
                 "Global Auth Listener: State=${state.runtimeType}, CurrentRoute=$currentRoute");
 
-            // *** UPDATED Condition: Navigate whenever state becomes AuthInitial ***
+            // Navigate to Login screen when authentication state becomes initial (logged out)
             if (state is AuthInitial) {
               print(
                   "Global Auth Listener: Detected AuthInitial, navigating to Login.");
-
-              // Attempt to clear local FCM token instance (Firestore removal handled in Bloc)
+              // Delete local FCM token instance on logout
               try {
                 FirebaseMessaging.instance.deleteToken();
                 print("FCM Token deleted from device on logout.");
               } catch (e) {
                 print("Error deleting FCM token from device on logout: $e");
               }
-
               // Navigate to Login and remove all previous routes
-              // Ensure context used here is valid (builder context should be fine)
-              Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginView()),
-                  (route) => false // Remove all routes below LoginView
-                  );
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/login', (route) => false);
             }
           },
           child: child!, // The rest of the app defined by home/routes

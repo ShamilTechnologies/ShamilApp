@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "firebase-functions": "^6.3.2",
     "punycode": "^2.3.1"
   }
 }

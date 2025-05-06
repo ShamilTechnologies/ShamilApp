@@ -1,515 +1,549 @@
 // lib/feature/reservation/bloc/reservation_bloc.dart
 
+import 'dart:async'; // Import async
+import 'dart:math'; // Import for min/max
+
 import 'package:bloc/bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Needed for Timestamp and queries
+import 'package:cloud_firestore/cloud_firestore.dart'; // Needed for Timestamp
+import 'package:collection/collection.dart'; // For firstWhereOrNull
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Needed for userId
 import 'package:flutter/material.dart'; // For TimeOfDay
 import 'package:intl/intl.dart'; // For formatting day name
 import 'package:meta/meta.dart';
 import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
-// Import ServiceProviderModel which includes OpeningHours
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
-// Import the ReservationModel we defined
+// Import the ReservationModel AND the extension
 import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/repository/reservation_repository.dart';
 
-// Import Cloud Functions
-import 'package:cloud_functions/cloud_functions.dart';
-
+// Define the parts for Bloc structure
 part 'reservation_event.dart';
 part 'reservation_state.dart';
 
+/// Manages the state for the reservation booking process. Delegates data
+/// fetching and backend calls to a [ReservationRepository].
 class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
-  // Dependencies (Inject these properly later if needed beyond provider)
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Dependencies
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  // Initialize Cloud Functions instance
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final ReservationRepository _reservationRepository;
 
-  // Store the provider model passed via constructor
-  final ServiceProviderModel provider;
-
-  // Helper to get current user ID
   String? get _userId => _auth.currentUser?.uid;
+  String? get _userName => _auth.currentUser?.displayName;
 
-  // Constructor requires ServiceProviderModel
-  ReservationBloc({required this.provider})
-      : super(const ReservationInitial()) {
+  ReservationBloc({
+    required ServiceProviderModel provider,
+    required ReservationRepository reservationRepository,
+  })  : _reservationRepository = reservationRepository,
+        super(ReservationInitial(provider: provider)) {
+    on<SelectReservationType>(_onSelectReservationType);
     on<SelectReservationService>(_onSelectReservationService);
     on<SelectReservationDate>(_onSelectReservationDate);
-    on<UpdateSlotSelection>(_onUpdateSlotSelection);
-    on<CreateReservation>(_onCreateReservation); // Handler registration
+    on<UpdateSwipeSelection>(_onUpdateSwipeSelection);
+    on<AddAttendee>(_onAddAttendee);
+    on<RemoveAttendee>(_onRemoveAttendee);
+    on<CreateReservation>(_onCreateReservation);
     on<ResetReservationFlow>(_onResetReservationFlow);
-    print("ReservationBloc Initialized for Provider ID: ${provider.id}");
+
+    _initializeAttendees(provider);
+    print("ReservationBloc Initialized for Provider ID: ${state.provider?.id}");
+  }
+
+  void _initializeAttendees(ServiceProviderModel provider) {
+    if (_userId != null && _userName != null) {
+      if (state is ReservationInitial) {
+        // Use emit directly as this is initialization logic
+        emit((state as ReservationInitial).copyWith(// Use the specific copyWith
+            selectedAttendees: [
+          AttendeeModel(
+            userId: _userId!,
+            name: _userName!,
+            type: 'self',
+            status: 'going',
+          )
+        ]));
+      }
+    } else {
+      print("ReservationBloc WARN: User not logged in during initialization.");
+    }
+  }
+
+  void _onSelectReservationType(
+      SelectReservationType event, Emitter<ReservationState> emit) {
+    print(
+        "ReservationBloc: Reservation Type selected - ${event.reservationType.displayString}");
+    if (state.provider == null) {
+      emit(ReservationError(
+          message: "Provider context missing.",
+          provider: state.provider,
+          selectedReservationType: null,
+          selectedAttendees: state.selectedAttendees));
+      return;
+    }
+    emit(ReservationTypeSelected(
+      provider: state.provider!,
+      selectedReservationType: event.reservationType,
+      selectedAttendees: state.selectedAttendees,
+    ));
   }
 
   void _onSelectReservationService(
       SelectReservationService event, Emitter<ReservationState> emit) {
-    print("ReservationBloc: Service selected - ${event.selectedService.name}");
-    // Reset date and selected slots when service changes
-    emit(ReservationServiceSelected(service: event.selectedService));
+    final service = event.selectedService;
+    print("ReservationBloc: Service selected - ${service?.name ?? 'General'}");
+    if (state.provider == null || state.selectedReservationType == null) {
+      emit(ReservationError(
+          message: "Provider or reservation type missing.",
+          provider: state.provider,
+          selectedReservationType: state.selectedReservationType,
+          selectedAttendees: state.selectedAttendees));
+      return;
+    }
+    if (service != null) {
+      emit(ReservationServiceSelected(
+        provider: state.provider!,
+        selectedReservationType: state.selectedReservationType,
+        service: service,
+        selectedAttendees: state.selectedAttendees,
+      ));
+    } else {
+      emit(ReservationTypeSelected(
+        // Revert to type selected, clearing service
+        provider: state.provider!,
+        selectedReservationType: state.selectedReservationType,
+        selectedAttendees: state.selectedAttendees,
+      ));
+    }
   }
 
   Future<void> _onSelectReservationDate(
       SelectReservationDate event, Emitter<ReservationState> emit) async {
     final currentService = state.selectedService;
-    if (currentService == null) {
-      emit(const ReservationError(message: "Please select a service first."));
+    final currentType = state.selectedReservationType;
+    final currentProvider = state.provider;
+    final currentAttendees =
+        state.selectedAttendees; // Capture current attendees
+
+    if (currentProvider == null || currentType == null) {
+      emit(ReservationError(
+          message: "Provider or reservation type missing.",
+          provider: currentProvider,
+          selectedReservationType: currentType,
+          selectedAttendees: currentAttendees));
       return;
     }
-
-    // --- Get Opening Hours for the selected day ---
-    // Uses the stored provider's openingHours map
-    print("ReservationBloc: Opening hours data being used:");
-    this.provider.openingHours.forEach((key, value) {
+    int? durationMinutes = currentService?.durationMinutes ??
+        currentProvider.bookableServices.firstOrNull?.durationMinutes;
+    if (currentType == ReservationType.timeBased &&
+        (durationMinutes == null || durationMinutes <= 0)) {
+      durationMinutes = currentProvider.bookableServices
+              .firstWhereOrNull((s) =>
+                  s.type == ReservationType.timeBased &&
+                  s.durationMinutes != null &&
+                  s.durationMinutes! > 0)
+              ?.durationMinutes ??
+          60;
+      if (durationMinutes <= 0) {
+        emit(ReservationError(
+            message: "Invalid or missing service duration for time slots.",
+            provider: currentProvider,
+            selectedReservationType: currentType,
+            selectedService: currentService,
+            selectedDate: event.selectedDate,
+            selectedAttendees: currentAttendees));
+        return;
+      }
       print(
-          "  $key: isOpen=${value.isOpen}, start=${value.startTime}, end=${value.endTime}");
-    });
-    final OpeningHours? dailyHours = _getOpeningHoursForDate(
-        event.selectedDate, this.provider.openingHours); // Use OpeningHours
-    // --- End Opening Hours retrieval ---
-
-    if (dailyHours == null ||
-        !dailyHours.isOpen ||
-        dailyHours.startTime == null ||
-        dailyHours.endTime == null) {
-      print(
-          "ReservationBloc: Provider ${provider.id} is closed on ${DateFormat('EEEE').format(event.selectedDate)} based on looked up hours.");
-      emit(ReservationDateSelected(
-          service: currentService,
-          date: event.selectedDate,
-          availableSlots: [], // No slots available
-          isLoadingSlots: false));
-      return;
+          "ReservationBloc: Using default/fallback duration $durationMinutes min for time slot fetching.");
     }
 
     print(
-        "ReservationBloc: Date selected - ${event.selectedDate}, Service: ${currentService.name}");
+        "ReservationBloc: Date selected - ${event.selectedDate}, Type: ${currentType.displayString}");
+
+    // Emit loading state
     emit(ReservationDateSelected(
-        service: currentService,
+        provider: currentProvider,
+        selectedReservationType: currentType,
+        selectedService: currentService,
         date: event.selectedDate,
-        availableSlots: [], // Start with empty list while loading
-        isLoadingSlots: true)); // Indicate loading
+        availableSlots: [], // Clear old slots
+        selectedAttendees: currentAttendees, // Keep attendees
+        isLoadingSlots: true));
 
     try {
-      // --- Fetch Existing Reservations ---
-      final List<ReservationModel> existingReservations =
-          await _fetchExistingReservations(
-              this.provider.id, // Use stored provider ID
-              event.selectedDate);
-      // --- End Fetch Existing Reservations ---
-
-      // --- Generate Available Slots ---
-      final List<TimeOfDay> availableSlots = _generateTimeSlots(
-        startTime: dailyHours.startTime!,
-        endTime: dailyHours.endTime!,
-        durationMinutes: currentService.durationMinutes,
-        existingBookings: existingReservations,
-        selectedDate: event.selectedDate,
-      );
-      // --- End Slot Generation ---
-
-      print(
-          "ReservationBloc: Generated ${availableSlots.length} available slots for ${event.selectedDate}.");
-
-      // Check if the state is still relevant before emitting
-      final currentState = state;
-      if (currentState is ReservationDateSelected &&
-          currentState.selectedDate == event.selectedDate &&
-          currentState.selectedService == currentService) {
-        emit(currentState.copyWith(
-            availableSlots: availableSlots, isLoadingSlots: false));
+      List<TimeOfDay> availableStartSlots = [];
+      if (currentType == ReservationType.timeBased) {
+        if (currentProvider.governorateId == null ||
+            currentProvider.governorateId!.isEmpty) {
+          throw Exception(
+              "Provider's governorate ID is missing, cannot fetch slots.");
+        }
+        if (durationMinutes == null || durationMinutes <= 0) {
+          throw Exception("Cannot fetch time slots without a valid duration.");
+        }
+        availableStartSlots = await _reservationRepository.fetchAvailableSlots(
+          providerId: currentProvider.id,
+          governorateId: currentProvider.governorateId!,
+          date: event.selectedDate,
+          durationMinutes: durationMinutes,
+        );
+        print(
+            "ReservationBloc: Fetched ${availableStartSlots.length} available start slots from repository.");
       } else {
         print(
-            "ReservationBloc: State changed while fetching slots, discarding result.");
+            "ReservationBloc: Slot fetching skipped for type ${currentType.displayString}");
       }
-    } catch (e) {
-      print(
-          "ReservationBloc: Error fetching existing reservations or generating slots: $e");
-      final currentState = state;
-      // Only update state if it's still the relevant date/service selection
-      if (currentState is ReservationDateSelected &&
-          currentState.selectedDate == event.selectedDate &&
-          currentState.selectedService == currentService) {
-        emit(currentState.copyWith(
-          availableSlots: [], // Clear slots on error
+
+      // *** Check state type AGAIN before emitting ***
+      // Ensure the state hasn't changed to something else (e.g., user changed type)
+      // while we were fetching slots.
+      if (state is ReservationDateSelected &&
+          state.selectedDate == event.selectedDate &&
+          state.selectedReservationType == currentType) {
+        // Use copyWith on the *current* ReservationDateSelected state
+        emit((state as ReservationDateSelected).copyWith(
+          availableSlots: availableStartSlots,
           isLoadingSlots: false,
+          selectedStartTime: null, // Reset time selection
+          selectedEndTime: null,
         ));
-        // Optionally emit a specific error state here if needed for UI feedback
-        emit(ReservationError(
-            message: "Failed to load slots: ${e.toString()}",
-            service: currentService,
-            date: event.selectedDate,
-            slots: const []));
+      } else {
+        print(
+            "ReservationBloc: State changed while fetching slots (ignoring fetched slots). Current state: ${state.runtimeType}");
       }
-    }
-  }
-
-  /// Gets opening hours for a specific date from the schedule map.
-  OpeningHours? _getOpeningHoursForDate(
-      // Updated return type
-      DateTime date,
-      Map<String, OpeningHours> schedule) {
-    // Updated map type
-    final dayName = DateFormat('EEEE').format(date).toLowerCase();
-    print("ReservationBloc: Getting opening hours for day key: '$dayName'");
-    return schedule[dayName] ??
-        const OpeningHours(isOpen: false); // Updated class name
-  }
-
-  /// Fetches existing reservations for a provider on a specific date.
-  Future<List<ReservationModel>> _fetchExistingReservations(
-      String providerId, DateTime date) async {
-    print(
-        "ReservationBloc: Fetching existing reservations for Provider $providerId on $date");
-
-    // Calculate start and end Timestamps for the selected date (UTC)
-    final startOfDay = DateTime.utc(date.year, date.month, date.day);
-    final endOfDay =
-        DateTime.utc(date.year, date.month, date.day, 23, 59, 59, 999);
-    final startTimestamp = Timestamp.fromDate(startOfDay);
-    final endTimestamp = Timestamp.fromDate(endOfDay);
-
-    print(
-        "ReservationBloc: Querying reservations between $startTimestamp and $endTimestamp");
-
-    try {
-      // TODO: Replace 'reservations' with your actual top-level collection name if different
-      final querySnapshot = await _firestore
-          .collection('reservations')
-          .where('providerId', isEqualTo: providerId)
-          .where('reservationStartTime', isGreaterThanOrEqualTo: startTimestamp)
-          .where('reservationStartTime',
-              isLessThanOrEqualTo:
-                  endTimestamp) // Use lessThanOrEqualTo end of day
-          .where('status',
-              isEqualTo: ReservationStatus
-                  .confirmed.statusString) // Only fetch confirmed bookings
-          .get();
-
-      final reservations = querySnapshot.docs
-          .map((doc) {
-            try {
-              return ReservationModel.fromFirestore(doc);
-            } catch (e) {
-              print("Error parsing reservation doc ${doc.id}: $e");
-              return null;
-            }
-          })
-          .whereType<ReservationModel>()
-          .toList();
-
-      print(
-          "ReservationBloc: Found ${reservations.length} existing confirmed reservations.");
-      return reservations;
     } catch (e) {
-      print(
-          "ReservationBloc: Error fetching existing reservations from Firestore: $e");
-      // Consider how to handle this error - rethrow or return empty?
-      // Returning empty might lead to double bookings if the fetch fails.
-      throw Exception("Failed to fetch existing bookings: $e");
-      // return [];
-    }
-  }
-
-  /// Generates list of available TimeOfDay slots based on parameters.
-  List<TimeOfDay> _generateTimeSlots({
-    required TimeOfDay startTime,
-    required TimeOfDay endTime,
-    required int durationMinutes,
-    required List<ReservationModel> existingBookings,
-    required DateTime selectedDate,
-  }) {
-    if (durationMinutes <= 0) return [];
-    final List<TimeOfDay> slots = [];
-    final int startTotalMinutes = startTime.hour * 60 + startTime.minute;
-    final int endTotalMinutes = endTime.hour * 60 + endTime.minute;
-    int currentStartMinutes = startTotalMinutes;
-
-    // Convert existing bookings to busy intervals in minutes since midnight
-    // IMPORTANT: Ensure timezone consistency between selectedDate and Timestamps
-    final busyIntervals = existingBookings
-        .map((booking) {
-          final bookingStart = booking.reservationStartTime
-              .toDate()
-              .toLocal(); // Convert to local for comparison
-          final bookingEnd = booking.reservationEndTime
-              .toDate()
-              .toLocal(); // Convert to local for comparison
-          // Check if the booking is on the selected date (local comparison)
-          if (bookingStart.year == selectedDate.year &&
-              bookingStart.month == selectedDate.month &&
-              bookingStart.day == selectedDate.day) {
-            return {
-              'start': TimeOfDay.fromDateTime(bookingStart).hour * 60 +
-                  TimeOfDay.fromDateTime(bookingStart).minute,
-              'end': TimeOfDay.fromDateTime(bookingEnd).hour * 60 +
-                  TimeOfDay.fromDateTime(bookingEnd).minute
-            };
-          }
-          return null;
-        })
-        .whereType<Map<String, int>>()
-        .toList();
-
-    while (currentStartMinutes < endTotalMinutes) {
-      final currentEndMinutes = currentStartMinutes + durationMinutes;
-      // Slot must end on or before the closing time
-      if (currentEndMinutes > endTotalMinutes) break;
-
-      // Check for conflict with existing bookings
-      bool conflict = false;
-      for (final interval in busyIntervals) {
-        // Check for overlap: (SlotStart < IntervalEnd) and (SlotEnd > IntervalStart)
-        if (currentStartMinutes < interval['end']! &&
-            currentEndMinutes > interval['start']!) {
-          conflict = true;
-          break;
-        }
-      }
-
-      // If no conflict, add the slot
-      if (!conflict) {
-        slots.add(TimeOfDay(
-            hour: currentStartMinutes ~/ 60, minute: currentStartMinutes % 60));
-      }
-
-      // Move to the next potential slot start time
-      // *** FIX: Increment by duration, not end time ***
-      currentStartMinutes += durationMinutes; // Move by the slot duration
-    }
-    return slots;
-  }
-
-  /// Handles the updating of the selected slots list.
-  void _onUpdateSlotSelection(
-      UpdateSlotSelection event, Emitter<ReservationState> emit) {
-    // Check if the current state has the necessary data
-    if (state.selectedService == null || state.selectedDate == null) {
-      print(
-          "ReservationBloc: Cannot update slots without selected service and date.");
-      return; // Or emit an error
-    }
-
-    List<TimeOfDay> currentAvailableSlots = [];
-    // Safely get available slots from the current state
-    if (state is ReservationDateSelected) {
-      currentAvailableSlots = (state as ReservationDateSelected).availableSlots;
-    } else if (state is ReservationSlotsSelected) {
-      currentAvailableSlots =
-          (state as ReservationSlotsSelected).availableSlots;
-    } else {
-      print(
-          "ReservationBloc: UpdateSlotSelection called in unexpected state: ${state.runtimeType}");
-      return; // Cannot proceed without available slots context
-    }
-
-    final currentService = state.selectedService!;
-    final currentDate = state.selectedDate!;
-    // Filter the newly selected slots to ensure they are actually available
-    final validatedSelection = List<TimeOfDay>.from(event.newlySelectedSlots)
-      ..removeWhere((slot) => !currentAvailableSlots.contains(slot));
-
-    // Sort the validated selection for consecutiveness check
-    validatedSelection.sort(
-        (a, b) => _timeOfDayToMinutes(a).compareTo(_timeOfDayToMinutes(b)));
-
-    bool consecutive = true;
-    if (validatedSelection.length > 1) {
-      for (int i = 0; i < validatedSelection.length - 1; i++) {
-        final currentMinutes = _timeOfDayToMinutes(validatedSelection[i]);
-        final nextMinutes = _timeOfDayToMinutes(validatedSelection[i + 1]);
-        // Check if the next slot starts exactly after the current one ends
-        if (nextMinutes != currentMinutes + currentService.durationMinutes) {
-          consecutive = false;
-          break;
-        }
-      }
-    }
-
-    // If slots are not consecutive, emit an error and revert selection
-    if (!consecutive) {
-      print("ReservationBloc: Non-consecutive slots selected.");
-      // Emit error state, keeping context but clearing selected slots
+      print("ReservationBloc: Error during date selection processing: $e");
+      // *** Explicitly emit ReservationError ***
+      // Carry over context from the state *before* the error occurred
       emit(ReservationError(
-        message: "Please select consecutive time slots.",
-        service: currentService,
-        date: currentDate,
-        slots: const [], // Clear selection on error
+        message: "Failed to load availability: ${e.toString()}",
+        provider: currentProvider, // Context from before error
+        selectedReservationType: currentType,
+        selectedService: currentService,
+        selectedDate: event.selectedDate, // Date that caused error
+        availableSlots: const [],
+        selectedAttendees: currentAttendees, // Attendees from before error
       ));
-      // Schedule a revert back to the date selected state after a short delay
-      // This allows the error message to be seen before the UI resets
-      Future.delayed(const Duration(milliseconds: 2000), () {
-        // Check if the state is still the error state for this date/service before reverting
-        if (state is ReservationError &&
-            state.selectedDate == currentDate &&
-            state.selectedService == currentService) {
-          emit(ReservationDateSelected(
-              service: currentService,
-              date: currentDate,
-              availableSlots: currentAvailableSlots,
-              isLoadingSlots: false // Ensure loading is false
-              ));
-        }
-      });
-      return; // Stop processing this event
-    }
-
-    // If selection is valid (empty or consecutive)
-    if (validatedSelection.isEmpty) {
-      // If selection is now empty, go back to DateSelected state
-      emit(ReservationDateSelected(
-          service: currentService,
-          date: currentDate,
-          availableSlots: currentAvailableSlots,
-          isLoadingSlots: false));
-    } else {
-      // If selection is valid and not empty, emit SlotsSelected state
-      emit(ReservationSlotsSelected(
-          service: currentService,
-          date: currentDate,
-          slots: validatedSelection,
-          availableSlots: currentAvailableSlots));
     }
   }
 
-  /// Handles the creation of reservations by calling the Cloud Function.
+  void _onUpdateSwipeSelection(
+      UpdateSwipeSelection event, Emitter<ReservationState> emit) {
+    final currentState = state; // Capture current state
+    if (currentState.provider == null ||
+        currentState.selectedReservationType != ReservationType.timeBased ||
+        currentState.selectedDate == null) {
+      emit(ReservationError(
+          message: "Please select type and date first for time-based booking.",
+          provider: currentState.provider,
+          selectedReservationType: currentState.selectedReservationType,
+          selectedDate: currentState.selectedDate,
+          selectedAttendees: currentState.selectedAttendees));
+      return;
+    }
+    final startTime = event.startTime;
+    final endTime = event.endTime;
+    if (_timeOfDayToMinutes(endTime) <= _timeOfDayToMinutes(startTime)) {
+      emit(ReservationError(
+        message: "Invalid time range: End time must be after start time.",
+        provider: currentState.provider!,
+        selectedReservationType: currentState.selectedReservationType,
+        selectedService: currentState.selectedService,
+        selectedDate: currentState.selectedDate!,
+        availableSlots: currentState.availableSlots,
+        selectedAttendees: currentState.selectedAttendees,
+        selectedStartTime: null,
+        selectedEndTime: null,
+      ));
+      return;
+    }
+
+    // Emit the specific ReservationRangeSelected state
+    emit(ReservationRangeSelected(
+      provider: currentState.provider!,
+      selectedReservationType: currentState.selectedReservationType!,
+      selectedService: currentState.selectedService,
+      date: currentState.selectedDate!,
+      startTime: startTime,
+      endTime: endTime,
+      availableSlots: currentState.availableSlots,
+      selectedAttendees: currentState.selectedAttendees,
+    ));
+  }
+
+  void _onAddAttendee(AddAttendee event, Emitter<ReservationState> emit) {
+    if (state.provider == null) return;
+    final currentAttendees = List<AttendeeModel>.from(state.selectedAttendees);
+    final maxGroupSize = state.provider!.maxGroupSize;
+    if (currentAttendees.any((a) => a.userId == event.attendee.userId)) return;
+    if (maxGroupSize != null && currentAttendees.length >= maxGroupSize) {
+      emit(ReservationError(
+        message: "Maximum group size ($maxGroupSize) reached.",
+        provider: state.provider,
+        selectedReservationType: state.selectedReservationType,
+        selectedService: state.selectedService,
+        selectedDate: state.selectedDate,
+        selectedStartTime: state.selectedStartTime,
+        selectedEndTime: state.selectedEndTime,
+        availableSlots: state.availableSlots,
+        selectedAttendees: state.selectedAttendees,
+      ));
+      return;
+    }
+    currentAttendees.add(event.attendee);
+    print(
+        "Attendee added: ${event.attendee.name}. New count: ${currentAttendees.length}");
+    // Use the specific copyWith method of the current state
+    emit(state.copyWith(selectedAttendees: currentAttendees));
+  }
+
+  void _onRemoveAttendee(RemoveAttendee event, Emitter<ReservationState> emit) {
+    if (state.provider == null) return;
+    final currentAttendees = List<AttendeeModel>.from(state.selectedAttendees);
+    final initialLength = currentAttendees.length;
+    currentAttendees.removeWhere(
+        (a) => a.userId == event.userIdToRemove && a.type != 'self');
+    if (currentAttendees.length < initialLength) {
+      print(
+          "Attendee removed: ${event.userIdToRemove}. New count: ${currentAttendees.length}");
+      emit(state.copyWith(selectedAttendees: currentAttendees));
+    } else {
+      print(
+          "Could not remove attendee: ${event.userIdToRemove} (not found or 'self')");
+    }
+  }
+
   Future<void> _onCreateReservation(
       CreateReservation event, Emitter<ReservationState> emit) async {
-    if (state.selectedSlots.isEmpty) {
-      emit(const ReservationError(
-          message: "Please select at least one time slot."));
-      // Optionally revert to DateSelected state after delay
-      if (state.selectedDate != null && state.selectedService != null) {
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (state.selectedSlots.isEmpty) {
-            // Check again in case state changed
-            add(SelectReservationDate(selectedDate: state.selectedDate!));
-          }
-        });
-      }
-      return;
-    }
+    // Capture state before starting async operation
+    final stateBeforeCreate = state;
 
-    // Ensure we have user ID
+    // --- Validation Checks ---
     final userId = _userId;
-    if (userId == null) {
-      emit(const ReservationError(
-          message: "User not authenticated. Please log in."));
+    final userName = _userName;
+    if (userId == null || userName == null) {
+      emit(ReservationError(
+          message: "User not authenticated.",
+          provider: stateBeforeCreate.provider,
+          selectedReservationType: stateBeforeCreate.selectedReservationType,
+          selectedAttendees: stateBeforeCreate.selectedAttendees));
       return;
     }
-
-    final selectedSlots = state.selectedSlots;
-    final providerId = this.provider.id; // Use provider ID from constructor
-
-    emit(ReservationCreating(
-        service: event.service, date: event.date, slots: selectedSlots));
-    print(
-        "ReservationBloc: Creating reservation(s) for ${selectedSlots.length} slots...");
-    print(
-        "   Provider: $providerId, Service: ${event.service.name}, Date: ${event.date}");
-    for (var slot in selectedSlots) {
-      print("   Slot: $slot");
+    if (stateBeforeCreate.provider == null ||
+        stateBeforeCreate.selectedReservationType == null ||
+        stateBeforeCreate.selectedAttendees.isEmpty) {
+      emit(ReservationError(
+          message: "Missing required reservation context.",
+          provider: stateBeforeCreate.provider,
+          selectedReservationType: stateBeforeCreate.selectedReservationType,
+          selectedAttendees: stateBeforeCreate.selectedAttendees));
+      return;
     }
+    if (stateBeforeCreate.provider?.governorateId == null ||
+        stateBeforeCreate.provider!.governorateId!.isEmpty) {
+      emit(ReservationError(
+          message:
+              "Provider is missing necessary location information (Governorate ID).",
+          provider: stateBeforeCreate.provider,
+          selectedReservationType: stateBeforeCreate.selectedReservationType,
+          selectedAttendees: stateBeforeCreate.selectedAttendees));
+      return;
+    }
+    bool ready = isReservationReadyToConfirm(
+        stateBeforeCreate, stateBeforeCreate.selectedReservationType);
+    if (!ready) {
+      emit(ReservationError(
+          message: "Please complete all required fields.",
+          provider: stateBeforeCreate.provider!,
+          selectedReservationType: stateBeforeCreate.selectedReservationType,
+          selectedService: stateBeforeCreate.selectedService,
+          selectedDate: stateBeforeCreate.selectedDate,
+          selectedStartTime: stateBeforeCreate.selectedStartTime,
+          selectedEndTime: stateBeforeCreate.selectedEndTime,
+          availableSlots: stateBeforeCreate.availableSlots,
+          selectedAttendees: stateBeforeCreate.selectedAttendees));
+      return;
+    }
+    // --- End Validation ---
 
+    // --- Get Data from State ---
+    final currentProvider = stateBeforeCreate.provider!;
+    final reservationType = stateBeforeCreate.selectedReservationType!;
+    final attendees = stateBeforeCreate.selectedAttendees;
+    final service = stateBeforeCreate.selectedService;
+    final date = stateBeforeCreate.selectedDate;
+    final startTime = stateBeforeCreate.selectedStartTime;
+    final endTime = stateBeforeCreate.selectedEndTime;
+
+    // --- Emit Loading State ---
+    emit(ReservationCreating(
+      provider: currentProvider,
+      selectedReservationType: reservationType,
+      selectedService: service,
+      selectedDate: date,
+      selectedStartTime: startTime,
+      selectedEndTime: endTime,
+      availableSlots: stateBeforeCreate.availableSlots,
+      selectedAttendees: attendees,
+    ));
+    print(
+        "ReservationBloc: Creating '${reservationType.displayString}' reservation...");
+
+    // --- Prepare Payload ---
+    final payload = <String, dynamic>{
+      'userId': userId,
+      'userName': userName,
+      'providerId': currentProvider.id,
+      'governorateId': currentProvider.governorateId!,
+      'reservationType': reservationType.typeString,
+      'attendees': attendees.map((a) => a.toMap()).toList(),
+      'groupSize': attendees.length,
+      if (service != null) 'serviceId': service.id,
+      if (service != null) 'serviceName': service.name,
+      if (service != null) 'serviceDurationMinutes': service.durationMinutes,
+      if (service != null) 'servicePrice': service.price,
+      if (date != null)
+        'reservationDateMillis': DateTime.utc(date.year, date.month, date.day)
+            .millisecondsSinceEpoch,
+      if (reservationType == ReservationType.timeBased) ...{
+        if (startTime != null)
+          'startTimeOfDay': {
+            'hour': startTime.hour,
+            'minute': startTime.minute
+          },
+        if (endTime != null)
+          'endTimeOfDay': {'hour': endTime.hour, 'minute': endTime.minute},
+      }, /* TODO: Add typeSpecificData */
+    };
+
+    // --- Call Repository ---
     try {
-      // *** FIX: Convert Timestamps to millisecondsSinceEpoch ***
-      final List<Map<String, dynamic>> reservationRequests =
-          selectedSlots.map((slot) {
-        final startDateTimeLocal = DateTime(event.date.year, event.date.month,
-            event.date.day, slot.hour, slot.minute);
-        final endDateTimeLocal = startDateTimeLocal
-            .add(Duration(minutes: event.service.durationMinutes));
-        return {
-          // Convert UTC DateTime to milliseconds since epoch (int)
-          'startTimeMillis': startDateTimeLocal.toUtc().millisecondsSinceEpoch,
-          'endTimeMillis': endDateTimeLocal.toUtc().millisecondsSinceEpoch,
-        };
-      }).toList();
-
-      // Prepare the payload for the Cloud Function
-      final payload = <String, dynamic>{
-        'userId': userId,
-        'providerId': providerId,
-        'serviceId': event.service.id,
-        'serviceName': event.service.name,
-        'serviceDurationMinutes': event.service.durationMinutes,
-        'servicePrice': event.service.price,
-        // Convert the reservation date (start of day) to milliseconds since epoch (UTC)
-        'reservationDateMillis':
-            DateTime.utc(event.date.year, event.date.month, event.date.day)
-                .millisecondsSinceEpoch,
-        'requestedSlots': reservationRequests, // List of maps with milliseconds
-      };
-
-      // --- Actual Cloud Function Call ---
-      print(
-          "ReservationBloc: Calling 'createReservation' Cloud Function with payload: $payload");
-      final HttpsCallable callable =
-          _functions.httpsCallable('createReservation');
-
-      final result = await callable.call(payload); // Pass the converted payload
-
-      print("Cloud Function 'createReservation' result: ${result.data}");
-
-      // Check the result from the Cloud Function
-      if (result.data?['success'] == true) {
-        print("ReservationBloc: Backend reservation successful.");
-        // Extract success message or use default
-        final successMessage = result.data?['message'] as String? ??
-            "${selectedSlots.length} reservation(s) confirmed!";
-        emit(ReservationSuccess(message: successMessage, slots: selectedSlots));
-        // Optionally: Dispatch event to refresh user's bookings list elsewhere
-        // context.read<UserBookingsBloc>().add(FetchUserBookings());
+      final result =
+          await _reservationRepository.createReservationOnBackend(payload);
+      if (result['success'] == true) {
+        final successMessage =
+            result['message'] as String? ?? "Reservation confirmed!";
+        print("ReservationBloc: Reservation successful - $successMessage");
+        emit(ReservationSuccess(
+            message: successMessage,
+            provider: currentProvider,
+            selectedReservationType: reservationType,
+            selectedService: service,
+            selectedDate: date,
+            selectedStartTime: startTime,
+            selectedEndTime: endTime,
+            availableSlots: stateBeforeCreate.availableSlots,
+            selectedAttendees: attendees));
       } else {
-        // Backend returned an error
-        final errorMessage = result.data?['error'] as String? ??
-            'Reservation failed on the server.';
-        print("ReservationBloc: Backend reservation failed - $errorMessage");
+        final errorMessage =
+            result['error'] as String? ?? 'Reservation failed on the server.';
+        print("ReservationBloc: Reservation failed - $errorMessage");
+        // *** Emit ReservationError with context from *before* creation attempt ***
         emit(ReservationError(
             message: errorMessage,
-            service: event.service,
-            date: event.date,
-            slots: selectedSlots // Keep context on error
-            ));
+            provider: currentProvider,
+            selectedReservationType: reservationType,
+            selectedService: service,
+            selectedDate: date,
+            selectedStartTime: startTime,
+            selectedEndTime: endTime,
+            availableSlots: stateBeforeCreate.availableSlots,
+            selectedAttendees: attendees));
       }
-      // --- End Cloud Function Call ---
-    } on FirebaseFunctionsException catch (e) {
-      print(
-          "ReservationBloc: FirebaseFunctionsException during reservation creation - Code: ${e.code}, Message: ${e.message}, Details: ${e.details}");
-      // Check for the specific assertion error if details are available
-      String displayMessage =
-          "Reservation Error (${e.code}): ${e.message ?? 'Please try again.'}";
-      if (e.details is Map &&
-          (e.details as Map).containsKey('message') &&
-          (e.details['message'] as String).contains('assertion was thrown')) {
-        displayMessage =
-            "Reservation Error: Invalid data sent to server. Please check inputs.";
-      }
-      emit(ReservationError(
-          message: displayMessage,
-          service: event.service,
-          date: event.date,
-          slots: selectedSlots));
     } catch (e) {
-      print("ReservationBloc: Generic error during reservation creation - $e");
+      print(
+          "ReservationBloc: Error calling createReservation repository method: $e");
+      // *** Emit ReservationError with context from *before* creation attempt ***
       emit(ReservationError(
-          message: "An unexpected error occurred: ${e.toString()}",
-          service: event.service,
-          date: event.date,
-          slots: selectedSlots));
+          message: "Failed to create reservation: ${e.toString()}",
+          provider: currentProvider,
+          selectedReservationType: reservationType,
+          selectedService: service,
+          selectedDate: date,
+          selectedStartTime: startTime,
+          selectedEndTime: endTime,
+          availableSlots: stateBeforeCreate.availableSlots,
+          selectedAttendees: attendees));
     }
-  }
+  } // End of _onCreateReservation
 
-  /// Resets the Bloc to its initial state.
+  /// Resets the Bloc to its initial state, keeping the provider context.
   void _onResetReservationFlow(
       ResetReservationFlow event, Emitter<ReservationState> emit) {
     print("ReservationBloc: Resetting flow.");
-    emit(const ReservationInitial());
+    final providerToUse = event.provider ?? state.provider;
+    if (providerToUse == null) {
+      emit(const ReservationError(
+          message: "Cannot reset: Provider missing.", provider: null));
+      return;
+    }
+    final initialAttendees = event.initialAttendee != null
+        ? [event.initialAttendee!]
+        : <AttendeeModel>[];
+    final supportedTypes = providerToUse.supportedReservationTypes
+        .map((s) => reservationTypeFromString(s))
+        .where((t) => t != ReservationType.unknown)
+        .toList();
+    ReservationType? initialType;
+    if (supportedTypes.length == 1) {
+      initialType = supportedTypes.first;
+      print(
+          "ReservationBloc Reset: Auto-selecting type ${initialType.displayString}");
+    }
+
+    if (initialType != null) {
+      emit(ReservationTypeSelected(
+        provider: providerToUse,
+        selectedReservationType: initialType,
+        selectedAttendees: initialAttendees,
+      ));
+    } else {
+      // Use the specific copyWith for ReservationInitial
+      emit(ReservationInitial(provider: providerToUse)
+          .copyWith(selectedAttendees: initialAttendees));
+    }
   }
 
-  // Helper function
-  int _timeOfDayToMinutes(TimeOfDay time) {
-    return time.hour * 60 + time.minute;
+  // --- Helper Functions ---
+
+  int _timeOfDayToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
+
+  bool isReservationReadyToConfirm(
+      ReservationState currentState, ReservationType? selectedType) {
+    if (currentState.selectedAttendees.isEmpty ||
+        selectedType == null ||
+        currentState.provider == null) return false;
+    switch (selectedType) {
+      case ReservationType.timeBased:
+        return currentState.selectedDate != null &&
+            currentState.selectedStartTime != null &&
+            currentState.selectedEndTime != null;
+      case ReservationType.serviceBased:
+        return currentState.selectedService != null;
+      case ReservationType.seatBased:
+        return currentState.selectedDate !=
+            null /* && currentState.selectedSeatInfo != null */;
+      case ReservationType.accessBased:
+        return currentState.selectedDate !=
+            null /* && currentState.selectedAccessOption != null */;
+      case ReservationType.recurring:
+        return false;
+      case ReservationType.group:
+        final otherTypes = currentState.provider!.supportedReservationTypes
+            .map((s) => reservationTypeFromString(s))
+            .where((t) =>
+                t != ReservationType.unknown && t != ReservationType.group);
+        if (otherTypes.contains(ReservationType.timeBased)) {
+          return currentState.selectedDate != null &&
+              currentState.selectedStartTime != null &&
+              currentState.selectedEndTime != null;
+        } else if (otherTypes.contains(ReservationType.serviceBased)) {
+          return currentState.selectedService != null;
+        }
+        return false;
+      case ReservationType.unknown:
+      default:
+        return false;
+    }
   }
 } // End of ReservationBloc

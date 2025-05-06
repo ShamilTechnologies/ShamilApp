@@ -1,14 +1,15 @@
+// lib/feature/subscription/bloc/subscription_bloc.dart
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // For getting userId
 import 'package:meta/meta.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'; // For SubscriptionPlan model
 
-// Import Firebase/Cloud Functions dependencies when needed
-// import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:cloud_functions/cloud_functions.dart';
+// ACTION: Import the SubscriptionRepository (Create this file next)
+// import 'package:shamil_mobile_app/feature/subscription/repository/subscription_repository.dart';
 
-// Import Payment Service interface/implementation when created
+// ACTION: Import Payment Service if/when implemented
 // import 'package:shamil_mobile_app/core/services/payment_service.dart';
 
 
@@ -16,14 +17,21 @@ part 'subscription_event.dart';
 part 'subscription_state.dart';
 
 class SubscriptionBloc extends Bloc<SubscriptionEvent, SubscriptionState> {
-  // TODO: Inject dependencies (Firestore, Auth, Functions, Payment SDK Service) via constructor
-  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  // final FirebaseAuth _auth = FirebaseAuth.instance;
-  // final FirebaseFunctions _functions = FirebaseFunctions.instance;
-  // final PaymentService _paymentService;
+  // ACTION: Inject dependencies
+  // final SubscriptionRepository _subscriptionRepository; // Uncomment when repository is created
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // final PaymentService _paymentService; // Uncomment when payment service is ready
 
-  SubscriptionBloc(/*{required PaymentService paymentService}*/)
-    : /*_paymentService = paymentService,*/ super(SubscriptionInitial()) {
+  // Helper to get current user ID
+  String? get _userId => _auth.currentUser?.uid;
+
+  SubscriptionBloc(
+    // ACTION: Add required repository parameter
+    // {required SubscriptionRepository subscriptionRepository} // Uncomment when repository is created
+    /*{required PaymentService paymentService}*/
+  ) : //_subscriptionRepository = subscriptionRepository, // Uncomment
+      // _paymentService = paymentService,
+      super(SubscriptionInitial()) {
 
     on<SelectSubscriptionPlan>(_onSelectSubscriptionPlan);
     on<InitiateSubscriptionPayment>(_onInitiateSubscriptionPayment);
@@ -43,30 +51,33 @@ class SubscriptionBloc extends Bloc<SubscriptionEvent, SubscriptionState> {
   Future<void> _onInitiateSubscriptionPayment(
       InitiateSubscriptionPayment event, Emitter<SubscriptionState> emit) async {
      final currentState = state;
-     // Ensure a plan has been selected before proceeding
-     if (currentState is SubscriptionPlanSelected) {
-        emit(SubscriptionPaymentProcessing(plan: currentState.plan));
-        print("SubscriptionBloc: Initiating payment for plan - ${currentState.plan.name}");
+     final userId = _userId;
+
+     // Ensure a plan has been selected and user is logged in
+     if (currentState is SubscriptionPlanSelected && userId != null) {
+        final plan = currentState.plan;
+        emit(SubscriptionPaymentProcessing(plan: plan)); // Show loading
+        print("SubscriptionBloc: Initiating payment for plan - ${plan.name}");
 
         // --- Placeholder: Payment Gateway Integration ---
-        // TODO: Replace this block with actual Payment Gateway SDK integration.
+        // ACTION: Replace this block with actual Payment Gateway SDK integration.
         try {
-           // Example:
+           // Example (needs PaymentService implementation):
            // final paymentResult = await _paymentService.startPayment(
-           //    amount: currentState.plan.price,
+           //    amount: plan.price,
            //    currency: 'EGP', // Or fetch from config/plan
-           //    description: 'Subscription: ${currentState.plan.name}',
-           //    // Add other necessary parameters (userId, email, etc.)
+           //    description: 'Subscription: ${plan.name}',
+           //    userId: userId,
+           //    // Add other necessary parameters (email, providerId for metadata?)
            // );
 
-           // Based on paymentResult (e.g., success token, redirect URL, failure):
+           // Based on paymentResult:
            // if (paymentResult.isSuccess) {
            //    // If payment confirmed directly by SDK, move to backend confirmation
            //    add(ConfirmSubscriptionPurchase(paymentConfirmationToken: paymentResult.token!));
            // } else if (paymentResult.requiresRedirect) {
-           //    // Handle redirection if needed by the payment gateway
-           //    // The UI listening to this state might trigger the redirect.
-           //    emit(SubscriptionRequiresRedirect(url: paymentResult.redirectUrl!, plan: currentState.plan));
+           //    // Handle redirection if needed (e.g., emit a specific state for UI)
+           //    emit(SubscriptionRequiresRedirect(url: paymentResult.redirectUrl!, plan: plan));
            // } else {
            //    // Payment failed during initiation
            //    throw Exception(paymentResult.errorMessage ?? 'Payment initiation failed');
@@ -74,21 +85,23 @@ class SubscriptionBloc extends Bloc<SubscriptionEvent, SubscriptionState> {
 
            // Simulate a delay and then placeholder for error/next step
            await Future.delayed(const Duration(seconds: 2));
-           // Simulate payment success (replace with actual logic) -> trigger confirmation
-           // add(const ConfirmSubscriptionPurchase(paymentConfirmationToken: 'DUMMY_PAYMENT_TOKEN_123'));
+           // Simulate payment success -> trigger confirmation
+           // ACTION: Replace 'DUMMY_PAYMENT_TOKEN_123' with actual token from payment gateway
+           add(const ConfirmSubscriptionPurchase(paymentConfirmationToken: 'DUMMY_PAYMENT_TOKEN_123'));
            // OR simulate failure:
-           throw Exception("Payment Gateway Not Implemented Yet");
+           // throw Exception("Payment Gateway Not Implemented Yet");
 
         } catch (e) {
            print("SubscriptionBloc: Error during payment initiation - $e");
-           emit(SubscriptionError(message: "Payment initiation failed: $e", plan: currentState.plan));
+           emit(SubscriptionError(message: "Payment initiation failed: $e", plan: plan));
         }
         // --- End Placeholder ---
 
      } else {
          // This shouldn't happen if UI flow is correct, but handle defensively
-         print("SubscriptionBloc: Error - InitiateSubscriptionPayment called without a plan selected.");
-         emit(const SubscriptionError(message: "No plan selected to initiate payment."));
+         String errorMsg = userId == null ? "User not logged in." : "No plan selected.";
+         print("SubscriptionBloc: Error - InitiateSubscriptionPayment called incorrectly: $errorMsg");
+         emit(SubscriptionError(message: "$errorMsg Please try again.", plan: currentState is SubscriptionPlanSelected ? currentState.plan : null));
      }
   }
 
@@ -96,68 +109,67 @@ class SubscriptionBloc extends Bloc<SubscriptionEvent, SubscriptionState> {
    Future<void> _onConfirmSubscriptionPurchase(
       ConfirmSubscriptionPurchase event, Emitter<SubscriptionState> emit) async {
       SubscriptionPlan? planBeingConfirmed;
+      String? userId = _userId;
+      // ACTION: Need providerId context here! This needs to be passed down
+      // from the detail screen / options sheet or stored in the state.
+      // For now, using a placeholder.
+      String? providerId = "PLACEHOLDER_PROVIDER_ID"; // <<<----- ACTION: Replace this
 
       // Determine the plan being confirmed from the previous state
       if (state is SubscriptionPaymentProcessing) {
         planBeingConfirmed = (state as SubscriptionPaymentProcessing).plan;
       } else if (state is SubscriptionError && (state as SubscriptionError).plan != null) {
-        // Allow retry/confirmation if coming from an error state that had plan context
         planBeingConfirmed = (state as SubscriptionError).plan;
       }
       // Add other states if payment flow involves redirects, etc.
-      // else if (state is SubscriptionRequiresRedirect) { planBeingConfirmed = state.plan; }
 
-      if(planBeingConfirmed != null){
-         // Emit loading state for backend confirmation
-         emit(SubscriptionConfirmationLoading(plan: planBeingConfirmed));
-         print("SubscriptionBloc: Confirming purchase with backend. Token: ${event.paymentConfirmationToken}, Plan: ${planBeingConfirmed.name}");
-
-         // --- Placeholder: Backend Confirmation (Cloud Function Call) ---
-         // TODO: Replace this block with the actual Cloud Functions call
-         try {
-            // final user = _auth.currentUser;
-            // if (user == null) throw Exception("User not authenticated.");
-
-            // final HttpsCallable callable = _functions.httpsCallable('createSubscription'); // Ensure function name matches
-            // final result = await callable.call(<String, dynamic>{
-            //    'paymentToken': event.paymentConfirmationToken, // Token from payment gateway
-            //    'planId': planBeingConfirmed.id, // ID of the selected plan
-            //    'providerId': 'PROVIDER_ID_HERE', // <<< IMPORTANT: Need Provider ID context here! Pass it down or fetch it.
-            //    'userId': user.uid, // Pass user ID
-            //    // Add any other necessary data (e.g., price, currency for server-side validation)
-            // });
-
-            // // Check the result from the Cloud Function
-            // if (result.data['success'] == true) {
-            //     print("SubscriptionBloc: Backend confirmation successful.");
-            //     emit(const SubscriptionSuccess(message: "Subscription activated!"));
-            //     // Optionally: Dispatch event to refresh user profile/data if needed
-            //     // context.read<AuthBloc>().add(FetchUserProfile());
-            // } else {
-            //     // Backend returned an error
-            //     print("SubscriptionBloc: Backend confirmation failed - ${result.data['error']}");
-            //     emit(SubscriptionError(message: result.data['error'] ?? 'Backend confirmation failed.', plan: planBeingConfirmed));
-            // }
-
-            // Simulate a delay and then placeholder for error/success
-            await Future.delayed(const Duration(seconds: 2));
-            // Simulate Success:
-            // emit(const SubscriptionSuccess(message: "Subscription activated! (Simulated)"));
-            // OR Simulate Failure:
-            throw Exception("Backend Confirmation Not Implemented Yet");
-
-         } catch (e) {
-            print("SubscriptionBloc: Error during backend confirmation - $e");
-            // Handle Cloud Function call errors or other exceptions
-            emit(SubscriptionError(message: "Subscription confirmation failed: $e", plan: planBeingConfirmed));
-         }
-         // --- End Placeholder ---
-
-      } else {
-         // Should not happen if state flow is correct
-         print("SubscriptionBloc: Error - ConfirmSubscriptionPurchase called without plan context.");
-         emit(const SubscriptionError(message: "Cannot confirm purchase without plan context. Please select a plan again."));
+      // Validate context
+      if (planBeingConfirmed == null || userId == null || providerId == "PLACEHOLDER_PROVIDER_ID") {
+         print("SubscriptionBloc: Error - ConfirmSubscriptionPurchase missing context (Plan: ${planBeingConfirmed?.id}, User: $userId, Provider: $providerId).");
+         emit(SubscriptionError(message: "Cannot confirm purchase due to missing context. Please try again.", plan: planBeingConfirmed));
+         return;
       }
+
+      // Emit loading state for backend confirmation
+      emit(SubscriptionConfirmationLoading(plan: planBeingConfirmed));
+      print("SubscriptionBloc: Confirming purchase with backend. Token: ${event.paymentConfirmationToken}, Plan: ${planBeingConfirmed.name}");
+
+      // --- Placeholder: Backend Confirmation (Cloud Function Call via Repository) ---
+      // ACTION: Replace this block with the actual Repository call
+      try {
+          // Example using a (to be created) repository method:
+          // final Map<String, dynamic> result = await _subscriptionRepository.createSubscriptionOnBackend(
+          //    userId: userId,
+          //    providerId: providerId, // Pass the actual providerId
+          //    planId: planBeingConfirmed.id,
+          //    paymentToken: event.paymentConfirmationToken,
+          //    // Add other relevant details like price paid if needed for server validation
+          // );
+
+          // Mock result for now:
+          await Future.delayed(const Duration(seconds: 2)); // Simulate network call
+          // final result = {'success': true, 'message': 'Subscription activated! (Simulated)'};
+          final result = {'success': false, 'error': 'Backend Confirmation Not Implemented Yet'}; // Simulate error
+
+          // Check the result from the backend/repository
+          if (result['success'] == true) {
+              print("SubscriptionBloc: Backend confirmation successful.");
+              emit(SubscriptionSuccess(message: result['message'] as String? ?? "Subscription activated!"));
+              // Optionally: Dispatch event to refresh user profile/data if needed
+              // context.read<AuthBloc>().add(FetchUserProfile()); // Example
+          } else {
+              // Backend returned an error
+              final errorMsg = result['error'] is String ? result['error'] as String : 'Backend confirmation failed.';
+              print("SubscriptionBloc: Backend confirmation failed - $errorMsg");
+              emit(SubscriptionError(message: errorMsg, plan: planBeingConfirmed));
+          }
+
+      } catch (e) {
+          print("SubscriptionBloc: Error during backend confirmation - $e");
+          // Handle repository/function call errors or other exceptions
+          emit(SubscriptionError(message: "Subscription confirmation failed: ${e.toString()}", plan: planBeingConfirmed));
+      }
+      // --- End Placeholder ---
   }
 
   /// Resets the Bloc to its initial state.

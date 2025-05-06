@@ -86,7 +86,7 @@ class _ExploreBannerCarouselState extends State<ExploreBannerCarousel> {
               // Handle Banner Tap
               print("Banner tapped: ${banner.title} (Target: ${banner.targetType}/${banner.targetId})");
               if (banner.targetType == 'provider' && banner.targetId != null) {
-                push(context, ServiceProviderDetailScreen(providerId: banner.targetId!, initialImageUrl: banner.imageUrl));
+                push(context, ServiceProviderDetailScreen(providerId: banner.targetId!, initialImageUrl: banner.imageUrl, heroTag: banner.id));
               } else if (banner.targetType == 'offer') {
                 print("Navigate to Offer: ${banner.targetId}");
               } else if (banner.targetType == 'external_link' && banner.targetId != null) {
