@@ -1,4 +1,8 @@
+// lib/feature/details/bloc/service_provider_detail_state.dart
+
 part of 'service_provider_detail_bloc.dart';
+
+
 
 @immutable
 abstract class ServiceProviderDetailState extends Equatable {
@@ -15,20 +19,21 @@ class ServiceProviderDetailLoading extends ServiceProviderDetailState {}
 
 /// State when details are successfully loaded.
 class ServiceProviderDetailLoaded extends ServiceProviderDetailState {
+  // *** USE THE UPDATED ServiceProviderModel TYPE ***
   final ServiceProviderModel provider;
-  final bool isFavorite; // <<< Field added
+  final bool isFavorite; // Keep favorite status
 
   const ServiceProviderDetailLoaded({
-    required this.provider,
-    required this.isFavorite, // <<< Added to constructor
+    required this.provider, // Use the updated model type
+    required this.isFavorite,
   });
 
   @override
-  List<Object?> get props => [provider, isFavorite]; // <<< Added to props
+  List<Object?> get props => [provider, isFavorite]; // Include provider in props
 
   // Optional: copyWith method for immutable updates if needed elsewhere
   ServiceProviderDetailLoaded copyWith({
-    ServiceProviderModel? provider,
+    ServiceProviderModel? provider, // Use updated model type
     bool? isFavorite,
   }) {
     return ServiceProviderDetailLoaded(
@@ -45,3 +50,16 @@ class ServiceProviderDetailError extends ServiceProviderDetailState {
   @override
   List<Object?> get props => [message];
 }
+
+// Optional: Add state for action errors like favorite toggle failure
+// class ServiceProviderDetailActionError extends ServiceProviderDetailState {
+//   final String message;
+//   final ServiceProviderModel provider; // Keep provider data
+//   final bool previousFavoriteStatus; // Keep previous status for potential revert
+//   const ServiceProviderDetailActionError({
+//       required this.message,
+//       required this.provider,
+//       required this.previousFavoriteStatus
+//   });
+//   @override List<Object?> get props => [message, provider, previousFavoriteStatus];
+// }

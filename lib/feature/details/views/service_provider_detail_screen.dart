@@ -1,137 +1,179 @@
-// lib/feature/details/views/service_provider_detail_screen.dart
-
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async'; // For Timer in carousel
+import 'dart:typed_data'; // For Uint8List used in transparentImageData
+import 'dart:ui' as ui; // For ImageFilter and Image
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gap/gap.dart';
+import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shamil_mobile_app/core/constants/icon_constants.dart'
+    as IconConstants;
+// Ensure these paths are correct and models are defined as expected
+import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
+import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
+import 'package:shamil_mobile_app/feature/details/repository/service_provider_detail_repository.dart';
 import 'package:shimmer/shimmer.dart';
-import 'dart:typed_data'; // For Uint8List used in transparentImageData
+import 'package:gap/gap.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:dots_indicator/dots_indicator.dart';
 
-// Core utilities and constants
-import 'package:shamil_mobile_app/core/constants/icon_constants.dart'; // For amenity icons
-import 'package:shamil_mobile_app/core/constants/image_constants.dart'; // For transparentImageData
+// Core utilities and constants - Ensure these paths are correct
+import 'package:shamil_mobile_app/core/constants/image_constants.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
-import 'package:shamil_mobile_app/core/widgets/placeholders.dart'; // Assuming buildProfilePlaceholder or other placeholders might be used
+import 'package:shamil_mobile_app/core/widgets/placeholders.dart';
+import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
+import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 
-// Models
-import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
+// Models - Ensure these paths are correct
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
+import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
+import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
+// If SubscriptionPlan is a distinct model from PlanModel, ensure it's correctly defined and imported.
+// For example: import 'package:shamil_mobile_app/feature/subscription/data/subscription_plan_model.dart';
 
-// Blocs
-import 'package:shamil_mobile_app/feature/details/bloc/service_provider_detail_bloc.dart';
+// Blocs - Ensure these paths are correct
+import 'package:shamil_mobile_app/feature/details/views/bloc/service_provider_detail_bloc.dart';
 import 'package:shamil_mobile_app/feature/subscription/bloc/subscription_bloc.dart';
+// import 'package:shamil_mobile_app/feature/subscription/repository/subscription_repository.dart'; // If needed by SubscriptionBloc
 import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart';
+import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/options_configuration_screen.dart';
 
-// Repository
-import 'package:shamil_mobile_app/feature/reservation/repository/reservation_repository.dart'; // Import repository
+// Repository - Ensure these paths are correct
+import 'package:shamil_mobile_app/feature/reservation/repository/reservation_repository.dart';
 
-// Widgets
-import 'package:shamil_mobile_app/feature/details/widgets/animated_swipe_up_bar.dart';
-// Use alias to avoid potential naming conflicts if OptionsBottomSheetContent is defined elsewhere
+// Widgets - Ensure this path is correct
 import 'package:shamil_mobile_app/feature/details/widgets/options_bottom_sheet.dart'
     as options_sheet;
 
-/// Displays the detailed view of a service provider.
-///
-/// Fetches detailed data using [ServiceProviderDetailBloc] and allows users
-/// to view options (subscriptions/reservations) via a bottom sheet.
-class ServiceProviderDetailScreen extends StatelessWidget {
-  /// The unique ID of the provider to display.
+import 'package:provider/provider.dart';
+import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
+
+/// Displays the detailed view of a service provider using a CustomScrollView and SliverAppBar.
+class ServiceProviderDetailScreen extends StatefulWidget {
   final String providerId;
-
-  /// An optional initial image URL, often passed from the list view for Hero animation.
-  final String? initialImageUrl;
-
-  /// Optional initial display data, passed from the list view for faster initial rendering.
-  final ServiceProviderDisplayModel? initialProviderData;
-
-  /// The unique tag for the Hero animation transition of the main image.
+  final ServiceProviderDisplayModel?
+      initialProviderData; // For initial header display
   final String heroTag;
 
-  /// Creates the detail screen.
-  ///
-  /// Requires [providerId] and [heroTag].
   const ServiceProviderDetailScreen({
     super.key,
     required this.providerId,
-    this.initialImageUrl,
     this.initialProviderData,
-    required this.heroTag, // Accept the unique heroTag
+    required this.heroTag,
   });
 
-  // --- Styling Constants ---
-  static final BorderRadius _borderRadius = BorderRadius.circular(12.0);
-  static const EdgeInsets _imagePadding =
-      EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0);
-  static const EdgeInsets _contentPadding =
-      EdgeInsets.symmetric(horizontal: 16.0);
-  // Aspect ratio for the main header image (e.g., 1.0 for square, 16/9 for landscape)
-  static const double _imageAspectRatio = 1.0;
+  @override
+  State<ServiceProviderDetailScreen> createState() =>
+      _ServiceProviderDetailScreenState();
+}
 
-  /// Shows the modal bottom sheet containing reservation and/or subscription options.
-  /// Correctly provides scoped Blocs and reads the necessary repository.
-  void _showOptionsBottomSheet(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    bool isHybrid = provider.pricingModel == PricingModel.hybrid;
+class _ServiceProviderDetailScreenState
+    extends State<ServiceProviderDetailScreen> {
+  int _carouselCurrentIndex = 0;
+  final ScrollController _scrollController = ScrollController();
+  bool _showFullDescription = false;
+
+  // --- Helper: Launch URL ---
+  Future<void> _launchUrlHelper(
+      BuildContext context, String? urlString, String actionType) async {
+    if (urlString == null || urlString.isEmpty) {
+      if (!mounted) return; // Check mounted before showing snackbar
+      showGlobalSnackBar(context, '$actionType is not available.',
+          isError: true);
+      return;
+    }
+
+    if (actionType == "Call" && !urlString.startsWith('tel:')) {
+      urlString = 'tel:$urlString';
+    } else if (actionType == "Email" && !urlString.startsWith('mailto:')) {
+      urlString = 'mailto:$urlString';
+    } else if (actionType == "Website" &&
+        !urlString.startsWith('http://') &&
+        !urlString.startsWith('https://')) {
+      urlString = 'https://$urlString';
+    }
+
+    final Uri? uri = Uri.tryParse(urlString);
+    if (uri == null) {
+      if (!mounted) return;
+      showGlobalSnackBar(context, 'Invalid $actionType link.', isError: true);
+      return;
+    }
+    try {
+      final canLaunch = await canLaunchUrl(uri);
+      if (!mounted) return; // Check after await
+
+      if (!canLaunch) {
+        showGlobalSnackBar(
+            context, 'Could not launch $actionType: No app found to handle it.',
+            isError: true);
+        return;
+      }
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      print("Error launching $actionType URL ($uri): $e");
+      if (!mounted) return; // Check after await
+      showGlobalSnackBar(context, 'Error opening $actionType link.',
+          isError: true);
+    }
+  }
+
+  // --- Helper: Show Booking/Options Sheet ---
+  void _showBookingOptionsSheet(
+      BuildContext parentContext, ServiceProviderModel provider) {
+    final theme = Theme.of(parentContext);
+    if (!provider.canBookOrSubscribeOnline) {
+      showGlobalSnackBar(
+          parentContext, "Online booking/subscription not available.",
+          isError: false);
+      return;
+    }
 
     showModalBottomSheet(
-      context: context, // Use context from the DetailScreen build method
-      isScrollControlled: true, // Allows sheet to take more height
-      backgroundColor: Colors.transparent, // Sheet container handles background
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        // Provide necessary Blocs scoped to the bottom sheet
-        // This ensures the OptionsBottomSheetContent and its children can access them
-        // Assumes ReservationRepository is provided higher up in the widget tree (e.g., main.dart)
+      context: parentContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetBuilderContext) {
         return MultiBlocProvider(
           providers: [
-            // Provides SubscriptionBloc for subscription actions within the sheet
-            BlocProvider<SubscriptionBloc>(
-              create: (_) => SubscriptionBloc(),
-              // TODO: Inject dependencies like PaymentService if needed
-            ),
-            // Provides ReservationBloc, initialized with the specific provider and repository
-            BlocProvider<ReservationBloc>(
-              create: (blocContext) => ReservationBloc(
-                // Use blocContext here
-                provider:
-                    provider, // Pass the specific provider data for this sheet
-                // Read the SINGLETON repository instance from the context above the sheet
-                reservationRepository:
-                    blocContext.read<ReservationRepository>(),
-              ),
-            ),
-            // Provide SocialBloc if attendee dialogs need it directly (assuming it's provided higher up)
-            // Example: BlocProvider.value(value: context.read<SocialBloc>()),
+            if (provider.hasSubscriptionsEnabled)
+              BlocProvider<SubscriptionBloc>(
+                  create: (blocContext) => SubscriptionBloc(
+                      // IMPORTANT: Provide the repository if SubscriptionBloc needs one.
+                      // Example: repository: blocContext.read<SubscriptionRepository>(),
+                      )
+                    ..add(ResetSubscriptionFlow())),
+            if (provider.hasReservationsEnabled)
+              BlocProvider<ReservationBloc>(
+                  create: (blocContext) => ReservationBloc(
+                      provider: provider,
+                      reservationRepository:
+                          blocContext.read<ReservationRepository>())
+                    ..add(ResetReservationFlow(provider: provider))),
+            BlocProvider.value(value: parentContext.read<SocialBloc>()),
           ],
-          // DraggableScrollableSheet allows the sheet height to be adjusted by dragging
           child: DraggableScrollableSheet(
-            initialChildSize: 0.6, // Initial height fraction
-            minChildSize: 0.3, // Minimum height fraction
-            maxChildSize: 0.9, // Maximum height fraction
-            expand: false, // Don't expand to full screen initially
-            builder: (_, scrollController) {
-              // Container for sheet styling (background, corners, shadow)
+            initialChildSize: 0.65,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (BuildContext scrollableSheetContext,
+                ScrollController scrollController) {
               return Container(
                 decoration: BoxDecoration(
-                  color: theme.scaffoldBackgroundColor,
+                  color:
+                      Theme.of(scrollableSheetContext).scaffoldBackgroundColor,
                   borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(20)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 10,
-                      spreadRadius: 2,
-                    )
-                  ],
+                      const BorderRadius.vertical(top: Radius.circular(20.0)),
+                  boxShadow: kElevationToShadow[
+                      4], // Ensure kElevationToShadow is defined
                 ),
-                // The actual content widget for the bottom sheet
                 child: options_sheet.OptionsBottomSheetContent(
                   provider: provider,
-                  scrollController: scrollController, // Pass scroll controller
+                  scrollController: scrollController,
                 ),
               );
             },
@@ -141,806 +183,1052 @@ class ServiceProviderDetailScreen extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // Provide the ServiceProviderDetailBloc at the screen level
-    // It will be created once and available to all descendants.
-    return BlocProvider(
-      create: (context) => ServiceProviderDetailBloc()
-        // Immediately trigger loading the details when the Bloc is created
-        ..add(LoadServiceProviderDetails(providerId: providerId)),
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        // Use Stack to overlay elements like the swipe bar and buttons
-        body: Stack(
-          children: [
-            // --- Main Content Area ---
-            // BlocConsumer listens to state changes for rebuilding (builder)
-            // and for side effects (listener, e.g., showing snackbars).
-            BlocConsumer<ServiceProviderDetailBloc, ServiceProviderDetailState>(
-              listener: (context, state) {
-                // Optional: Handle side effects like showing snackbars for errors
-                // that don't require rebuilding the whole UI (e.g., favorite toggle failure)
-                // if (state is ServiceProviderDetailActionError) {
-                //   showGlobalSnackBar(context, state.message, isError: true);
-                // }
-              },
-              builder: (context, state) {
-                // --- Determine Data Source and State ---
-                ServiceProviderModel? detailedProvider;
-                bool isFullyLoaded = false;
-                bool isFavorite = false; // Default favorite state
+  // --- Helper: Navigate to Options Configuration ---
+  void _navigateToOptionsConfiguration(BuildContext context,
+      {ServiceProviderModel? provider,
+      SubscriptionPlan? plan,
+      BookableService? service}) {
+    // Your app's BookableService model
 
-                if (state is ServiceProviderDetailLoaded) {
-                  // Data is fully loaded from the Bloc
-                  detailedProvider = state.provider;
-                  isFullyLoaded = true;
-                  isFavorite =
-                      state.isFavorite; // Get favorite status from loaded state
-                } else if (initialProviderData != null) {
-                  // Use initial data passed during navigation while loading full details
-                  isFavorite = initialProviderData!.isFavorite;
-                }
+    final currentState = context.read<ServiceProviderDetailBloc>().state;
+    ServiceProviderModel? currentProvider = provider;
+    if (currentProvider == null &&
+        currentState is ServiceProviderDetailLoaded) {
+      currentProvider = currentState.provider;
+    }
 
-                // --- Extract Data Safely ---
-                // Use loaded data if available, fallback to initial data, then to 'Loading...'
-                final providerName = detailedProvider?.businessName ??
-                    initialProviderData?.businessName ??
-                    'Loading...';
-                // Use loaded image URL, fallback to initial display URL, then to initial passed URL
-                final providerImageUrl = detailedProvider?.mainImageUrl ??
-                    initialProviderData?.imageUrl ??
-                    initialImageUrl;
-                final providerLogoUrl =
-                    detailedProvider?.logoUrl ?? initialProviderData?.logoUrl;
-                final providerRating = detailedProvider?.rating ??
-                    initialProviderData?.rating ??
-                    0.0;
-                final providerRatingCount = detailedProvider?.ratingCount ??
-                    initialProviderData?.reviewCount ??
-                    0;
-                final providerCity =
-                    detailedProvider?.city ?? initialProviderData?.city ?? '';
-                final providerGovernorate =
-                    detailedProvider?.governorate; // Can be null
-                final providerDescription =
-                    detailedProvider?.businessDescription; // Can be null
-                final providerAmenities =
-                    detailedProvider?.amenities; // Can be null or empty
+    if (currentProvider == null) {
+      if (!mounted) return;
+      showGlobalSnackBar(context, "Provider details not fully loaded yet.",
+          isError: true);
+      return;
+    }
 
-                // --- Render UI Based on State ---
-
-                // 1. Loading State: Show shimmer placeholder if no initial data
-                if (!isFullyLoaded &&
-                    initialProviderData == null &&
-                    (state is ServiceProviderDetailLoading ||
-                        state is ServiceProviderDetailInitial)) {
-                  return _buildLoadingShimmer(
-                      context, theme, initialImageUrl, heroTag);
-                }
-                // 2. Error State: Show error message and retry button
-                else if (state is ServiceProviderDetailError) {
-                  return _buildErrorWidget(context, theme, state.message);
-                }
-                // 3. Loaded State (or Initial Data Available): Show content
-                else {
-                  return _buildStackLayoutContent(
-                    context, theme,
-                    isFullyLoaded:
-                        isFullyLoaded, // Indicates if full details are loaded
-                    isFavorite: isFavorite, // Current favorite status
-                    providerId:
-                        providerId, // Needed for actions like favorite toggle
-                    heroTag: heroTag, // Use the passed heroTag
-                    providerName: providerName,
-                    providerImageUrl: providerImageUrl,
-                    providerLogoUrl: providerLogoUrl,
-                    providerRating: providerRating,
-                    providerRatingCount: providerRatingCount,
-                    providerCity: providerCity,
-                    providerGovernorate: providerGovernorate,
-                    providerDescription: providerDescription,
-                    providerAmenities: providerAmenities,
-                    // Pass the fully loaded provider data if available (needed for bottom sheet)
-                    detailedProviderData: detailedProvider,
-                  );
-                }
-              },
-            ),
-
-            // --- Animated Swipe-Up Bar ---
-            // Shown only when detailed data is loaded
-            BlocBuilder<ServiceProviderDetailBloc, ServiceProviderDetailState>(
-              builder: (context, state) {
-                // Show the bar only when the detailed provider data is successfully loaded
-                if (state is ServiceProviderDetailLoaded) {
-                  return Positioned(
-                    bottom: 0, left: 0, right: 0,
-                    // Adjust padding to account for system navigation bars/notches
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).padding.bottom),
-                      // Use the fully loaded provider data to show the sheet
-                      child: AnimatedSwipeUpBar(
-                        title: "View Options & Book",
-                        onTap: () => _showOptionsBottomSheet(
-                            context, theme, state.provider),
-                      ),
-                    ),
-                  );
-                } else {
-                  // Hide the bar if data is not loaded or in error state
-                  return const SizedBox.shrink();
-                }
-              },
-            ),
-          ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OptionsConfigurationScreen(
+          providerId: currentProvider!.id,
+          // The following casts are workarounds for type mismatches.
+          // See "Important Recommendations" after the code block.
+          plan: plan as PlanModel?,
+          service: service as ServiceModel?,
         ),
       ),
     );
   }
 
-  // --- Widget Builder Helper Methods ---
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-  /// Builds the shimmer loading placeholder UI.
-  Widget _buildLoadingShimmer(BuildContext context, ThemeData theme,
-      String? imageUrlForHero, String heroTag) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final double imageWidth =
-        screenWidth - _imagePadding.left - _imagePadding.right;
-    final double imageHeight = imageWidth / _imageAspectRatio;
-    final shimmerBaseColor = Colors.grey.shade300; // Standard shimmer colors
-    final shimmerHighlightColor = Colors.grey.shade100;
-    final shimmerContentColor = Colors.white; // Color of the shimmer shapes
-
-    return ListView(
-      // Use ListView to allow potential scrolling if shimmer content exceeds screen
-      padding: EdgeInsets.zero, // Remove default padding
-      physics:
-          const NeverScrollableScrollPhysics(), // Disable scrolling for shimmer
-      children: [
-        // Shimmer for Header Image Area (includes Hero)
-        Padding(
-          padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top) +
-              _imagePadding,
-          child: Hero(
-            tag: heroTag, // Use the unique hero tag
-            // Placeholder builder for Hero transition (optional, shows during animation)
-            placeholderBuilder: (context, heroSize, child) {
-              return SizedBox(
-                width: imageWidth,
-                height: imageHeight,
-                child: Shimmer.fromColors(
-                  baseColor: shimmerBaseColor,
-                  highlightColor: shimmerHighlightColor,
-                  child: ClipRRect(
-                      borderRadius: _borderRadius,
-                      child: Container(color: shimmerContentColor)),
-                ),
-              );
-            },
-            // The actual shimmer effect for the image area
-            child: ClipRRect(
-              borderRadius: _borderRadius,
-              child: SizedBox(
-                width: imageWidth,
-                height: imageHeight,
-                child: Shimmer.fromColors(
-                  baseColor: shimmerBaseColor,
-                  highlightColor: shimmerHighlightColor,
-                  child: Container(
-                    color: shimmerContentColor,
-                  ),
-                ),
-              ),
-            ),
-          ),
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        // Forward the existing global FavoritesBloc so it is accessible in this subtree
+        BlocProvider<FavoritesBloc>.value(
+          value: BlocProvider.of<FavoritesBloc>(context),
         ),
-        // Shimmer for the rest of the content below the image
-        Padding(
-          padding: _contentPadding +
-              const EdgeInsets.only(top: 24), // Padding for content
-          child: Shimmer.fromColors(
-            baseColor: shimmerBaseColor,
-            highlightColor: shimmerHighlightColor,
-            child: Column(
-              // Column for shimmer placeholders
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Placeholder for Title Row
-                Container(
-                    width: double.infinity,
-                    height: 24,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 8)),
-                Container(
-                    width: screenWidth * 0.7,
-                    height: 18,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 6)),
-                Container(
-                    width: screenWidth * 0.5,
-                    height: 18,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 16)),
-                const Divider(color: AppColors.accentColor),
-                const Gap(16),
-                // Placeholder for Description Section
-                Container(
-                    width: 100,
-                    height: 20,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 8)),
-                Container(
-                    width: double.infinity,
-                    height: 16,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 6)),
-                Container(
-                    width: double.infinity,
-                    height: 16,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 6)),
-                Container(
-                    width: screenWidth * 0.7,
-                    height: 16,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 24)),
-                // Placeholder for Facilities Section
-                Container(
-                    width: 100,
-                    height: 20,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 16)),
-                Wrap(
-                  spacing: 12.0,
-                  runSpacing: 12.0,
-                  children: List.generate(
-                    4,
-                    (_) => Column(
-                      children: [
-                        Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                                color: shimmerContentColor,
-                                borderRadius: _borderRadius)),
-                        const Gap(6),
-                        Container(
-                            width: 50,
-                            height: 12,
-                            decoration: BoxDecoration(
-                                color: shimmerContentColor,
-                                borderRadius: _borderRadius)),
+        Provider<ServiceProviderDetailRepository>(
+          create: (_) => FirebaseServiceProviderDetailRepository(),
+        ),
+        BlocProvider<ServiceProviderDetailBloc>(
+          create: (context) => ServiceProviderDetailBloc(
+            detailRepository: context.read<ServiceProviderDetailRepository>(),
+          )..add(LoadServiceProviderDetails(providerId: widget.providerId)),
+        ),
+      ],
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        backgroundColor: Colors.white,
+        // Add haptic feedback on page load for premium feel
+        body: Builder(builder: (context) {
+          Future.delayed(const Duration(milliseconds: 200), () {
+            // Light impact feedback when screen loads
+            HapticFeedback.lightImpact();
+          });
+
+          return BlocConsumer<ServiceProviderDetailBloc,
+              ServiceProviderDetailState>(
+            listener: (context, state) {
+              if (state is ServiceProviderDetailError &&
+                  widget.initialProviderData != null) {
+                showGlobalSnackBar(context, "Error: ${state.message}",
+                    isError: true);
+              }
+            },
+            builder: (context, state) {
+              ServiceProviderModel? detailedProvider;
+              ServiceProviderDisplayModel? displayData =
+                  widget.initialProviderData;
+              bool isLoading = true;
+              bool isFavorite = widget.initialProviderData?.isFavorite ?? false;
+              List<String> headerImages = [];
+
+              // Determine favorite status from global FavoritesBloc if loaded
+              final favState = BlocProvider.of<FavoritesBloc>(context).state;
+              if (favState is FavoritesLoaded) {
+                isFavorite =
+                    favState.favorites.any((p) => p.id == widget.providerId);
+              }
+
+              if (state is ServiceProviderDetailLoading) {
+                isLoading = true;
+                if (displayData?.imageUrl != null &&
+                    displayData!.imageUrl!.isNotEmpty) {
+                  headerImages.add(displayData.imageUrl!);
+                }
+              } else if (state is ServiceProviderDetailLoaded) {
+                detailedProvider = state.provider;
+                displayData = ServiceProviderDisplayModel(
+                  /* ... mapping from detailedProvider ... */
+                  id: detailedProvider.id,
+                  businessName: detailedProvider.businessName,
+                  imageUrl: detailedProvider.mainImageUrl,
+                  businessLogoUrl: detailedProvider.logoUrl,
+                  businessCategory: detailedProvider.category,
+                  subCategory: detailedProvider.subCategory,
+                  averageRating: detailedProvider.rating ?? 0.0,
+                  ratingCount: detailedProvider.ratingCount ?? 0,
+                  city: detailedProvider.city ?? '',
+                  isFavorite: state.isFavorite,
+                  shortDescription: detailedProvider.businessDescription
+                      .substring(
+                          0,
+                          (detailedProvider.businessDescription.length > 100
+                              ? 100
+                              : detailedProvider.businessDescription.length)),
+                  isFeatured: detailedProvider.isFeatured,
+                  isActive: detailedProvider.isActive,
+                  isApproved: detailedProvider.isApproved,
+                );
+                isFavorite = state.isFavorite;
+                isLoading = false;
+
+                if (detailedProvider.mainImageUrl != null &&
+                    detailedProvider.mainImageUrl!.isNotEmpty) {
+                  headerImages.add(detailedProvider.mainImageUrl!);
+                }
+                if (detailedProvider.galleryImageUrls != null) {
+                  headerImages.addAll(detailedProvider.galleryImageUrls!
+                      .where((url) => url.isNotEmpty));
+                }
+                headerImages =
+                    headerImages.toSet().toList(); // Remove duplicates
+                if (headerImages.isEmpty) {
+                  // Use a placeholder or logo if no images are available and initialProviderData has none
+                  if (displayData?.imageUrl != null &&
+                      displayData!.imageUrl!.isNotEmpty) {
+                    headerImages.add(displayData.imageUrl!);
+                  } else if (displayData?.businessLogoUrl != null &&
+                      displayData!.businessLogoUrl!.isNotEmpty) {
+                    headerImages.add(displayData.businessLogoUrl!);
+                  } else {
+                    headerImages.add(''); // True placeholder for empty image
+                  }
+                }
+              } else if (state is ServiceProviderDetailError) {
+                isLoading = false;
+                if (displayData?.imageUrl != null &&
+                    displayData!.imageUrl!.isNotEmpty) {
+                  headerImages.add(displayData.imageUrl!);
+                } else if (headerImages.isEmpty) {
+                  headerImages.add('');
+                }
+              } else if (state is ServiceProviderDetailInitial) {
+                isLoading = true;
+                if (displayData?.imageUrl != null &&
+                    displayData!.imageUrl!.isNotEmpty) {
+                  headerImages.add(displayData.imageUrl!);
+                } else if (headerImages.isEmpty) {
+                  headerImages.add('');
+                }
+              }
+
+              if (displayData == null && isLoading) {
+                return _buildLoadingShimmer(
+                    context, Theme.of(context), widget.heroTag);
+              }
+              if (displayData == null && state is ServiceProviderDetailError) {
+                return _buildErrorWidget(context, Theme.of(context),
+                    state.message, widget.providerId);
+              }
+
+              if (displayData != null) {
+                return Stack(
+                  children: [
+                    // Main content
+                    CustomScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      slivers: <Widget>[
+                        _SliverProviderHeaderDelegate.buildHeader(
+                          context: context,
+                          providerDisplayData: displayData,
+                          theme: Theme.of(context),
+                          heroTag: widget.heroTag,
+                          isFavorite: isFavorite,
+                          headerImages: headerImages,
+                          carouselIndex: _carouselCurrentIndex,
+                          onCarouselPageChanged: (index, reason) {
+                            if (mounted) {
+                              setState(() {
+                                _carouselCurrentIndex = index;
+                              });
+                            }
+                          },
+                          onFavoriteToggle: () {
+                            final favoritesBloc =
+                                BlocProvider.of<FavoritesBloc>(context);
+                            if (isFavorite) {
+                              favoritesBloc
+                                  .add(RemoveFromFavorites(widget.providerId));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Removed from favorites'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            } else if (displayData != null) {
+                              favoritesBloc.add(AddToFavorites(displayData!));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Added to favorites'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        if (isLoading && detailedProvider == null)
+                          const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (detailedProvider != null)
+                          _buildLoadedContentSlivers(context, Theme.of(context),
+                              detailedProvider, BorderRadius.circular(16.0))
+                        else if (state is ServiceProviderDetailError)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _buildErrorWidget(context, Theme.of(context),
+                                state.message, widget.providerId),
+                          )
+                        else
+                          const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(child: Text("Loading details...")),
+                          ),
+                        const SliverGap(30.0),
                       ],
                     ),
-                  ),
-                ),
-                const Gap(24),
-                // Placeholder for Plans/Services Section
-                Container(
-                    width: 150,
-                    height: 20,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 16)),
-                Container(
-                    width: double.infinity,
-                    height: 60,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 24)),
-                // Placeholder for Reviews Section
-                Container(
-                    width: 120,
-                    height: 20,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 16)),
-                Container(
-                    width: double.infinity,
-                    height: 60,
-                    decoration: BoxDecoration(
-                        color: shimmerContentColor,
-                        borderRadius: _borderRadius),
-                    margin: const EdgeInsets.only(bottom: 24)),
-              ],
-            ),
-          ),
-        )
-      ],
+                  ],
+                );
+              }
+              return const Center(child: Text("An unexpected error occurred."));
+            },
+          );
+        }),
+      ),
     );
   }
 
-  /// Builds the main content layout using a Stack for overlaying elements.
-  Widget _buildStackLayoutContent(
-    BuildContext context,
-    ThemeData theme, {
-    required bool isFullyLoaded,
-    required bool isFavorite,
-    required String providerId,
-    required String heroTag, // Accepts the unique hero tag
-    required String providerName,
-    required String? providerImageUrl,
-    required String? providerLogoUrl,
-    required double providerRating,
-    required int providerRatingCount,
-    required String providerCity,
-    required String? providerGovernorate,
-    required String? providerDescription,
-    required List<String>? providerAmenities,
-    required ServiceProviderModel? detailedProviderData, // Full data if loaded
-  }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final double imageWidth =
-        screenWidth - _imagePadding.left - _imagePadding.right;
-    final double imageHeight = imageWidth / _imageAspectRatio;
-    final double topSafeArea = MediaQuery.of(context).padding.top;
-    // Calculate the starting Y position for content below the image
-    final double contentStartY =
-        topSafeArea + imageHeight + _imagePadding.top + _imagePadding.bottom;
-    // Build the title row widget separately for clarity
-    Widget titleRowWidget = _buildTitleRowWidget(theme, providerName,
-        providerRating, providerRatingCount, providerCity, providerGovernorate);
-
-    return Stack(
-      children: [
-        // --- Scrollable Content Area ---
-        // Positioned below the header image area
-        Positioned.fill(
-          top: contentStartY,
-          child: Scrollbar(
-            // Adds a scrollbar
-            child: SingleChildScrollView(
-              // Makes the content scrollable
-              physics: const BouncingScrollPhysics(), // iOS-style bounce effect
-              padding: EdgeInsets.only(
-                  left: _contentPadding.left,
-                  right: _contentPadding.right,
-                  // Add bottom padding to prevent content from being hidden by the swipe bar
-                  bottom: 80 + MediaQuery.of(context).padding.bottom),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Gap(24), // Space between image bottom and title row
-                  titleRowWidget, // Display name, rating, location
-                  const Gap(16),
-                  const Divider(
-                      color: AppColors.accentColor), // Visual separator
-                  const Gap(16),
-
-                  // Description Section
-                  _buildSectionTitle(theme, "Description"),
-                  const Gap(8),
-                  // Use AnimatedSwitcher for smooth transition when description loads
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child:
-                        isFullyLoaded // Show description only when fully loaded
-                            ? _buildDescription(
-                                theme, providerDescription ?? '')
-                            // Show placeholder while loading full details
-                            : Container(
-                                key: const ValueKey('desc_shimmer'),
-                                child: _buildShimmerPlaceholder(
-                                    height: 60, width: double.infinity)),
-                  ),
-                  const Gap(24),
-
-                  // Facilities Section
-                  _buildSectionTitle(theme, "Facilities"),
-                  const Gap(16),
-                  // Use AnimatedSwitcher for smooth transition when facilities load
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child:
-                        isFullyLoaded // Show facilities only when fully loaded
-                            ? _buildFacilities(theme, providerAmenities ?? [])
-                            // Show placeholder while loading full details
-                            : Container(
-                                key: const ValueKey('fac_shimmer'),
-                                child: _buildShimmerPlaceholder(
-                                    height: 75, width: double.infinity)),
-                  ),
-                  const Gap(24),
-
-                  // Plans & Services Section (Placeholder)
-                  _buildSectionTitle(theme, "Plans & Services"),
-                  const Gap(8),
-                  // Placeholder container hinting to swipe up
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                        color: AppColors.accentColor.withOpacity(0.5),
-                        borderRadius: _borderRadius),
-                    child: Center(
-                        child: Text("Swipe up or tap below to view options",
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: AppColors.secondaryColor))),
-                  ),
-                  const Gap(24),
-
-                  // Reviews Section (Placeholder)
-                  _buildSectionTitle(theme, "Reviews ($providerRatingCount)"),
-                  const Gap(8),
-                  // Placeholder container for reviews
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                        color: AppColors.accentColor.withOpacity(0.5),
-                        borderRadius: _borderRadius),
-                    child: Center(
-                        child: Text("(User Reviews will appear here)",
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: AppColors.secondaryColor))),
-                  ),
-                  // Add more sections as needed (e.g., Location Map, Contact Info)
-                ],
-              ),
-            ),
+  Widget _buildLoadedContentSlivers(BuildContext passedContext, ThemeData theme,
+      ServiceProviderModel provider, BorderRadius cardRadius) {
+    return SliverList(
+      delegate: SliverChildListDelegate([
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTitleRatingLocation(theme, provider),
+              const Gap(24),
+              _buildActionButtons(passedContext, theme, provider),
+              const Gap(20),
+              const Divider(),
+              const Gap(20),
+              _buildSectionTitle(theme, "About"),
+              const Gap(10),
+              Text(
+                  provider.businessDescription.isEmpty
+                      ? "No description provided."
+                      : provider.businessDescription,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant, height: 1.5)),
+              const Gap(12),
+              if (provider.yearsInBusiness != null &&
+                  provider.yearsInBusiness! > 0)
+                _buildInfoRow(
+                    passedContext,
+                    theme,
+                    Icons.history_toggle_off_rounded,
+                    "In Business Since",
+                    "${DateTime.now().year - provider.yearsInBusiness!} (${provider.yearsInBusiness} Years)"),
+              const Gap(12),
+              if (provider.averageResponseTime != null)
+                _buildInfoRow(passedContext, theme, Icons.access_time_rounded,
+                    "Response Time", provider.averageResponseTime!),
+              const Gap(20),
+              if (provider.amenities.isNotEmpty) ...[
+                const Divider(),
+                const Gap(20),
+                _buildSectionTitle(theme, "Facilities"),
+                const Gap(16),
+                _buildFacilities(theme, provider.amenities),
+                const Gap(20),
+              ],
+              if (provider.bookableServices.isNotEmpty &&
+                  provider.pricingModel != PricingModel.subscription) ...[
+                const Divider(),
+                const Gap(20),
+                _buildSectionTitle(theme, "Bookable Services"),
+                const Gap(12),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: provider.bookableServices.length,
+                  separatorBuilder: (_, __) => const Divider(
+                      height: 1, thickness: 0.5, indent: 0, endIndent: 0),
+                  itemBuilder: (itemCtx, index) {
+                    final service = provider.bookableServices[index];
+                    return _buildServiceCard(
+                        itemCtx, theme, service, cardRadius, provider);
+                  },
+                ),
+                const Gap(20),
+              ],
+              if (provider.subscriptionPlans.isNotEmpty &&
+                  provider.pricingModel != PricingModel.reservation) ...[
+                const Divider(),
+                const Gap(20),
+                _buildSectionTitle(theme, "Subscription Plans"),
+                const Gap(12),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: provider.subscriptionPlans.length,
+                  separatorBuilder: (_, __) => const Divider(
+                      height: 1, thickness: 0.5, indent: 0, endIndent: 0),
+                  itemBuilder: (itemCtx, index) {
+                    final plan = provider.subscriptionPlans[index];
+                    return _buildSubscriptionPlanCard(
+                        itemCtx, theme, plan, cardRadius, provider);
+                  },
+                ),
+                const Gap(20),
+              ],
+              const Divider(),
+              const Gap(20),
+              _buildSectionTitle(theme, "Location"),
+              const Gap(12),
+              _buildInfoRow(passedContext, theme, Icons.location_pin, "Address",
+                  "${provider.street ?? ''}${provider.street != null ? ', ' : ''}${provider.city ?? ''}${provider.city != null ? ', ' : ''}${provider.governorate ?? ''}"),
+              const Gap(12),
+              _buildMapPlaceholder(passedContext, theme, provider),
+              const Gap(20),
+              if (provider.openingHours.isNotEmpty) ...[
+                const Divider(),
+                const Gap(20),
+                _buildSectionTitle(theme, "Operating Hours"),
+                const Gap(12),
+                _buildOpeningHours(passedContext, theme, provider.openingHours),
+                const Gap(20),
+              ],
+              const Divider(),
+              const Gap(20),
+              _buildSectionTitle(theme, "Contact & Information"),
+              const Gap(12),
+              if (provider.primaryPhoneNumber != null)
+                _buildInfoRow(passedContext, theme, Icons.phone_outlined,
+                    "Phone", provider.primaryPhoneNumber!),
+              if (provider.primaryEmail != null)
+                _buildInfoRow(passedContext, theme, Icons.email_outlined,
+                    "Email", provider.primaryEmail!),
+              if (provider.website != null)
+                _buildInfoRow(passedContext, theme, Icons.language_outlined,
+                    "Website", provider.website!),
+              if (provider.paymentMethodsAccepted != null &&
+                  provider.paymentMethodsAccepted!.isNotEmpty)
+                _buildInfoRow(
+                    passedContext,
+                    theme,
+                    Icons.payment_rounded,
+                    "Payment Methods",
+                    provider.paymentMethodsAccepted!.join(', ')),
+              const Gap(24),
+            ],
           ),
         ),
+      ]),
+    );
+  }
 
-        // --- Overlaid Header Image ---
-        // Positioned at the top, respecting safe area
-        Positioned(
-          top: topSafeArea,
-          left: 0,
-          right: 0,
-          child: Padding(
-            padding: _imagePadding, // Padding around the image
-            child: Hero(
-              tag: heroTag, // Use the unique tag passed to the screen
-              placeholderBuilder: (context, heroSize, child) {
-                // Optional: Define a placeholder shown *during* the Hero transition
-                return SizedBox(
-                  width: imageWidth,
-                  height: imageHeight,
-                  child: Shimmer.fromColors(
-                    baseColor: Colors.grey.shade300,
-                    highlightColor: Colors.grey.shade100,
-                    child: ClipRRect(
-                        borderRadius: _borderRadius,
-                        child: Container(color: Colors.white)),
-                  ),
-                );
-              },
-              // The actual image widget that animates
-              child: ClipRRect(
-                borderRadius: _borderRadius,
-                child: _buildHeaderImage(providerImageUrl,
-                    aspectRatio: _imageAspectRatio),
-              ),
-            ),
+  Widget _buildTitleRatingLocation(
+      ThemeData theme, ServiceProviderModel provider) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            spreadRadius: 0,
+            offset: const Offset(0, 3),
           ),
-        ),
-
-        // --- Overlaid Logo (Optional) ---
-        // Positioned near the bottom-left corner of the image
-        if (providerLogoUrl != null && providerLogoUrl.isNotEmpty)
-          Positioned(
-            top: topSafeArea +
-                _imagePadding.top +
-                imageHeight -
-                40 -
-                8, // Adjust vertical position
-            left: _imagePadding.left + 8, // Adjust horizontal position
-            child: Container(
-              padding:
-                  const EdgeInsets.all(4), // Padding inside the logo background
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Centered logo
+          if (provider.logoUrl != null && provider.logoUrl!.isNotEmpty)
+            Container(
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
-                color: AppColors.white
-                    .withOpacity(0.85), // Semi-transparent white background
-                borderRadius: _borderRadius, // Rounded corners
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                      color: theme.colorScheme.shadow.withOpacity(0.1),
-                      blurRadius: 3,
-                      spreadRadius: 1)
-                ], // Subtle shadow
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(
-                    4), // Slightly smaller radius for logo itself
+                borderRadius: BorderRadius.circular(16),
                 child: CachedNetworkImage(
-                  // Use CachedNetworkImage for logo
-                  imageUrl: providerLogoUrl, height: 40, width: 40,
-                  fit: BoxFit.contain,
-                  errorWidget: (context, url, error) =>
-                      const SizedBox.shrink(), // Hide on error
-                  placeholder: (context, url) =>
-                      const SizedBox(width: 40, height: 40), // Placeholder size
-                ),
-              ),
-            ),
-          ),
-
-        // --- Overlaid Back Button ---
-        // Positioned at the top-left corner of the image area
-        Positioned(
-          top: topSafeArea + _imagePadding.top + 8,
-          left: _imagePadding.left + 8,
-          child: _buildOverlayButton(
-            context: context, theme: theme,
-            isFavorite: false, // Not a favorite button
-            icon: Icons.arrow_back_ios_new, tooltip: 'Back',
-            onTap: () => Navigator.pop(context), // Action to navigate back
-          ),
-        ),
-
-        // --- Overlaid Favorite Button ---
-        // Positioned near the bottom-right corner of the image area
-        Positioned(
-          top: topSafeArea +
-              _imagePadding.top +
-              imageHeight -
-              38 -
-              8, // Adjust vertical position
-          right: _imagePadding.right + 8, // Adjust horizontal position
-          child: _buildOverlayButton(
-            context: context, theme: theme,
-            isFavorite: isFavorite, // Pass current favorite status
-            // Use filled heart if favorite, outline otherwise
-            icon: isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-            iconColor: isFavorite
-                ? AppColors.redColor
-                : null, // Red color when favorite
-            tooltip: isFavorite ? 'Remove Favorite' : 'Add Favorite',
-            onTap: () {
-              // Dispatch event to toggle favorite status in the Bloc
-              context.read<ServiceProviderDetailBloc>().add(
-                  ToggleFavoriteStatus(
-                      providerId: providerId, currentStatus: isFavorite));
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- Helper Widget Implementations ---
-
-  /// Builds the title row containing name, rating, and location.
-  Widget _buildTitleRowWidget(ThemeData theme, String name, double rating,
-      int ratingCount, String city, String? governorate) {
-    String locationString =
-        "$city${city.isNotEmpty && governorate != null ? ', ' : ''}${governorate ?? ''}";
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          // Row for Name and Rating
-          crossAxisAlignment: CrossAxisAlignment.start, // Align tops
-          children: [
-            Expanded(
-              // Name takes available space
-              child: Text(
-                name,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold, color: AppColors.primaryColor),
-              ),
-            ),
-            const Gap(12), // Space
-            // Rating display
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(Icons.star_rounded,
-                    size: 20, color: AppColors.yellowColor),
-                const Gap(4),
-                Text(
-                  rating.toStringAsFixed(1),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primaryColor),
-                ),
-                const Gap(4),
-                if (ratingCount > 0) // Show count only if > 0
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2.0),
-                    child: Text(
-                      "($ratingCount)",
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.secondaryColor),
+                  imageUrl: provider.logoUrl!,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey[100],
+                    child: const Center(
+                      child: CupertinoActivityIndicator(radius: 12),
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
-        const Gap(8), // Space below name/rating row
-        Row(
-          // Row for Location and Map button
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(CupertinoIcons.location_solid,
-                size: 16, color: AppColors.secondaryColor),
-            const Gap(6),
-            Expanded(
-              // Location text takes available space
-              child: Text(
-                locationString.isEmpty
-                    ? "Location not available"
-                    : locationString,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: AppColors.secondaryColor),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey[100],
+                    child: Icon(Icons.business_outlined,
+                        color: Colors.grey[400], size: 40),
+                  ),
+                ),
               ),
             ),
-            const Gap(8), // Space before map button
-            // "Show Map" button (placeholder action)
-            TextButton.icon(
-              style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact),
-              icon: Icon(Icons.map_outlined,
-                  size: 18, color: AppColors.primaryColor),
-              label: Text("Show Map",
-                  style: TextStyle(
-                      color: AppColors.primaryColor,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600)),
-              onPressed: () {
-                /* TODO: Implement map opening logic */ print(
-                    "Show Map Tapped");
-              },
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 
-  /// Builds the description text widget.
-  Widget _buildDescription(ThemeData theme, String description) {
-    return Text(
-      description.isEmpty ? "No description available." : description,
-      style: theme.textTheme.bodyMedium?.copyWith(
-          color: AppColors.secondaryColor.withOpacity(0.9),
-          height: 1.5), // Line height for readability
-    );
-  }
-
-  /// Builds the facilities section using a Wrap layout.
-  Widget _buildFacilities(ThemeData theme, List<String> amenities) {
-    if (amenities.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16.0),
-        child: Text(
-          "No specific facilities listed.",
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: AppColors.secondaryColor.withOpacity(0.7)),
-        ),
-      );
-    }
-    // Display icons in a Wrap layout
-    return Wrap(
-      spacing: 12.0, // Horizontal spacing
-      runSpacing: 12.0, // Vertical spacing
-      children: amenities.map((amenityName) {
-        // Get the corresponding icon using the helper function
-        final IconData icon = getIconForAmenity(amenityName);
-        // Build the icon widget for each amenity
-        return _buildFacilityIcon(theme, icon, amenityName);
-      }).toList(),
-    );
-  }
-
-  /// Builds a single facility icon with its label.
-  Widget _buildFacilityIcon(ThemeData theme, IconData icon, String label) {
-    return SizedBox(
-      width: 75, // Fixed width for each icon container
-      child: Column(
-        children: [
-          // Icon background container
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.accentColor.withOpacity(0.7), // Background color
-              borderRadius: _borderRadius, // Rounded corners
-            ),
-            child:
-                Icon(icon, color: AppColors.primaryColor, size: 24), // The icon
-          ),
-          const Gap(6), // Space between icon and label
-          // Label text
+          // Business name
+          const SizedBox(height: 16),
           Text(
-            label,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: AppColors.secondaryColor),
+            provider.businessName,
             textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryText,
+            ),
+          ),
+
+          // Category tag
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              provider.subCategory != null && provider.subCategory!.isNotEmpty
+                  ? "${provider.category} • ${provider.subCategory}"
+                  : provider.category,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.primaryColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+
+          // Rating stars
+          const SizedBox(height: 16),
+          _buildRatingStars(theme, provider),
+
+          // Location
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.location_on_outlined,
+                size: 16,
+                color: AppColors.secondaryText,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                "${provider.city ?? ''}${provider.governorate != null && provider.city != null ? ', ' : ''}${provider.governorate ?? ''}",
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.secondaryText,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  /// Builds a standard section title widget.
-  Widget _buildSectionTitle(ThemeData theme, String title) {
-    return Text(
-      title,
-      style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w600, color: AppColors.primaryColor),
+  Widget _buildRatingStars(ThemeData theme, ServiceProviderModel provider) {
+    // Generate star display based on rating
+    final List<Widget> stars = List.generate(5, (index) {
+      if (index < provider.rating.floor()) {
+        return Icon(Icons.star, color: Colors.amber, size: 22);
+      } else if (index < provider.rating.ceil() && provider.rating % 1 > 0) {
+        return Icon(Icons.star_half, color: Colors.amber, size: 22);
+      } else {
+        return Icon(Icons.star_border, color: Colors.amber, size: 22);
+      }
+    });
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: stars,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "${provider.rating.toStringAsFixed(1)} (${provider.ratingCount} ${provider.ratingCount == 1 ? 'review' : 'reviews'})",
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: AppColors.secondaryText,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
-  /// Builds the small, semi-transparent overlay buttons (Back, Favorite).
-  Widget _buildOverlayButton({
-    required BuildContext context,
-    required ThemeData theme,
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onTap,
-    Color? iconColor,
-    required bool isFavorite, // Needed for favorite button state
-  }) {
-    final Color backgroundColor =
-        AppColors.white.withOpacity(0.7); // Background color
-    final Color defaultIconColor = AppColors.primaryColor; // Default icon color
+  Widget _buildActionButtons(
+      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
+    bool hasPhone = provider.primaryPhoneNumber != null &&
+        provider.primaryPhoneNumber!.isNotEmpty;
+    bool hasLocation = provider.location != null;
+    bool hasWebsite = provider.website != null && provider.website!.isNotEmpty;
 
-    return Tooltip(
-      // Accessibility feature
-      message: tooltip,
-      child: Material(
-        // Provides ink splash effect and shape clipping
-        color: backgroundColor,
-        borderRadius: _borderRadius,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap, // Action to perform on tap
-          borderRadius: _borderRadius, // Match shape for splash
-          child: Container(
-            // Container for size and alignment
-            width: 38, height: 38, // Button size
-            alignment: Alignment.center,
-            // AnimatedSwitcher for smooth icon transition (e.g., heart outline to fill)
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              transitionBuilder: (Widget child, Animation<double> animation) {
-                // Scale transition for the icon change
-                return ScaleTransition(
-                  scale: Tween<double>(begin: 0.7, end: 1.0).animate(animation),
-                  child: FadeTransition(
-                      opacity: animation, child: child), // Fade effect
-                );
-              },
-              // The Icon itself, using a ValueKey to trigger the animation when isFavorite changes
-              child: Icon(
-                key: ValueKey<String>(
-                    '${isFavorite}_${icon.codePoint}'), // Unique key based on state
-                icon,
-                color: iconColor ??
-                    defaultIconColor, // Use provided color or default
-                size: 20, // Icon size
+    if (!hasPhone && !hasLocation && !hasWebsite) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            spreadRadius: 0,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.touch_app_outlined,
+                  size: 18,
+                  color: AppColors.primaryColor,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "Quick Actions",
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                if (hasPhone)
+                  _buildActionButton(
+                    context,
+                    theme,
+                    Icons.call_outlined,
+                    "Call",
+                    () => _launchUrlHelper(
+                        context, provider.primaryPhoneNumber, "Call"),
+                  ),
+                if (hasLocation)
+                  _buildActionButton(
+                    context,
+                    theme,
+                    Icons.directions_outlined,
+                    "Directions",
+                    () {
+                      if (provider.location != null) {
+                        final lat = provider.location!.latitude;
+                        final lon = provider.location!.longitude;
+                        final url =
+                            'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
+                        _launchUrlHelper(context, url, "Directions");
+                      }
+                    },
+                  ),
+                if (hasWebsite)
+                  _buildActionButton(
+                    context,
+                    theme,
+                    Icons.language_outlined,
+                    "Website",
+                    () =>
+                        _launchUrlHelper(context, provider.website, "Website"),
+                  ),
+                if (provider.primaryEmail != null)
+                  _buildActionButton(
+                    context,
+                    theme,
+                    Icons.email_outlined,
+                    "Email",
+                    () => _launchUrlHelper(
+                        context, provider.primaryEmail, "Email"),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context,
+    ThemeData theme,
+    IconData icon,
+    String label,
+    VoidCallback onPressed,
+  ) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primaryColor.withOpacity(0.08),
+                shape: BoxShape.circle,
               ),
+              child: Icon(icon, color: AppColors.primaryColor, size: 20),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: AppColors.primaryText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(BuildContext context, ThemeData theme, IconData icon,
+      String label, String value) {
+    bool isLink = label == "Phone" || label == "Email" || label == "Website";
+    String urlToLaunch =
+        value; // Prepare the URL string properly for _launchUrlHelper
+
+    if (label == "Phone" && !value.startsWith('tel:')) {
+      urlToLaunch = 'tel:$value';
+    } else if (label == "Email" && !value.startsWith('mailto:')) {
+      urlToLaunch = 'mailto:$value';
+    } else if (label == "Website" &&
+        !value.startsWith('http://') &&
+        !value.startsWith('https://')) {
+      // It's good practice to default to https if no scheme is present for websites
+      urlToLaunch = 'https://$value';
+    }
+    // For other types of labels, urlToLaunch remains the original value,
+    // and _launchUrlHelper will handle it (or fail gracefully if it's not a launchable URL type).
+
+    return InkWell(
+      onTap:
+          isLink ? () => _launchUrlHelper(context, urlToLaunch, label) : null,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: theme.colorScheme.secondary),
+            const Gap(14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.secondary)),
+                  const Gap(3),
+                  Text(value, // Display the original value
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                          color: isLink ? theme.colorScheme.primary : null,
+                          fontWeight: isLink ? FontWeight.w500 : null)),
+                ],
+              ),
+            ),
+            if (isLink) const Gap(8),
+            if (isLink)
+              Icon(Icons.open_in_new_rounded,
+                  size: 16,
+                  color: theme.colorScheme.secondary.withOpacity(0.7)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFacilities(ThemeData theme, List<String> amenities) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Wrap(
+        spacing: 16.0,
+        runSpacing: 16.0,
+        children: amenities.map((amenityName) {
+          final IconData icon = IconConstants.getIconForAmenity(amenityName);
+          return Container(
+            width: 90,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.accentColor.withOpacity(0.1),
+                        AppColors.accentColor.withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(icon, color: AppColors.primaryColor, size: 28),
+                ),
+                const Gap(8),
+                Text(
+                  amenityName,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.secondaryText,
+                    height: 1.2,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildOpeningHours(BuildContext context, ThemeData theme,
+      Map<String, OpeningHoursDay> hoursMap) {
+    final today = DateFormat('EEEE', Localizations.localeOf(context).toString())
+        .format(DateTime.now())
+        .toLowerCase(); // Use locale-aware DateFormat
+    final daysOrder = [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday'
+    ];
+
+    return Column(
+      children: daysOrder.map((day) {
+        final hours = hoursMap[day];
+        final bool isToday = day == today;
+        // Consider localizing day names if app supports multiple languages
+        final String displayDay = day[0].toUpperCase() + day.substring(1);
+        String displayHours;
+        if (hours == null ||
+            !hours.isOpen ||
+            hours.startTime == null ||
+            hours.endTime == null) {
+          displayHours = "Closed";
+        } else {
+          final localizations = MaterialLocalizations.of(context);
+          final startFormatted = localizations.formatTimeOfDay(hours.startTime!,
+              alwaysUse24HourFormat: MediaQuery.of(context)
+                  .alwaysUse24HourFormat); // Respect user's 24hr preference
+          final endFormatted = localizations.formatTimeOfDay(hours.endTime!,
+              alwaysUse24HourFormat:
+                  MediaQuery.of(context).alwaysUse24HourFormat);
+          displayHours = "$startFormatted - $endFormatted";
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                displayDay,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                  color: isToday ? theme.colorScheme.primary : null,
+                ),
+              ),
+              Text(
+                displayHours,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                  color: (hours == null || !hours.isOpen)
+                      ? Colors.grey.shade600
+                      : (isToday ? theme.colorScheme.primary : null),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildSectionTitle(ThemeData theme, String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 18,
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor,
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryText,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const Spacer(),
+          // Contextual icon
+          Icon(
+            _getSectionIcon(title),
+            size: 18,
+            color: AppColors.secondaryText.withOpacity(0.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getSectionIcon(String title) {
+    switch (title.toLowerCase()) {
+      case "about":
+        return Icons.info_outline_rounded;
+      case "facilities":
+        return Icons.hotel_class_outlined;
+      case "bookable services":
+        return Icons.event_available_outlined;
+      case "subscription plans":
+        return Icons.card_membership_outlined;
+      case "location":
+        return Icons.place_outlined;
+      case "operating hours":
+        return Icons.access_time_outlined;
+      case "contact & information":
+        return Icons.contact_phone_outlined;
+      default:
+        return Icons.arrow_right_alt_rounded;
+    }
+  }
+
+  Widget _buildSubscriptionPlanCard(
+      BuildContext context,
+      ThemeData theme,
+      SubscriptionPlan plan,
+      BorderRadius cardRadius,
+      ServiceProviderModel provider) {
+    final intervalStr =
+        "${plan.intervalCount > 1 ? '${plan.intervalCount} ' : ''}${plan.interval.name}${plan.intervalCount > 1 ? 's' : ''}"; // Ensure plan.interval.name is correct
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () => _navigateToOptionsConfiguration(context,
+              plan: plan, provider: provider),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(plan.name,
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                          const Gap(8),
+                          Text(plan.description,
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(color: Colors.grey.shade700)),
+                        ],
+                      ),
+                    ),
+                    const Gap(16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppColors.primaryColor.withOpacity(0.9),
+                                AppColors.primaryColor,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primaryColor.withOpacity(0.2),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            "EGP ${plan.price.toStringAsFixed(0)}",
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const Gap(8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.accentColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            "/ $intervalStr",
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.secondaryText,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                if (plan.features.isNotEmpty) ...[
+                  const Gap(16),
+                  Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: plan.features.map((feature) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.accentColor.withOpacity(0.1),
+                              AppColors.accentColor.withOpacity(0.05),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          feature,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.primaryColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -948,9 +1236,328 @@ class ServiceProviderDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Builds the widget displayed when an error occurs loading details.
-  Widget _buildErrorWidget(
-      BuildContext context, ThemeData theme, String message) {
+  Widget _buildServiceCard(
+      BuildContext context,
+      ThemeData theme,
+      BookableService service,
+      BorderRadius cardRadius,
+      ServiceProviderModel provider) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            spreadRadius: 0,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _navigateToOptionsConfiguration(context,
+              service: service, provider: provider),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Service header with name and service icon
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Service icon with clean style
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        _getServiceIcon(service.name),
+                        color: AppColors.primaryColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Name and duration
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            service.name,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryText,
+                            ),
+                          ),
+                          if (service.durationMinutes != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time_rounded,
+                                  size: 14,
+                                  color: AppColors.secondaryText,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "${service.durationMinutes} min",
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.secondaryText,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    // Price tag
+                    if (service.price != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "EGP ${service.price!.toStringAsFixed(0)}",
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryColor,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                // Service description
+                const SizedBox(height: 12),
+                Text(
+                  service.description,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.secondaryText,
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                // Book now button
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _navigateToOptionsConfiguration(context,
+                        service: service, provider: provider),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryColor,
+                    ),
+                    icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                    label: const Text('Book Now'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper to get contextual icons for services based on name
+  IconData _getServiceIcon(String serviceName) {
+    final name = serviceName.toLowerCase();
+
+    if (name.contains('consult') ||
+        name.contains('advice') ||
+        name.contains('session')) {
+      return Icons.people_outline_rounded;
+    } else if (name.contains('therapy') ||
+        name.contains('massage') ||
+        name.contains('spa')) {
+      return Icons.spa_rounded;
+    } else if (name.contains('class') ||
+        name.contains('lesson') ||
+        name.contains('course')) {
+      return Icons.school_rounded;
+    } else if (name.contains('cut') ||
+        name.contains('hair') ||
+        name.contains('style')) {
+      return Icons.content_cut_rounded;
+    } else if (name.contains('treatment') || name.contains('procedure')) {
+      return Icons.healing_rounded;
+    } else if (name.contains('test') ||
+        name.contains('check') ||
+        name.contains('exam')) {
+      return Icons.assignment_rounded;
+    } else {
+      return Icons.event_available_rounded; // Default
+    }
+  }
+
+  Widget _buildMapPlaceholder(
+      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
+    return Column(
+      children: [
+        Container(
+          height: 150,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors
+                .grey.shade200, // Consider theme.colorScheme.surfaceVariant
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Icon(Icons.map_outlined,
+                size: 50,
+                color: Colors.grey
+                    .shade400), // Consider theme.colorScheme.onSurfaceVariant
+          ),
+        ),
+        const Gap(8),
+        TextButton.icon(
+          icon: Icon(Icons.open_in_new_rounded,
+              size: 16, color: Theme.of(context).colorScheme.primary),
+          label: Text("Open in Maps",
+              style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+          onPressed: provider.location != null
+              ? () {
+                  if (provider.location != null) {
+                    final lat = provider.location!.latitude;
+                    final lon = provider.location!.longitude;
+                    final url =
+                        'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
+                    _launchUrlHelper(context, url, "Map");
+                  }
+                }
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoadingShimmer(
+      BuildContext context, ThemeData theme, String heroTag) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    // Adjust shimmer aspect ratio to match _SliverProviderHeaderDelegate maxExtent
+    final double headerImageHeight =
+        screenWidth / (16 / 9); // Assuming 16:9, match with delegate
+    final shimmerBaseColor = Colors.grey.shade300;
+    final shimmerHighlightColor = Colors.grey.shade100;
+    final shimmerContentColor = Colors.white;
+    final radius = BorderRadius.circular(12.0);
+
+    return Shimmer.fromColors(
+      baseColor: shimmerBaseColor,
+      highlightColor: shimmerHighlightColor,
+      child: CustomScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            expandedHeight: headerImageHeight +
+                MediaQuery.of(context)
+                    .padding
+                    .top, // Match delegate's maxExtent
+            pinned: true,
+            automaticallyImplyLeading: false,
+            backgroundColor: shimmerBaseColor,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Hero(
+                tag: heroTag, // Ensure heroTag is consistent
+                child: Container(color: shimmerContentColor),
+              ),
+            ),
+          ),
+          SliverList(
+            delegate: SliverChildListDelegate([
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                        width: screenWidth * 0.8,
+                        height: 28,
+                        decoration: BoxDecoration(
+                            color: shimmerContentColor, borderRadius: radius)),
+                    const Gap(10),
+                    Container(
+                        width: screenWidth * 0.6,
+                        height: 18,
+                        decoration: BoxDecoration(
+                            color: shimmerContentColor, borderRadius: radius)),
+                    const Gap(10),
+                    Container(
+                        width: screenWidth * 0.7,
+                        height: 18,
+                        decoration: BoxDecoration(
+                            color: shimmerContentColor, borderRadius: radius)),
+                    const Gap(24),
+                    Row(
+                      children: [
+                        Expanded(
+                            child: Container(
+                                height: 45,
+                                decoration: BoxDecoration(
+                                    color: shimmerContentColor,
+                                    borderRadius: radius))),
+                        const Gap(12),
+                        Expanded(
+                            child: Container(
+                                height: 45,
+                                decoration: BoxDecoration(
+                                    color: shimmerContentColor,
+                                    borderRadius: radius))),
+                      ],
+                    ),
+                    const Gap(20),
+                    const Divider(),
+                    const Gap(20),
+                    Container(
+                        width: 120,
+                        height: 22,
+                        decoration: BoxDecoration(
+                            color: shimmerContentColor, borderRadius: radius)),
+                    const Gap(12),
+                    Container(
+                        height: 100,
+                        decoration: BoxDecoration(
+                            color: shimmerContentColor, borderRadius: radius)),
+                    const Gap(20),
+                    const Divider(),
+                    const Gap(20),
+                    Container(
+                        width: 120,
+                        height: 22,
+                        decoration: BoxDecoration(
+                            color: shimmerContentColor, borderRadius: radius)),
+                    const Gap(12),
+                    Container(
+                        height: 100,
+                        decoration: BoxDecoration(
+                            color: shimmerContentColor, borderRadius: radius)),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(BuildContext context, ThemeData theme,
+      String message, String currentProviderId) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -958,24 +1565,22 @@ class ServiceProviderDetailScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.error_outline_rounded,
-                color: theme.colorScheme.error, size: 50), // Error icon
+                color: theme.colorScheme.error, size: 50),
             const Gap(16),
-            Text("Oops!", style: theme.textTheme.headlineSmall), // Error title
+            Text("Oops!", style: theme.textTheme.headlineSmall),
             const Gap(8),
             Text(message,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: AppColors.secondaryColor)), // Error message
-            const Gap(16),
-            // Retry button
+                style: TextStyle(color: theme.colorScheme.secondary)),
+            const Gap(24),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryColor,
-                  foregroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(borderRadius: _borderRadius)),
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0))),
               onPressed: () => context.read<ServiceProviderDetailBloc>().add(
-                  LoadServiceProviderDetails(
-                      providerId: providerId)), // Dispatch load event again
+                  LoadServiceProviderDetails(providerId: currentProviderId)),
               child: const Text("Retry"),
             )
           ],
@@ -983,62 +1588,392 @@ class ServiceProviderDetailScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  /// Builds the header image with placeholder and error handling.
-  Widget _buildHeaderImage(String? imageUrl, {required double aspectRatio}) {
-    // Shimmer placeholder shown while image is loading
-    Widget shimmerPlaceholder = AspectRatio(
-      aspectRatio: aspectRatio,
-      child: Shimmer.fromColors(
-        baseColor: Colors.grey.shade300,
-        highlightColor: Colors.grey.shade100,
-        child: Container(color: Colors.white),
-      ),
-    );
+class _SliverProviderHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final BuildContext
+      parentContext; // Context from _ServiceDetailsViewState's build method
+  final ServiceProviderDisplayModel providerDisplayData;
+  final ThemeData theme;
+  final String heroTag;
+  final bool isFavorite;
+  final VoidCallback onFavoriteToggle;
+  final List<String> headerImages;
+  final int carouselIndex;
+  final Function(int index, CarouselPageChangedReason reason)
+      onCarouselPageChanged;
 
-    return AspectRatio(
-      aspectRatio: aspectRatio,
-      child: Container(
-        color: AppColors.accentColor
-            .withOpacity(0.5), // Background color if image fails
-        child: (imageUrl == null || imageUrl.isEmpty)
-            // Show icon if no image URL is provided
-            ? Center(
-                child: Icon(Icons.image_not_supported,
-                    size: 60, color: AppColors.secondaryColor.withOpacity(0.5)))
-            // Use FadeInImage for smooth image loading
-            : FadeInImage.memoryNetwork(
-                placeholder:
-                    transparentImageData, // Use transparent placeholder bytes
-                image: imageUrl,
-                fit: BoxFit.cover, // Cover the aspect ratio area
-                fadeInDuration: const Duration(milliseconds: 300),
-                // Show shimmer placeholder while loading or on error during placeholder load
-                placeholderErrorBuilder: (context, error, stackTrace) =>
-                    shimmerPlaceholder,
-                // Show broken image icon if the main image fails to load
-                imageErrorBuilder: (context, error, stackTrace) => Center(
-                    child: Icon(Icons.broken_image,
-                        size: 60,
-                        color: AppColors.secondaryColor.withOpacity(0.5))),
-              ),
+  _SliverProviderHeaderDelegate({
+    required this.parentContext,
+    required this.providerDisplayData,
+    required this.theme,
+    required this.heroTag,
+    required this.isFavorite,
+    required this.onFavoriteToggle,
+    required this.headerImages,
+    required this.carouselIndex,
+    required this.onCarouselPageChanged,
+  });
+
+  static Widget buildHeader({
+    required BuildContext
+        context, // This is _ServiceDetailsViewState's build context
+    required ServiceProviderDisplayModel providerDisplayData,
+    required ThemeData theme,
+    required String heroTag,
+    required bool isFavorite,
+    required VoidCallback onFavoriteToggle,
+    required List<String> headerImages,
+    required int carouselIndex,
+    required Function(int index, CarouselPageChangedReason reason)
+        onCarouselPageChanged,
+  }) {
+    return SliverPersistentHeader(
+      pinned: true,
+      delegate: _SliverProviderHeaderDelegate(
+        parentContext: context, // Pass the _ServiceDetailsViewState's context
+        providerDisplayData: providerDisplayData,
+        theme: theme,
+        heroTag: heroTag,
+        isFavorite: isFavorite,
+        onFavoriteToggle: onFavoriteToggle,
+        headerImages: headerImages,
+        carouselIndex: carouselIndex,
+        onCarouselPageChanged: onCarouselPageChanged,
       ),
     );
   }
 
-  /// Builds a simple rectangular shimmer placeholder.
-  Widget _buildShimmerPlaceholder({required double height, double? width}) {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
-      child: Container(
-        height: height,
-        width: width ?? double.infinity, // Use provided width or expand
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: _borderRadius,
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final double topSafeArea = MediaQuery.of(parentContext).padding.top;
+    final double currentExtent = maxExtent - shrinkOffset;
+    final double titleOpacity =
+        (1.0 - (currentExtent - minExtent) / (maxExtent - minExtent))
+            .clamp(0.0, 1.0);
+
+    bool noImagesAvailable = headerImages.isEmpty ||
+        (headerImages.length == 1 && headerImages.first.isEmpty);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Top bar with back button and actions
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: minExtent,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: EdgeInsets.only(top: topSafeArea),
+            color: Colors.white.withOpacity(titleOpacity),
+            child: Stack(
+              children: [
+                // Back button
+                Positioned(
+                  left: 16,
+                  top: 8,
+                  child: _buildCleanButton(
+                    context: parentContext,
+                    icon: Icons.arrow_back_rounded,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.pop(parentContext);
+                    },
+                  ),
+                ),
+                // Action buttons
+                Positioned(
+                  right: 16,
+                  top: 8,
+                  child: Row(
+                    children: [
+                      // Share button
+                      _buildCleanButton(
+                        context: parentContext,
+                        icon: Icons.share_outlined,
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          ScaffoldMessenger.of(parentContext).showSnackBar(
+                            const SnackBar(
+                              content: Text('Share functionality coming soon!'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      // Heart button
+                      _buildFavoriteButton(
+                        context: parentContext,
+                        isFavorite: isFavorite,
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          onFavoriteToggle();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                // Title
+                Positioned(
+                  left: 70,
+                  right: 70,
+                  top: 13,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: titleOpacity,
+                    child: Text(
+                      providerDisplayData.businessName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Photo carousel
+        Positioned(
+          top: minExtent,
+          left: 0,
+          right: 0,
+          height: maxExtent - minExtent,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8.0), // Changed to 8px radius
+            child: noImagesAvailable
+                ? Container(
+                    color: Colors.grey[200],
+                    child: Center(
+                      child: Icon(Icons.image_outlined,
+                          color: Colors.grey[400], size: 60),
+                    ),
+                  )
+                : CarouselSlider.builder(
+                    itemCount: headerImages.length,
+                    itemBuilder: (context, index, realIndex) {
+                      final imageUrl = headerImages[index];
+                      if (imageUrl.isEmpty) {
+                        return Container(
+                          color: Colors.grey[200],
+                          child: Center(
+                            child: Icon(Icons.image_outlined,
+                                color: Colors.grey[400], size: 60),
+                          ),
+                        );
+                      }
+                      return Hero(
+                        tag: heroTag,
+                        child: CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          placeholder: (context, url) => Container(
+                            color: Colors.grey[200],
+                            child: const Center(
+                              child: CupertinoActivityIndicator(radius: 15),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey[200],
+                            child: Icon(Icons.broken_image_outlined,
+                                color: Colors.grey[400], size: 60),
+                          ),
+                        ),
+                      );
+                    },
+                    options: CarouselOptions(
+                      height: double.infinity,
+                      viewportFraction: 1.0,
+                      enableInfiniteScroll: headerImages.length > 1,
+                      autoPlay: headerImages.length > 1,
+                      autoPlayInterval: const Duration(seconds: 6),
+                      autoPlayAnimationDuration:
+                          const Duration(milliseconds: 800),
+                      autoPlayCurve: Curves.fastOutSlowIn,
+                      onPageChanged: onCarouselPageChanged,
+                    ),
+                  ),
+          ),
+        ),
+        // Image counter and dots indicator
+        if (!noImagesAvailable && headerImages.length > 1)
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: [
+                // Image counter
+                Align(
+                  alignment: Alignment.center,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${carouselIndex + 1}/${headerImages.length}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Dots indicator
+                DotsIndicator(
+                  dotsCount: headerImages.length,
+                  position: carouselIndex
+                      .toDouble()
+                      .clamp(0.0, (headerImages.length - 1).toDouble()),
+                  decorator: DotsDecorator(
+                    size: const Size.square(6.0),
+                    activeSize: const Size(18.0, 6.0),
+                    activeShape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(3.0),
+                    ),
+                    color: Colors.black.withOpacity(0.2),
+                    activeColor: AppColors.primaryColor,
+                    spacing: const EdgeInsets.symmetric(horizontal: 3),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  // New clean button style without gradients
+  Widget _buildCleanButton({
+    required BuildContext context,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            color: AppColors.primaryText,
+            size: 20,
+          ),
         ),
       ),
     );
   }
-} // End of ServiceProviderDetailScreen
+
+  // New favorite button style
+  Widget _buildFavoriteButton({
+    required BuildContext context,
+    required bool isFavorite,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeOutBack,
+            child: isFavorite
+                ? Icon(
+                    Icons.favorite_rounded,
+                    key: const ValueKey('fav'),
+                    color: Colors.redAccent,
+                    size: 20,
+                  )
+                : Icon(
+                    Icons.favorite_border_rounded,
+                    key: const ValueKey('unfav'),
+                    color: AppColors.primaryText,
+                    size: 20,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  double get maxExtent =>
+      MediaQuery.of(parentContext).size.width +
+      MediaQuery.of(parentContext).padding.top;
+
+  @override
+  double get minExtent =>
+      kToolbarHeight + MediaQuery.of(parentContext).padding.top;
+
+  @override
+  bool shouldRebuild(_SliverProviderHeaderDelegate oldDelegate) {
+    return parentContext != oldDelegate.parentContext ||
+        providerDisplayData.id != oldDelegate.providerDisplayData.id ||
+        providerDisplayData.businessName !=
+            oldDelegate.providerDisplayData.businessName ||
+        heroTag != oldDelegate.heroTag ||
+        isFavorite != oldDelegate.isFavorite ||
+        !listEquals(headerImages, oldDelegate.headerImages) ||
+        carouselIndex != oldDelegate.carouselIndex;
+  }
+}
+
+// Helper Extension
+extension ServiceProviderModelBooking on ServiceProviderModel {
+  bool get canBookOrSubscribeOnline =>
+      pricingModel != PricingModel.other &&
+      (hasReservationsEnabled || hasSubscriptionsEnabled);
+  bool get hasReservationsEnabled =>
+      (pricingModel == PricingModel.reservation ||
+          pricingModel == PricingModel.hybrid) &&
+      supportedReservationTypes.isNotEmpty;
+  bool get hasSubscriptionsEnabled =>
+      (pricingModel == PricingModel.subscription ||
+          pricingModel == PricingModel.hybrid) &&
+      subscriptionPlans.isNotEmpty;
+  String get getBookingButtonText {
+    if (pricingModel == PricingModel.reservation) return "Book / View Options";
+    if (pricingModel == PricingModel.subscription)
+      return "View Subscription Plans";
+    if (pricingModel == PricingModel.hybrid) return "View Booking & Plans";
+    return "Contact Provider";
+  }
+}
+
+// Helper to compare lists, import from flutter/foundation.dart
+bool listEquals<T>(List<T>? a, List<T>? b) {
+  if (a == null) return b == null;
+  if (b == null || a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}

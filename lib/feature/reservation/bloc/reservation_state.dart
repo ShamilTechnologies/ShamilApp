@@ -6,20 +6,20 @@ part of 'reservation_bloc.dart'; // Link to the bloc file
 // Base class using Equatable for state comparison
 @immutable
 abstract class ReservationState extends Equatable {
-  // Common properties available in most states AFTER initial state
   final ServiceProviderModel? provider;
   final ReservationType? selectedReservationType;
   final BookableService? selectedService;
   final DateTime? selectedDate;
-  final TimeOfDay? selectedStartTime;
-  final TimeOfDay? selectedEndTime;
-  final List<TimeOfDay> availableSlots;
+  final TimeOfDay? selectedStartTime; // For time-based start, OR sequence-based preferred hour
+  final TimeOfDay? selectedEndTime;   // For time-based end
+  final List<TimeOfDay> availableSlots; // For time-based slots
   final List<AttendeeModel> selectedAttendees;
+  // *** ADDED typeSpecificData field ***
+  final Map<String, dynamic>? typeSpecificData; // For access-based pass ID, etc.
 
-  // Note: isLoadingSlots is NOT defined here in the base class
 
   const ReservationState({
-    this.provider,
+    required this.provider,
     this.selectedReservationType,
     this.selectedService,
     this.selectedDate,
@@ -27,262 +27,319 @@ abstract class ReservationState extends Equatable {
     this.selectedEndTime,
     this.availableSlots = const [],
     this.selectedAttendees = const [],
+    this.typeSpecificData, // Added to constructor
   });
 
-  // Properties included for Equatable comparison
   @override
   List<Object?> get props => [
-        provider,
-        selectedReservationType,
-        selectedService,
-        selectedDate,
-        selectedStartTime,
-        selectedEndTime,
-        availableSlots,
-        selectedAttendees,
+        provider, selectedReservationType, selectedService, selectedDate,
+        selectedStartTime, selectedEndTime, availableSlots, selectedAttendees,
+        typeSpecificData, // Added to props
       ];
 
-  // Helper to easily get the primary user making the booking
   AttendeeModel? get bookingUser =>
       selectedAttendees.firstWhereOrNull((a) => a.type == 'self');
 
-  // Base copyWith method - MUST be overridden by concrete subclasses
+  // Base copyWith method - Subclasses MUST override this correctly
+  // Includes all possible fields from all subclasses for a consistent signature.
   ReservationState copyWith({
     ServiceProviderModel? provider,
+    ReservationType? selectedReservationType,
+    BookableService? selectedService,
+    DateTime? selectedDate,
+    TimeOfDay? selectedStartTime,
+    TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
+    Map<String, dynamic>? typeSpecificData, // Added to copyWith
+    // Fields from specific states
+    bool? isLoadingSlots,
+    String? message, // For ReservationError and ReservationSuccess
+    int? queuePosition, // For ReservationInQueue
+    DateTime? estimatedEntryTime, // For ReservationInQueue
+    bool? forceEstimatedEntryTimeNull, // Specific for ReservationInQueue.copyWith
   }) {
     throw UnimplementedError(
-        'copyWith must be implemented by concrete subclasses of ReservationState');
+        'copyWith must be implemented by concrete subclasses of ReservationState: ${this.runtimeType}');
   }
 }
 
 // --- Concrete State Classes ---
 
-/// Initial state when the reservation flow starts. Requires provider context.
+/// Initial state
 class ReservationInitial extends ReservationState {
-  const ReservationInitial({required ServiceProviderModel provider})
-      : super(provider: provider);
+  const ReservationInitial({
+    required super.provider,
+    super.selectedAttendees = const [],
+    super.typeSpecificData, // Pass to super
+  });
 
   @override
   ReservationInitial copyWith({
     ServiceProviderModel? provider,
+    ReservationType? selectedReservationType,
+    BookableService? selectedService,
+    DateTime? selectedDate,
+    TimeOfDay? selectedStartTime,
+    TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
+    Map<String, dynamic>? typeSpecificData, // Added
+    bool? isLoadingSlots,
+    String? message,
+    int? queuePosition,
+    DateTime? estimatedEntryTime,
+    bool? forceEstimatedEntryTimeNull,
   }) {
-    // Create a new instance, passing attendees to the super constructor
     return ReservationInitial(
       provider: provider ?? this.provider!,
-    ).._internalSetAttendees(selectedAttendees ?? this.selectedAttendees);
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+    );
   }
-
-   ReservationInitial _internalSetAttendees(List<AttendeeModel> attendees) {
-      // This helper is a bit redundant as the super constructor handles attendees.
-      // We just need to return a new instance of the correct type.
-      return ReservationInitial(provider: provider!);
-   }
 }
 
-/// State after the user selects the reservation type (if multiple options).
+/// Type selected state
 class ReservationTypeSelected extends ReservationState {
   const ReservationTypeSelected({
     required super.provider,
     required super.selectedReservationType,
     required super.selectedAttendees,
-  });
-
-  @override
-  ReservationTypeSelected copyWith({
-    ServiceProviderModel? provider,
-    ReservationType? selectedReservationType,
-    List<AttendeeModel>? selectedAttendees,
-  }) {
-    return ReservationTypeSelected(
-      provider: provider ?? this.provider,
-      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
-      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-    );
-  }
-}
-
-/// State after a specific service is selected.
-class ReservationServiceSelected extends ReservationState {
-  // Service is guaranteed non-null in this state via constructor
-  const ReservationServiceSelected({
-    required super.provider,
-    required super.selectedReservationType,
-    required BookableService service,
-    required super.selectedAttendees,
-  }) : super(selectedService: service);
-
-  @override
-  ReservationServiceSelected copyWith({
-    ServiceProviderModel? provider,
-    ReservationType? selectedReservationType,
-    BookableService? selectedService,
-    List<AttendeeModel>? selectedAttendees,
-  }) {
-    return ReservationServiceSelected(
-      provider: provider ?? this.provider,
-      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
-      service: selectedService ?? this.selectedService!, // Use non-null assertion
-      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-    );
-  }
-}
-
-/// State after a date is selected, potentially loading available slots/seats.
-class ReservationDateSelected extends ReservationState {
-  // *** isLoadingSlots is DEFINED HERE ***
-  final bool isLoadingSlots;
-
-  // Date is guaranteed non-null in this state via constructor
-  const ReservationDateSelected({
-    required super.provider,
-    required super.selectedReservationType,
-    required super.selectedService,
-    required DateTime date,
-    required super.availableSlots,
-    required super.selectedAttendees,
-    this.isLoadingSlots = false,
-  }) : super(selectedDate: date);
-
-  @override
-  ReservationDateSelected copyWith({
-    ServiceProviderModel? provider,
-    ReservationType? selectedReservationType,
-    BookableService? selectedService,
-    DateTime? selectedDate,
-    List<TimeOfDay>? availableSlots,
-    List<AttendeeModel>? selectedAttendees,
-    bool? isLoadingSlots,
-    // Reset times when copying
-    TimeOfDay? selectedStartTime,
-    TimeOfDay? selectedEndTime,
-  }) {
-    return ReservationDateSelected(
-      provider: provider ?? this.provider,
-      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
-      selectedService: selectedService ?? this.selectedService,
-      date: selectedDate ?? this.selectedDate!, // Use non-null assertion
-      availableSlots: availableSlots ?? this.availableSlots,
-      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-      isLoadingSlots: isLoadingSlots ?? this.isLoadingSlots,
-      // selectedStartTime and selectedEndTime are implicitly reset
-    );
-  }
-
-  @override
-  List<Object?> get props => super.props..add(isLoadingSlots);
-}
-
-/// State after a valid time range is selected (for time-based reservations).
-class ReservationRangeSelected extends ReservationState {
-  // Date, StartTime, EndTime are guaranteed non-null via constructor
-  const ReservationRangeSelected({
-    required super.provider,
-    required super.selectedReservationType,
-    required super.selectedService,
-    required DateTime date,
-    required TimeOfDay startTime,
-    required TimeOfDay endTime,
-    required super.availableSlots,
-    required super.selectedAttendees,
-  }) : super(selectedDate: date, selectedStartTime: startTime, selectedEndTime: endTime);
-
-  @override
-  ReservationRangeSelected copyWith({
-    ServiceProviderModel? provider,
-    ReservationType? selectedReservationType,
-    BookableService? selectedService,
-    DateTime? selectedDate,
-    TimeOfDay? selectedStartTime,
-    TimeOfDay? selectedEndTime,
-    List<TimeOfDay>? availableSlots,
-    List<AttendeeModel>? selectedAttendees,
-  }) {
-    return ReservationRangeSelected(
-      provider: provider ?? this.provider,
-      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
-      selectedService: selectedService ?? this.selectedService,
-      date: selectedDate ?? this.selectedDate!, // Use non-null assertion
-      startTime: selectedStartTime ?? this.selectedStartTime!, // Use non-null assertion
-      endTime: selectedEndTime ?? this.selectedEndTime!, // Use non-null assertion
-      availableSlots: availableSlots ?? this.availableSlots,
-      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-    );
-  }
-}
-
-
-/// State indicating the reservation creation is in progress (calling backend).
-class ReservationCreating extends ReservationState {
-  const ReservationCreating({
-    required super.provider,
-    required super.selectedReservationType,
-    required super.selectedService,
-    required super.selectedDate,
-    required super.selectedStartTime,
-    required super.selectedEndTime,
-    required super.availableSlots,
-    required super.selectedAttendees,
-  });
-
-   @override
-   ReservationCreating copyWith({ ServiceProviderModel? provider, List<AttendeeModel>? selectedAttendees}) {
-       throw UnimplementedError('Cannot copy ReservationCreating state.');
-   }
-}
-
-/// State indicating the reservation was successfully created.
-class ReservationSuccess extends ReservationState {
-  final String message;
-  const ReservationSuccess({
-    required this.message,
-    required super.provider,
-    required super.selectedReservationType,
-    required super.selectedService,
-    required super.selectedDate,
-    required super.selectedStartTime,
-    required super.selectedEndTime,
-    required super.availableSlots,
-    required super.selectedAttendees,
-  });
-
-  @override List<Object?> get props => super.props..add(message);
-
-   @override
-   ReservationSuccess copyWith({ ServiceProviderModel? provider, List<AttendeeModel>? selectedAttendees}) {
-       throw UnimplementedError('Cannot copy ReservationSuccess state.');
-   }
-}
-
-/// State indicating an error occurred during the reservation process.
-class ReservationError extends ReservationState {
-  final String message;
-  const ReservationError({
-    required this.message,
-    required super.provider,
-    super.selectedReservationType,
     super.selectedService,
     super.selectedDate,
     super.selectedStartTime,
     super.selectedEndTime,
     super.availableSlots = const [],
-    super.selectedAttendees = const [],
+    super.typeSpecificData, // Pass to super, reset if type changes significantly
+  });
+
+  @override
+  ReservationTypeSelected copyWith({
+    ServiceProviderModel? provider, ReservationType? selectedReservationType,
+    BookableService? selectedService, DateTime? selectedDate,
+    TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+    Map<String, dynamic>? typeSpecificData, // Added
+    bool? isLoadingSlots, String? message, int? queuePosition, DateTime? estimatedEntryTime, bool? forceEstimatedEntryTimeNull,
+  }) {
+    return ReservationTypeSelected(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      selectedService: selectedService ?? this.selectedService,
+      selectedDate: selectedDate ?? this.selectedDate,
+      selectedStartTime: selectedStartTime ?? this.selectedStartTime,
+      selectedEndTime: selectedEndTime ?? this.selectedEndTime,
+      availableSlots: availableSlots ?? this.availableSlots,
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+    );
+  }
+}
+
+/// Service selected state
+class ReservationServiceSelected extends ReservationState {
+  const ReservationServiceSelected({
+    required super.provider, required super.selectedReservationType,
+    required BookableService service, required super.selectedAttendees,
+    super.selectedDate,
+    super.selectedStartTime,
+    super.selectedEndTime,
+    super.availableSlots = const [],
+    super.typeSpecificData, // Pass to super
+  }) : super(selectedService: service);
+
+  @override
+  ReservationServiceSelected copyWith({
+    ServiceProviderModel? provider, ReservationType? selectedReservationType,
+    BookableService? selectedService, DateTime? selectedDate,
+    TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+    Map<String, dynamic>? typeSpecificData, // Added
+    bool? isLoadingSlots, String? message, int? queuePosition, DateTime? estimatedEntryTime, bool? forceEstimatedEntryTimeNull,
+  }) {
+    return ReservationServiceSelected(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      service: selectedService ?? this.selectedService!,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      selectedDate: selectedDate ?? this.selectedDate,
+      selectedStartTime: selectedStartTime ?? this.selectedStartTime,
+      selectedEndTime: selectedEndTime ?? this.selectedEndTime,
+      availableSlots: availableSlots ?? this.availableSlots,
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+    );
+  }
+}
+
+/// Date selected state
+class ReservationDateSelected extends ReservationState {
+  final bool isLoadingSlots;
+
+  const ReservationDateSelected({
+    required super.provider, required super.selectedReservationType,
+    super.selectedService,
+    required DateTime date,
+    super.availableSlots = const [],
+    required super.selectedAttendees,
+    this.isLoadingSlots = false,
+    super.selectedStartTime,
+    super.selectedEndTime,
+    super.typeSpecificData, // Pass to super
+  }) : super(selectedDate: date);
+
+  @override
+  ReservationDateSelected copyWith({
+    ServiceProviderModel? provider, ReservationType? selectedReservationType,
+    BookableService? selectedService, DateTime? selectedDate,
+    TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+    Map<String, dynamic>? typeSpecificData, // Added
+    bool? isLoadingSlots, String? message, int? queuePosition, DateTime? estimatedEntryTime, bool? forceEstimatedEntryTimeNull,
+  }) {
+    return ReservationDateSelected(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      selectedService: selectedService ?? this.selectedService,
+      date: selectedDate ?? this.selectedDate!,
+      availableSlots: availableSlots ?? this.availableSlots,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      isLoadingSlots: isLoadingSlots ?? this.isLoadingSlots,
+      selectedStartTime: selectedStartTime,
+      selectedEndTime: selectedEndTime,
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+    );
+  }
+
+  @override List<Object?> get props => super.props..add(isLoadingSlots);
+}
+
+/// Time range selected state (primarily for time-based)
+class ReservationRangeSelected extends ReservationState {
+  const ReservationRangeSelected({
+    required super.provider, required super.selectedReservationType,
+    required super.selectedService, required DateTime date,
+    required TimeOfDay startTime, required TimeOfDay endTime,
+    required super.availableSlots, required super.selectedAttendees,
+    super.typeSpecificData, // Pass to super
+  }) : super(selectedDate: date, selectedStartTime: startTime, selectedEndTime: endTime);
+
+  @override
+  ReservationRangeSelected copyWith({
+    ServiceProviderModel? provider, ReservationType? selectedReservationType,
+    BookableService? selectedService, DateTime? selectedDate,
+    TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+    Map<String, dynamic>? typeSpecificData, // Added
+    bool? isLoadingSlots, String? message, int? queuePosition, DateTime? estimatedEntryTime, bool? forceEstimatedEntryTimeNull,
+  }) {
+    return ReservationRangeSelected(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      selectedService: selectedService ?? this.selectedService,
+      date: selectedDate ?? this.selectedDate!,
+      startTime: selectedStartTime ?? this.selectedStartTime!,
+      endTime: selectedEndTime ?? this.selectedEndTime!,
+      availableSlots: availableSlots ?? this.availableSlots,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+    );
+  }
+}
+
+/// Creating state (for non-queue based reservations)
+class ReservationCreating extends ReservationState {
+  const ReservationCreating({
+    required super.provider, required super.selectedReservationType,
+    super.selectedService, required super.selectedDate, 
+    super.selectedStartTime, super.selectedEndTime, 
+    super.availableSlots, required super.selectedAttendees,
+    super.typeSpecificData, // Pass to super
+  });
+
+    @override
+    ReservationCreating copyWith({
+       ServiceProviderModel? provider, ReservationType? selectedReservationType,
+       BookableService? selectedService, DateTime? selectedDate,
+       TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+       List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+       Map<String, dynamic>? typeSpecificData, // Added
+       bool? isLoadingSlots, String? message, int? queuePosition, DateTime? estimatedEntryTime, bool? forceEstimatedEntryTimeNull,
+    }) {
+       return ReservationCreating(
+          provider: provider ?? this.provider,
+          selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+          selectedService: selectedService ?? this.selectedService,
+          selectedDate: selectedDate ?? this.selectedDate,
+          selectedStartTime: selectedStartTime ?? this.selectedStartTime,
+          selectedEndTime: selectedEndTime ?? this.selectedEndTime,
+          availableSlots: availableSlots ?? this.availableSlots,
+          selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+          typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+       );
+    }
+ }
+
+/// Success state (for non-queue based reservations)
+class ReservationSuccess extends ReservationState {
+  final String message;
+  const ReservationSuccess({
+    required this.message, required super.provider,
+    required super.selectedReservationType, super.selectedService,
+    required super.selectedDate, super.selectedStartTime,
+    super.selectedEndTime, super.availableSlots,
+    required super.selectedAttendees,
+    super.typeSpecificData, // Pass to super
+  });
+
+  @override List<Object?> get props => super.props..add(message);
+
+    @override
+    ReservationSuccess copyWith({
+       ServiceProviderModel? provider, ReservationType? selectedReservationType,
+       BookableService? selectedService, DateTime? selectedDate,
+       TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+       List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+       Map<String, dynamic>? typeSpecificData, // Added
+       bool? isLoadingSlots, String? message, int? queuePosition, DateTime? estimatedEntryTime, bool? forceEstimatedEntryTimeNull,
+    }) {
+        // Typically, success state isn't copied with new data, but rather a new success state is emitted.
+        // However, if needed for some edge case:
+       return ReservationSuccess(
+          message: message ?? this.message,
+          provider: provider ?? this.provider,
+          selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+          selectedService: selectedService ?? this.selectedService,
+          selectedDate: selectedDate ?? this.selectedDate,
+          selectedStartTime: selectedStartTime ?? this.selectedStartTime,
+          selectedEndTime: selectedEndTime ?? this.selectedEndTime,
+          availableSlots: availableSlots ?? this.availableSlots,
+          selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+          typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+       );
+    }
+ }
+
+/// General Error state
+class ReservationError extends ReservationState {
+  final String message;
+  const ReservationError({
+    required this.message, required super.provider,
+    super.selectedReservationType, super.selectedService, super.selectedDate,
+    super.selectedStartTime, super.selectedEndTime,
+    super.availableSlots = const [], super.selectedAttendees = const [],
+    super.typeSpecificData, // Pass to super
   });
 
   @override List<Object?> get props => super.props..add(message);
 
   @override
   ReservationError copyWith({
-    ServiceProviderModel? provider,
-    List<AttendeeModel>? selectedAttendees,
-    String? message,
-    ReservationType? selectedReservationType,
-    BookableService? selectedService,
-    DateTime? selectedDate,
-    TimeOfDay? selectedStartTime,
-    TimeOfDay? selectedEndTime,
-    List<TimeOfDay>? availableSlots,
+    ServiceProviderModel? provider, ReservationType? selectedReservationType,
+    BookableService? selectedService, DateTime? selectedDate,
+    TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+    Map<String, dynamic>? typeSpecificData, // Added
+    bool? isLoadingSlots, String? message, int? queuePosition, DateTime? estimatedEntryTime, bool? forceEstimatedEntryTimeNull,
   }) {
     return ReservationError(
       message: message ?? this.message,
@@ -294,6 +351,107 @@ class ReservationError extends ReservationState {
       selectedEndTime: selectedEndTime ?? this.selectedEndTime,
       availableSlots: availableSlots ?? this.availableSlots,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
     );
   }
+}
+
+// --- Sequence-Based States ---
+
+/// State indicating the user is attempting to join the queue.
+class ReservationJoiningQueue extends ReservationState {
+  const ReservationJoiningQueue({
+    required super.provider,
+    required super.selectedReservationType, // Should be sequenceBased
+    required super.selectedService, // Service being queued for
+    required super.selectedAttendees,
+    super.selectedDate, // Date of the queue
+    super.selectedStartTime, // Preferred hour
+    super.typeSpecificData, // Pass to super
+  });
+
+    @override
+    ReservationJoiningQueue copyWith({
+       ServiceProviderModel? provider, ReservationType? selectedReservationType,
+       BookableService? selectedService, DateTime? selectedDate,
+       TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+       List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+       Map<String, dynamic>? typeSpecificData, // Added
+       bool? isLoadingSlots, String? message, int? queuePosition, DateTime? estimatedEntryTime, bool? forceEstimatedEntryTimeNull,
+    }) {
+      return ReservationJoiningQueue(
+         provider: provider ?? this.provider,
+         selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+         selectedService: selectedService ?? this.selectedService,
+         selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+         selectedDate: selectedDate ?? this.selectedDate,
+         selectedStartTime: selectedStartTime ?? this.selectedStartTime,
+         typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      );
+    }
+ }
+
+/// State indicating the user has successfully joined the queue.
+class ReservationInQueue extends ReservationState {
+  final int queuePosition;
+  final DateTime? estimatedEntryTime;
+
+  const ReservationInQueue({
+    required super.provider,
+    required super.selectedReservationType, // Should be sequenceBased
+    required super.selectedService,
+    required super.selectedAttendees,
+    super.selectedDate, 
+    super.selectedStartTime, 
+    super.selectedEndTime, 
+    required this.queuePosition,
+    this.estimatedEntryTime,
+    super.availableSlots = const [], 
+    super.typeSpecificData, // Pass to super
+  });
+
+  @override
+  List<Object?> get props => super.props..addAll([queuePosition, estimatedEntryTime]);
+
+  @override
+  ReservationInQueue copyWith({
+    ServiceProviderModel? provider, ReservationType? selectedReservationType,
+    BookableService? selectedService, DateTime? selectedDate,
+    TimeOfDay? selectedStartTime, TimeOfDay? selectedEndTime,
+    List<TimeOfDay>? availableSlots, List<AttendeeModel>? selectedAttendees,
+    Map<String, dynamic>? typeSpecificData, // Added
+    bool? isLoadingSlots, String? message, 
+    int? queuePosition,                 
+    DateTime? estimatedEntryTime,        
+    bool? forceEstimatedEntryTimeNull, 
+  }) {
+    return ReservationInQueue(
+      provider: provider ?? this.provider,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
+      selectedService: selectedService ?? this.selectedService,
+      selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      selectedDate: selectedDate ?? this.selectedDate,
+      selectedStartTime: selectedStartTime ?? this.selectedStartTime, 
+      queuePosition: queuePosition ?? this.queuePosition,
+      estimatedEntryTime: (forceEstimatedEntryTimeNull ?? false) ? null : (estimatedEntryTime ?? this.estimatedEntryTime),
+      availableSlots: availableSlots ?? this.availableSlots,
+      selectedEndTime: selectedEndTime ?? this.selectedEndTime,
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+    );
+  }
+}
+
+/// State indicating an error occurred specifically during queue operations.
+class ReservationQueueError extends ReservationError {
+    const ReservationQueueError({
+        required super.message,
+        required super.provider,
+        super.selectedReservationType, 
+        super.selectedService,
+        super.selectedDate,
+        super.selectedStartTime, 
+        super.selectedAttendees,
+        super.typeSpecificData, // Pass to super
+    });
+
 }

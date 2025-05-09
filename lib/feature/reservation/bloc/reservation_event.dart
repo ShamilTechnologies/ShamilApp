@@ -10,14 +10,14 @@ abstract class ReservationEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-// Event when user selects the type of reservation (if multiple options)
+/// Event when user selects the type of reservation (if multiple options)
 class SelectReservationType extends ReservationEvent {
   final ReservationType reservationType;
   const SelectReservationType({required this.reservationType});
   @override List<Object?> get props => [reservationType];
 }
 
-// Event when user selects a service (for service/time based)
+/// Event when user selects a service (for service/time based/sequence based)
 class SelectReservationService extends ReservationEvent {
   // Allow service to be nullable for general time-based booking
   final BookableService? selectedService;
@@ -25,14 +25,14 @@ class SelectReservationService extends ReservationEvent {
   @override List<Object?> get props => [selectedService];
 }
 
-// Event when user selects a date (for time/seat based)
+/// Event when user selects a date
 class SelectReservationDate extends ReservationEvent {
   final DateTime selectedDate;
   const SelectReservationDate({required this.selectedDate});
   @override List<Object?> get props => [selectedDate];
 }
 
-// Event from UI after swipe gesture completes (for time based)
+/// Event from UI after swipe gesture completes (for time-based)
 class UpdateSwipeSelection extends ReservationEvent {
   final TimeOfDay startTime;
   final TimeOfDay endTime;
@@ -41,14 +41,14 @@ class UpdateSwipeSelection extends ReservationEvent {
 }
 
 // --- Attendee Events ---
-// Event to add an attendee (self, family, or friend invite)
+/// Event to add an attendee (self, family, or friend invite)
 class AddAttendee extends ReservationEvent {
   final AttendeeModel attendee;
   const AddAttendee({required this.attendee});
   @override List<Object?> get props => [attendee];
 }
 
-// Event to remove an attendee (identified by userId)
+/// Event to remove an attendee (identified by userId)
 class RemoveAttendee extends ReservationEvent {
   final String userIdToRemove;
   const RemoveAttendee({required this.userIdToRemove});
@@ -57,13 +57,12 @@ class RemoveAttendee extends ReservationEvent {
 // --- End Attendee Events ---
 
 
-// Event to trigger reservation creation
+/// Event to trigger reservation creation (for non-queue based types)
 class CreateReservation extends ReservationEvent {
-  // No longer needs specific parameters here, reads from state
   const CreateReservation();
 }
 
-// Event to reset the flow
+/// Event to reset the reservation flow state.
 class ResetReservationFlow extends ReservationEvent {
   // Optionally pass provider context and initial attendee when resetting
   final ServiceProviderModel? provider;
@@ -74,6 +73,37 @@ class ResetReservationFlow extends ReservationEvent {
   @override List<Object?> get props => [provider, initialAttendee];
 }
 
-// ACTION: Add events for seat selection, access pass selection if needed
-// class SelectSeat extends ReservationEvent { ... }
-// class SelectAccessOption extends ReservationEvent { ... }
+// --- Sequence-Based Events ---
+
+/// Event triggered when the user selects a preferred hour slot for the queue.
+class SelectSequenceTimeSlot extends ReservationEvent {
+   final TimeOfDay? preferredHour; // Nullable to allow clearing the selection
+   const SelectSequenceTimeSlot({required this.preferredHour});
+   @override List<Object?> get props => [preferredHour];
+}
+
+/// Event triggered when the user taps "Join Queue".
+class JoinQueue extends ReservationEvent {
+  const JoinQueue();
+  // No specific parameters here, data is read from state (service, date, preferredHour)
+}
+
+/// Event to periodically check the user's queue status (optional).
+class CheckQueueStatus extends ReservationEvent {
+  const CheckQueueStatus();
+  // Reads context (service, date, preferredHour) from state
+}
+
+/// Event triggered when the user wants to leave the queue.
+class LeaveQueue extends ReservationEvent {
+  const LeaveQueue();
+  // Reads context (service, date, preferredHour) from state
+}
+
+// --- Access-Based Event ---
+/// Event triggered when user selects an AccessPassOption
+class SelectAccessPassOption extends ReservationEvent {
+  final AccessPassOption option;
+  const SelectAccessPassOption({required this.option});
+  @override List<Object?> get props => [option];
+}

@@ -1,7 +1,10 @@
+// lib/feature/profile/widgets/user_info_section.dart
+
 import 'package:flutter/material.dart';
 import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
-// Import placeholder builder and image data if needed directly
-import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart' show buildProfilePlaceholder, transparentImageData;
+// Import placeholder builder and image data
+import 'package:shamil_mobile_app/core/constants/image_constants.dart';
+import 'package:shamil_mobile_app/core/widgets/placeholders.dart'; // Use shared placeholder builder
 
 class UserInfoSection extends StatelessWidget {
   final AuthModel userModel;
@@ -20,12 +23,16 @@ class UserInfoSection extends StatelessWidget {
     final theme = Theme.of(context);
     const double avatarSize = 100.0;
     final borderRadius = BorderRadius.circular(12.0);
-    final String profilePicUrl = userModel.profilePicUrl ?? userModel.image;
+    // Ensure profilePicUrl check handles empty strings
+    String? profilePicUrl = userModel.profilePicUrl ?? userModel.image;
+    if (profilePicUrl != null && profilePicUrl.isEmpty) {
+       profilePicUrl = null;
+    }
 
     // Widget for displaying the profile picture or placeholder
     Widget profileImageWidget = ClipRRect(
       borderRadius: borderRadius,
-      child: (profilePicUrl.isEmpty)
+      child: (profilePicUrl == null)
          ? buildProfilePlaceholder(avatarSize, theme, borderRadius) // Use helper
          : FadeInImage.memoryNetwork(
             placeholder: transparentImageData, // Use imported data
@@ -41,8 +48,11 @@ class UserInfoSection extends StatelessWidget {
            child: Stack( // Stack for avatar + edit button + loading overlay
               alignment: Alignment.center,
               children: [
-                // Container for the avatar itself
-                SizedBox( width: avatarSize, height: avatarSize, child: profileImageWidget, ),
+                // *** Use Hero widget with UNIQUE tag ***
+                Hero(
+                  tag: 'userProfilePic_hero_profile', // UNIQUE tag for profile screen
+                  child: SizedBox( width: avatarSize, height: avatarSize, child: profileImageWidget, ),
+                ),
                 // Edit Button positioned bottom right
                 Positioned( bottom: 0, right: 0,
                   child: Material(

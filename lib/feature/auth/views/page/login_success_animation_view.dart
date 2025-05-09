@@ -341,8 +341,8 @@ class _LoginSuccessAnimationViewState extends State<LoginSuccessAnimationView>
                     children: [
                       // Hero Widget for the profile picture transition
                       Hero(
-                        tag:
-                            'userProfilePic_hero', // MUST match destination tag in ExploreTopSection
+                                               tag: 'userProfilePic_hero_main_explore',
+
                         child: Transform.scale(
                           // Apply scale animation
                           scale: _scaleAnimation.value,

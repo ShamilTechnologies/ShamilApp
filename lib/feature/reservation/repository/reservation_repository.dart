@@ -3,8 +3,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart'; // Required for TimeOfDay
+import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:intl/intl.dart'; // Required for DateFormat
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart'; // Import ReservationModel, AttendeeModel, Enums
 
 /// Abstract interface for reservation data operations.
 abstract class ReservationRepository {
@@ -13,73 +14,136 @@ abstract class ReservationRepository {
       String providerId, String? governorateId, DateTime date);
 
   /// Fetches available time slots for a specific provider, date, and duration.
-  /// This should ideally call a backend function for complex logic.
-  // ADDED: Method signature
+  /// Used primarily for time-based, seat-based, recurring types.
   Future<List<TimeOfDay>> fetchAvailableSlots({
-      required String providerId,
-      required String? governorateId, // Needed if backend uses partitioning
-      required DateTime date,
-      required int durationMinutes,
+    required String providerId,
+    required String? governorateId,
+    required DateTime date,
+    required int durationMinutes,
   });
 
-  /// Calls the backend function to create a new reservation.
+  /// Calls the backend function to create a new reservation (for non-queue types).
   Future<Map<String, dynamic>> createReservationOnBackend(
       Map<String, dynamic> payload);
+
+  // --- Sequence-Based Methods (Updated Signatures) ---
+
+  /// Calls the backend function to add the user to a specific hourly queue.
+  /// Expects a result map like {'success': bool, 'queuePosition': int?, 'estimatedEntryTime': timestamp?, 'error': string?}.
+  Future<Map<String, dynamic>> joinQueue({
+    required String userId,
+    required String providerId,
+    required String? governorateId,
+    String? serviceId,
+    required List<AttendeeModel> attendees,
+    required DateTime preferredDate, // *** UPDATED ***
+    required TimeOfDay preferredHour, // *** UPDATED ***
+  });
+
+  /// Calls the backend function to get the user's current queue status for a specific hour.
+  /// Expects a result map like {'success': bool, 'queuePosition': int?, 'estimatedEntryTime': timestamp?, 'error': string?}.
+  Future<Map<String, dynamic>> checkQueueStatus({
+    required String userId,
+    required String providerId,
+    required String? governorateId,
+    String? serviceId,
+    required DateTime preferredDate, // *** UPDATED ***
+    required TimeOfDay preferredHour, // *** UPDATED ***
+  });
+
+  /// Calls the backend function to remove the user from a specific hourly queue.
+  /// Expects a result map like {'success': bool, 'error': string?}.
+  Future<Map<String, dynamic>> leaveQueue({
+    required String userId,
+    required String providerId,
+    required String? governorateId,
+    String? serviceId,
+    required DateTime preferredDate, // *** UPDATED ***
+    required TimeOfDay preferredHour, // *** UPDATED ***
+  });
 }
 
 /// Firebase implementation of the [ReservationRepository].
 class FirebaseReservationRepository implements ReservationRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  // Explicitly set Cloud Functions region
-  final FirebaseFunctions _functions =
-      FirebaseFunctions.instanceFor(region: 'us-central1'); // TODO: Adjust region if needed
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+      region: 'us-central1'); // Adjust region if needed
+
+  static const String _reservationsRootCollection = 'reservations';
+
+  Future<Map<String, dynamic>> _callFunction(
+      String functionName, Map<String, dynamic> payload) async {
+    debugPrint(
+        "FirebaseReservationRepository: Calling '$functionName' Cloud Function...");
+    debugPrint("Payload: $payload");
+    try {
+      final HttpsCallable callable = _functions.httpsCallable(functionName);
+      final result = await callable.call(payload);
+      debugPrint("Cloud Function '$functionName' result data: ${result.data}");
+      if (result.data is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(result.data);
+      } else {
+        return {
+          'success': false,
+          'error': 'Invalid response format from server.'
+        };
+      }
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint(
+          "FirebaseReservationRepository: FirebaseFunctionsException calling $functionName - Code: ${e.code}, Message: ${e.message}, Details: ${e.details}");
+      return {
+        'success': false,
+        'error': "Server Error (${e.code}): ${e.message ?? 'Operation failed.'}"
+      };
+    } catch (e) {
+      debugPrint(
+          "FirebaseReservationRepository: Generic error calling $functionName Cloud Function: $e");
+      return {'success': false, 'error': "Operation failed: ${e.toString()}"};
+    }
+  }
 
   @override
   Future<List<ReservationModel>> fetchExistingReservations(
       String providerId, String? governorateId, DateTime date) async {
-    print(
+    // ... (Implementation remains the same as previously corrected) ...
+    debugPrint(
         "FirebaseReservationRepository: Fetching existing reservations for Provider $providerId on $date (Gov ID: $governorateId)");
-
-    // Calculate start and end Timestamps for the selected date (UTC)
     final startOfDay = DateTime.utc(date.year, date.month, date.day);
     final endOfDay =
         DateTime.utc(date.year, date.month, date.day, 23, 59, 59, 999);
     final startTimestamp = Timestamp.fromDate(startOfDay);
     final endTimestamp = Timestamp.fromDate(endOfDay);
-
-    print(
+    debugPrint(
         "FirebaseReservationRepository: Querying reservations between $startTimestamp and $endTimestamp");
-
     try {
-      // Decide query strategy based on governorateId availability
       Query query;
       if (governorateId != null && governorateId.isNotEmpty) {
-        // Strategy 1: Query specific partition (Preferred if governorateId is reliable)
-        // Requires Firestore index: reservations/{governorateId}/{providerId} -> reservationStartTime (asc), status (asc)
-        print("Querying specific partition: reservations/$governorateId/$providerId");
+        debugPrint(
+            "Querying specific partition: $_reservationsRootCollection/$governorateId/$providerId");
         query = _firestore
-            .collection('reservations')
+            .collection(_reservationsRootCollection)
             .doc(governorateId)
-            .collection(providerId) // Use providerId as subcollection name here
-            .where('reservationStartTime', isGreaterThanOrEqualTo: startTimestamp)
+            .collection(providerId)
+            .where('reservationStartTime',
+                isGreaterThanOrEqualTo: startTimestamp)
             .where('reservationStartTime', isLessThanOrEqualTo: endTimestamp)
-            .where('status', isEqualTo: ReservationStatus.confirmed.statusString);
-
+            .where('status',
+                whereIn: [ReservationStatus.confirmed.statusString]);
       } else {
-        // Strategy 2: Fallback to Collection Group Query (Requires different index)
-        // Requires index: reservations (collection group) -> providerId (asc), reservationStartTime (asc), status (asc)
-        print("Querying collection group 'reservations' (governorateId missing or empty)");
+        debugPrint(
+            "Querying collection group '$providerId' (governorateId missing or empty - Check Index Requirements!)");
+        // This assumes subcollection name under governorate doc IS the providerId.
+        // If not, adjust collectionGroup name or make governorateId mandatory.
         query = _firestore
-            .collectionGroup('reservations')
+            .collectionGroup(providerId)
             .where('providerId', isEqualTo: providerId)
-            .where('reservationStartTime', isGreaterThanOrEqualTo: startTimestamp)
+            .where('reservationStartTime',
+                isGreaterThanOrEqualTo: startTimestamp)
             .where('reservationStartTime', isLessThanOrEqualTo: endTimestamp)
-            .where('status', isEqualTo: ReservationStatus.confirmed.statusString);
+            .where('status',
+                whereIn: [ReservationStatus.confirmed.statusString]);
       }
-
-
       final querySnapshot = await query.get();
-
       final reservations = querySnapshot.docs
           .map((doc) {
             try {
@@ -91,19 +155,20 @@ class FirebaseReservationRepository implements ReservationRepository {
           })
           .whereType<ReservationModel>()
           .toList();
-
-      print(
-          "FirebaseReservationRepository: Found ${reservations.length} existing confirmed reservations.");
+      debugPrint(
+          "FirebaseReservationRepository: Found ${reservations.length} relevant existing reservations.");
       return reservations;
     } catch (e) {
       print(
           "FirebaseReservationRepository: Error fetching existing reservations from Firestore: $e");
-      // Rethrow to allow handling in the Bloc
-      throw Exception("Failed to fetch existing bookings: $e");
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        throw Exception(
+            "Database index missing for fetching reservations. Check Firestore console configuration.");
+      }
+      throw Exception("Failed to fetch existing bookings: ${e.toString()}");
     }
   }
 
-  // ADDED: Implementation for fetchAvailableSlots
   @override
   Future<List<TimeOfDay>> fetchAvailableSlots({
     required String providerId,
@@ -111,69 +176,171 @@ class FirebaseReservationRepository implements ReservationRepository {
     required DateTime date,
     required int durationMinutes,
   }) async {
-    print("FirebaseReservationRepository: Calling 'getAvailableSlots' Cloud Function for $providerId on $date (Duration: $durationMinutes min)");
-    // --- Placeholder: Replace with actual Cloud Function Call ---
-    // This simulates fetching slots from a backend function.
+    // ... (Implementation remains the same as previously corrected) ...
+    if (governorateId == null || governorateId.isEmpty) {
+      throw Exception("Governorate ID is required to fetch slots.");
+    }
+    debugPrint(
+        "FirebaseReservationRepository: Calling 'getAvailableSlots' Cloud Function for $providerId on $date (Duration: $durationMinutes min, GovID: $governorateId)");
     try {
-      final HttpsCallable callable = _functions.httpsCallable('getAvailableSlots'); // TODO: Create this Cloud Function
+      final HttpsCallable callable =
+          _functions.httpsCallable('getAvailableSlots');
       final result = await callable.call(<String, dynamic>{
         'providerId': providerId,
-        'governorateId': governorateId, // Pass governorateId
-        'date': DateFormat('yyyy-MM-dd').format(date), // Send date as string
+        'governorateId': governorateId,
+        'date': DateFormat('yyyy-MM-dd').format(date),
         'durationMinutes': durationMinutes,
       });
-
-      // Assuming the Cloud Function returns a list of available start times as strings 'HH:mm'
-      final List<dynamic> slotStrings = List<dynamic>.from(result.data['slots'] ?? []);
-      final List<TimeOfDay> availableSlots = slotStrings.map((slotStr) {
-        final parts = slotStr.toString().split(':');
-        if (parts.length == 2) {
-          final hour = int.tryParse(parts[0]);
-          final minute = int.tryParse(parts[1]);
-          if (hour != null && minute != null) {
-            return TimeOfDay(hour: hour, minute: minute);
-          }
-        }
-        return null; // Invalid format
-      }).whereType<TimeOfDay>().toList(); // Filter out nulls
-
-      print("Cloud Function 'getAvailableSlots' returned ${availableSlots.length} slots.");
+      final List<dynamic> slotStrings =
+          List<dynamic>.from(result.data?['slots'] ?? []);
+      final List<TimeOfDay> availableSlots = slotStrings
+          .map((slotStr) {
+            final parts = slotStr.toString().split(':');
+            if (parts.length == 2) {
+              final hour = int.tryParse(parts[0]);
+              final minute = int.tryParse(parts[1]);
+              if (hour != null &&
+                  minute != null &&
+                  hour >= 0 &&
+                  hour <= 23 &&
+                  minute >= 0 &&
+                  minute <= 59) {
+                return TimeOfDay(hour: hour, minute: minute);
+              }
+            }
+            print(
+                "Warning: Invalid time slot format received from backend: '$slotStr'");
+            return null;
+          })
+          .whereType<TimeOfDay>()
+          .toList();
+      availableSlots.sort((a, b) {
+        final aMinutes = a.hour * 60 + a.minute;
+        final bMinutes = b.hour * 60 + b.minute;
+        return aMinutes.compareTo(bMinutes);
+      });
+      debugPrint(
+          "Cloud Function 'getAvailableSlots' returned ${availableSlots.length} valid and sorted slots.");
       return availableSlots;
-
     } on FirebaseFunctionsException catch (e) {
-        print("FirebaseReservationRepository: FirebaseFunctionsException calling getAvailableSlots - Code: ${e.code}, Message: ${e.message}, Details: ${e.details}");
-        throw Exception("Cloud Function Error (${e.code}): ${e.message ?? 'Failed to get available slots.'}");
+      debugPrint(
+          "FirebaseReservationRepository: FirebaseFunctionsException calling getAvailableSlots - Code: ${e.code}, Message: ${e.message}, Details: ${e.details}");
+      if (e.code == 'not-found') {
+        throw Exception("Availability check function not found on the server.");
+      } else if (e.code == 'invalid-argument') {
+        throw Exception(
+            "Invalid data sent for availability check: ${e.message}");
+      }
+      throw Exception(
+          "Server Error (${e.code}): ${e.message ?? 'Failed to get available slots.'}");
     } catch (e) {
-      print("FirebaseReservationRepository: Error calling 'getAvailableSlots' Cloud Function: $e");
-      // Fallback or rethrow
-      // Example fallback: return an empty list
-      // return [];
+      print(
+          "FirebaseReservationRepository: Error calling 'getAvailableSlots' Cloud Function: $e");
       throw Exception("Failed to get available slots: ${e.toString()}");
     }
-    // --- End Placeholder ---
   }
-
 
   @override
   Future<Map<String, dynamic>> createReservationOnBackend(
       Map<String, dynamic> payload) async {
-    print(
-        "FirebaseReservationRepository: Calling 'createReservation' Cloud Function...");
-    try {
-      // TODO: Ensure 'createReservation' Cloud Function exists and matches this name/region
-      final HttpsCallable callable =
-          _functions.httpsCallable('createReservation');
-      final result = await callable.call(payload);
-      print("Cloud Function 'createReservation' result data: ${result.data}");
-      // Return the data map from the function result
-      return Map<String, dynamic>.from(result.data ?? {});
-    } on FirebaseFunctionsException catch (e) {
-       print("FirebaseReservationRepository: FirebaseFunctionsException calling createReservation - Code: ${e.code}, Message: ${e.message}, Details: ${e.details}");
-       // Rethrow a structured error or the original exception
-       throw Exception("Cloud Function Error (${e.code}): ${e.message ?? 'Failed to create reservation.'}");
-    } catch (e) {
-      print("FirebaseReservationRepository: Generic error calling createReservation Cloud Function: $e");
-      throw Exception("Failed to create reservation: ${e.toString()}");
+    // ... (Implementation remains the same as previously corrected) ...
+    if (payload['governorateId'] == null ||
+        (payload['governorateId'] as String).isEmpty) {
+      return {
+        'success': false,
+        'error': 'Internal error: Missing location context.'
+      };
     }
+    return await _callFunction('createReservation', payload);
   }
-}
+
+  // --- Sequence-Based Implementations (Updated Payloads) ---
+
+  @override
+  Future<Map<String, dynamic>> joinQueue({
+    required String userId,
+    required String providerId,
+    required String? governorateId,
+    String? serviceId,
+    required List<AttendeeModel> attendees,
+    required DateTime preferredDate, // *** UPDATED ***
+    required TimeOfDay preferredHour, // *** UPDATED ***
+  }) async {
+    if (governorateId == null || governorateId.isEmpty) {
+      return {
+        'success': false,
+        'error': 'Missing required location information.'
+      };
+    }
+    final payload = {
+      'userId': userId,
+      'providerId': providerId,
+      'governorateId': governorateId,
+      if (serviceId != null) 'serviceId': serviceId,
+      'attendees': attendees.map((a) => a.toMap()).toList(),
+      'groupSize': attendees.length,
+      // *** ADD Date and Hour to Payload ***
+      'preferredDate': DateFormat('yyyy-MM-dd')
+          .format(preferredDate), // Send as yyyy-MM-dd string
+      'preferredHour': preferredHour.hour, // Send just the hour (integer, 0-23)
+    };
+    // TODO: Ensure Cloud Function 'joinQueue' is updated to handle preferredDate and preferredHour
+    return await _callFunction('joinQueue', payload);
+  }
+
+  @override
+  Future<Map<String, dynamic>> checkQueueStatus({
+    required String userId,
+    required String providerId,
+    required String? governorateId,
+    String? serviceId,
+    required DateTime preferredDate, // *** UPDATED ***
+    required TimeOfDay preferredHour, // *** UPDATED ***
+  }) async {
+    if (governorateId == null || governorateId.isEmpty) {
+      return {
+        'success': false,
+        'error': 'Missing required location information.'
+      };
+    }
+    final payload = {
+      'userId': userId,
+      'providerId': providerId,
+      'governorateId': governorateId,
+      if (serviceId != null) 'serviceId': serviceId,
+      // *** ADD Date and Hour to Payload ***
+      'preferredDate': DateFormat('yyyy-MM-dd').format(preferredDate),
+      'preferredHour': preferredHour.hour,
+    };
+    // TODO: Ensure Cloud Function 'checkQueueStatus' is updated
+    return await _callFunction('checkQueueStatus', payload);
+  }
+
+  @override
+  Future<Map<String, dynamic>> leaveQueue({
+    required String userId,
+    required String providerId,
+    required String? governorateId,
+    String? serviceId,
+    required DateTime preferredDate, // *** UPDATED ***
+    required TimeOfDay preferredHour, // *** UPDATED ***
+  }) async {
+    if (governorateId == null || governorateId.isEmpty) {
+      return {
+        'success': false,
+        'error': 'Missing required location information.'
+      };
+    }
+    final payload = {
+      'userId': userId,
+      'providerId': providerId,
+      'governorateId': governorateId,
+      if (serviceId != null) 'serviceId': serviceId,
+      // *** ADD Date and Hour to Payload ***
+      'preferredDate': DateFormat('yyyy-MM-dd').format(preferredDate),
+      'preferredHour': preferredHour.hour,
+    };
+    // TODO: Ensure Cloud Function 'leaveQueue' is updated
+    return await _callFunction('leaveQueue', payload);
+  }
+} // End of FirebaseReservationRepository

@@ -1,358 +1,328 @@
-// lib/feature/home/data/service_provider_model.dart
+// Suggested Updates for: lib/feature/home/data/service_provider_model.dart
+// Add the following fields and update the constructor, fromFirestore, and props.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
-import 'package:flutter/material.dart'; // Import for TimeOfDay
-// Assuming BookableService is in the same directory or adjust the path
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+// Assuming these imports are correct
 import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
-// Import ReservationType enum
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart' show ReservationType, reservationTypeFromString;
+import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart' show ReservationType, reservationTypeFromString, ReservationTypeExtension;
+// ADDED: Import Review Model (define this class separately)
+// import 'package:shamil_mobile_app/feature/details/data/review_model.dart';
 
-
-// --- Enum Definitions ---
-
-/// Defines the interval for subscription pricing (e.g., daily, monthly).
+// --- Enums (Keep existing definitions) ---
 enum PricingInterval { day, week, month, year }
-
-/// Converts a string representation to a [PricingInterval] enum value.
-/// Defaults to [PricingInterval.month] if the string is unrecognized.
 PricingInterval pricingIntervalFromString(String? intervalString) {
   switch (intervalString?.toLowerCase()) {
     case 'day': return PricingInterval.day;
     case 'week': return PricingInterval.week;
     case 'month': return PricingInterval.month;
     case 'year': return PricingInterval.year;
-    default: return PricingInterval.month; // Default
+    default: return PricingInterval.month;
   }
 }
-
-/// Defines the primary pricing model for a service provider.
 enum PricingModel { subscription, reservation, hybrid, other }
-
-/// Converts a string representation to a [PricingModel] enum value.
-/// Defaults to [PricingModel.other] if the string is unrecognized.
 PricingModel pricingModelFromString(String? modelString) {
-  switch (modelString?.toLowerCase()) {
+   switch (modelString?.toLowerCase()) {
     case 'subscription': return PricingModel.subscription;
     case 'reservation': return PricingModel.reservation;
-    case 'hybrid': return PricingModel.hybrid; // Supports both
-    default: return PricingModel.other; // Default
+    case 'hybrid': return PricingModel.hybrid;
+    case 'other': return PricingModel.other;
+    default: return PricingModel.other;
   }
 }
 
-// --- Nested Models ---
+// --- Nested Classes (Keep existing definitions: OpeningHoursDay, SubscriptionPlan, AccessPassOption) ---
+class OpeningHoursDay extends Equatable {
+  final TimeOfDay? startTime;
+  final TimeOfDay? endTime;
+  final bool isOpen;
+  const OpeningHoursDay({this.startTime, this.endTime, this.isOpen = true});
 
-/// Represents a subscription plan offered by a provider.
-class SubscriptionPlan extends Equatable {
-  final String id; // Unique ID for the plan (e.g., Firestore doc ID or generated)
-  final String name; // Name of the plan (e.g., "Gold Membership")
-  final String description; // Description of what the plan includes
-  final double price; // Cost of the plan
-  final List<String> features; // List of features/benefits included
-  final int intervalCount; // Number of intervals (e.g., 1 for monthly, 3 for quarterly)
-  final PricingInterval interval; // The interval unit (e.g., month)
+  factory OpeningHoursDay.fromMap(Map<String, dynamic>? data) {
+     if (data == null) return const OpeningHoursDay(isOpen: false);
+      TimeOfDay? parseTime(String? timeString) {
+          if (timeString == null) return null;
+          final trimmed = timeString.trim();
+          if (!trimmed.contains(':')) return null;
+          final parts = trimmed.split(':');
+          if (parts.length != 2) return null;
+          final hour = int.tryParse(parts[0]);
+          final minute = int.tryParse(parts[1]);
+          if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+          return TimeOfDay(hour: hour, minute: minute);
+      }
+      final startTimeValue = parseTime(data['open'] as String?);
+      final endTimeValue = parseTime(data['close'] as String?);
+      final bool explicitIsOpen = data['isOpen'] as bool? ?? true;
+      final bool hasValidTimes = startTimeValue != null && endTimeValue != null;
+      final bool isEffectivelyOpen = explicitIsOpen && hasValidTimes;
+      return OpeningHoursDay( startTime: startTimeValue, endTime: endTimeValue, isOpen: isEffectivelyOpen, );
+  }
+   Map<String, dynamic> toMap() {
+      String? formatTime(TimeOfDay? time) { if (time == null) return null; return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}'; }
+      return { 'open': formatTime(startTime), 'close': formatTime(endTime), 'isOpen': isOpen, };
+   }
+   @override List<Object?> get props => [startTime, endTime, isOpen];
+}
+class SubscriptionPlan extends Equatable { /* ... Keep existing implementation ... */
+  final String id;
+  final String name;
+  final String description;
+  final double price;
+  final List<String> features; // List of feature strings for the plan
+  final int intervalCount;
+  final PricingInterval interval;
 
   const SubscriptionPlan({
-    required this.id, required this.name, required this.description,
-    required this.price, this.features = const [], required this.intervalCount,
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.price,
+    this.features = const [], // Default to empty list
+    required this.intervalCount,
     required this.interval,
   });
 
-  /// Creates a [SubscriptionPlan] from a map (e.g., Firestore data).
-  factory SubscriptionPlan.fromMap(Map<String, dynamic> data, String id) {
-    return SubscriptionPlan(
-      id: id, // Use the provided document ID
-      name: data['name'] as String? ?? '',
-      description: data['description'] as String? ?? '',
-      price: (data['price'] as num?)?.toDouble() ?? 0.0,
-      features: List<String>.from(data['features'] ?? []), // Safely cast list
-      intervalCount: (data['intervalCount'] as num?)?.toInt() ?? 1, // Default to 1
-      interval: pricingIntervalFromString(data['interval']), // Use helper
-    );
-  }
-
-  /// Converts this [SubscriptionPlan] object into a map suitable for Firestore.
-  /// Note: 'id' is typically not stored within the map itself.
-  Map<String, dynamic> toMap() => {
-        'name': name,
-        'description': description,
-        'price': price,
-        'features': features,
-        'intervalCount': intervalCount,
-        'interval': interval.name, // Store enum name as string
-      };
-
-  /// Creates a copy of this plan with optional updated fields.
-  SubscriptionPlan copyWith({
-    String? id, String? name, String? description, double? price,
-    List<String>? features, int? intervalCount, PricingInterval? interval,
-  }) {
-    return SubscriptionPlan(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      price: price ?? this.price,
-      features: features ?? this.features,
-      intervalCount: intervalCount ?? this.intervalCount,
-      interval: interval ?? this.interval,
-    );
-  }
-
-  @override
-  List<Object?> get props => [id, name, description, price, features, intervalCount, interval];
-}
-
-/// Represents the opening hours for a specific day (e.g., Monday).
-class OpeningHours extends Equatable {
-  final TimeOfDay? startTime; // Time the provider opens
-  final TimeOfDay? endTime;   // Time the provider closes
-  final bool isOpen;          // Whether the provider is open on this day
-
-  const OpeningHours({this.startTime, this.endTime, this.isOpen = true});
-
-  /// Creates [OpeningHours] from a map (e.g., Firestore data for a specific day).
-  /// Handles potentially missing or malformed time strings.
-  factory OpeningHours.fromMap(Map<String, dynamic>? data) {
-     if (data == null) return const OpeningHours(isOpen: false); // Closed if no data
-
-     // Helper to parse 'HH:mm' strings robustly
-     TimeOfDay? parseTime(String? timeString) {
-       if (timeString == null) return null;
-       final trimmed = timeString.trim(); // Remove leading/trailing whitespace
-       if (!trimmed.contains(':')) return null; // Must contain ':'
-       final parts = trimmed.split(':');
-       if (parts.length != 2) return null; // Must have exactly two parts
-       final hour = int.tryParse(parts[0]);
-       final minute = int.tryParse(parts[1]);
-       // Validate parsing and time ranges
-       if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-       return TimeOfDay(hour: hour, minute: minute);
-     }
-
-     // Parse 'open' and 'close' times
-     final startTimeValue = parseTime(data['open'] as String?);
-     final endTimeValue = parseTime(data['close'] as String?);
-
-     // Consider the day effectively open only if BOTH start and end times are valid
-     // AND if an explicit 'isOpen' flag exists and is true (or default to true if flag is missing)
-     final bool explicitIsOpen = data['isOpen'] as bool? ?? true; // Assume open if flag is missing
-     final bool hasValidTimes = startTimeValue != null && endTimeValue != null;
-     final bool isEffectivelyOpen = explicitIsOpen && hasValidTimes;
-
-     return OpeningHours(
-       startTime: startTimeValue,
-       endTime: endTimeValue,
-       isOpen: isEffectivelyOpen, // Use calculated openness
-     );
-  }
-
-  /// Converts this [OpeningHours] object into a map suitable for Firestore.
-  Map<String, dynamic> toMap() {
-     // Helper to format TimeOfDay back to 'HH:mm' string
-     String? formatTime(TimeOfDay? time) {
-       if (time == null) return null;
-       return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-     }
+   factory SubscriptionPlan.fromMap(Map<String, dynamic> data, String id) {
+      return SubscriptionPlan(
+        id: id,
+        name: data['name'] as String? ?? '',
+        description: data['description'] as String? ?? '',
+        price: (data['price'] as num?)?.toDouble() ?? 0.0,
+        features: List<String>.from( data['features'] as List<dynamic>? ?? [], ),
+        intervalCount: (data['intervalCount'] as num?)?.toInt() ?? 1,
+        interval: pricingIntervalFromString(data['interval'] as String?),
+      );
+   }
+   Map<String, dynamic> toMap() {
      return {
-       'open': formatTime(startTime),
-       'close': formatTime(endTime),
-       'isOpen': isOpen, // Store the explicit isOpen flag
+       'name': name, 'description': description, 'price': price, 'features': features,
+       'intervalCount': intervalCount, 'interval': interval.name,
      };
-  }
-
-  @override
-  List<Object?> get props => [startTime, endTime, isOpen];
+   }
+  @override List<Object?> get props => [id, name, description, price, features, intervalCount, interval];
 }
+class AccessPassOption extends Equatable { /* ... Keep existing implementation ... */
+  final String id; final String label; final double price; final int durationHours;
+  const AccessPassOption({ required this.id, required this.label, required this.price, required this.durationHours, });
+  factory AccessPassOption.fromMap(Map<String, dynamic> data) { /* ... */
+     return AccessPassOption(
+       id: data['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+       label: data['label'] as String? ?? 'Pass',
+       price: (data['price'] as num?)?.toDouble() ?? 0.0,
+       durationHours: (data['durationHours'] as num?)?.toInt() ?? 0,
+     );
+   }
+   Map<String, dynamic> toMap() { /* ... */
+      return { 'id': id, 'label': label, 'price': price, 'durationHours': durationHours, };
+   }
+  @override List<Object?> get props => [id, label, price, durationHours];
+}
+// --- End Nested Classes ---
 
-// --- Main ServiceProviderModel ---
-
-/// Represents a service provider entity with its details and configurations.
-/// Includes fields to support multiple reservation types and partitioning.
+/// Represents the main data model for a Service Provider entity.
+/// Includes details and configurations for reservations and subscriptions.
 class ServiceProviderModel extends Equatable {
-  final String id; // Firestore document ID (matches provider's auth uid)
+  // Existing Fields
+  final String id;
   final String businessName;
-  final String category; // Main category
-  final String? subCategory; // ADDED: Subcategory
-  final String businessDescription;
-  final String? mainImageUrl; // URL for the main display image
-  final String? logoUrl; // URL for the provider's logo
-  final List<String>? galleryImageUrls; // ADDED: List of gallery image URLs
-  final Map<String, String> address; // Map: street, city, governorate, postalCode
-  final String? governorateId; // ADDED: Crucial for finding partitioned data
-  final GeoPoint? location; // Geographic coordinates
-  final double rating; // Average user rating
-  final int ratingCount; // Number of ratings received
-  final bool isActive; // Whether the provider is active/published in the app
-  final bool isApproved; // ADDED: Whether the provider is approved by admin
-  final bool isFeatured; // Flag for featuring the provider (e.g., on home screen)
-  final List<String> amenities; // List of amenities offered (e.g., "WiFi", "Parking")
-  final PricingModel pricingModel; // Primary pricing model (Subscription, Reservation, Hybrid)
-  final List<SubscriptionPlan> subscriptionPlans; // List of subscription plans offered
-  final List<BookableService> bookableServices; // List of bookable services/classes
-  final Map<String, OpeningHours> openingHours; // Map of day name (lowercase) to OpeningHours
+  final String category;
+  final String? subCategory;
+  final String businessDescription; // Used for Detailed Desc
+  final String? mainImageUrl;
+  final String? logoUrl;
+  final List<String>? galleryImageUrls; // Used for Gallery
+  final Map<String, String> address;
+  final String? governorateId;
+  final GeoPoint? location;
+  final double rating; // averageRating
+  final int ratingCount;
+  final bool isActive;
+  final bool isApproved;
+  final bool isFeatured;
+  final List<String> amenities;
+  final PricingModel pricingModel;
+  final List<SubscriptionPlan> subscriptionPlans;
+  final List<BookableService> bookableServices; // Corresponds to "Specific Services"
+  final Map<String, OpeningHoursDay> openingHours; // Used for Operating Hours
+  final List<String> supportedReservationTypes;
+  final Map<String, dynamic>? reservationTypeConfigs;
+  final String? seatMapUrl;
+  final int? maxGroupSize;
+  final List<AccessPassOption>? accessOptions;
+  final Map<String, dynamic>? serviceSpecificConfigs;
+  final Timestamp createdAt;
+  final Timestamp? updatedAt;
 
-  // --- Fields for Multi-Reservation Support (as per Guide) ---
-  final List<String> supportedReservationTypes; // List of ReservationType enum names
-  final Map<String, dynamic>? reservationTypeConfigs; // ADDED: Provider-specific settings (e.g., buffer time)
-  final String? seatMapUrl; // Optional, relevant for seatBased type
-  final int? maxGroupSize; // Optional, relevant for group type
-  final List<Map<String, dynamic>>? accessOptions; // Optional, relevant for accessBased type
-  final Map<String, dynamic>? serviceSpecificConfigs; // Generic map for additional configurations
+  // --- NEW FIELDS from Plan ---
+  final String? website; // Added for Contact Info/Action Bar
+  final String? primaryPhoneNumber; // For Call button
+  final List<String>? additionalPhoneNumbers; // For Contact Info
+  final String? primaryEmail; // For Email button
+  final List<String>? additionalEmails; // For Contact Info
+  final Map<String, String>? socialMediaLinks; // e.g., {'facebook': 'url', 'instagram': 'url'}
+  final int? yearsInBusiness; // For Overview
+  final List<String>? certifications; // For Business Info
+  final List<String>? awards; // For Business Info
+  final List<String>? paymentMethodsAccepted; // For Business Info
+  final String? verificationStatus; // e.g., "Verified", "Pending", "None"
+  final String? averageResponseTime; // e.g., "Within an hour", "1-2 business days"
+  // Full reviews need a separate model and likely separate fetching mechanism
+  // final List<ReviewModel>? reviews; // See note below
 
   const ServiceProviderModel({
+    // Existing required
     required this.id,
     required this.businessName,
     required this.category,
-    this.subCategory, // ADDED
     required this.businessDescription,
+    required this.address,
+    required this.isActive,
+    required this.isApproved,
+    required this.pricingModel,
+    required this.createdAt,
+    // Existing optional
+    this.subCategory,
     this.mainImageUrl,
     this.logoUrl,
-    this.galleryImageUrls, // ADDED
-    required this.address,
-    this.governorateId, // ADDED
+    this.galleryImageUrls,
+    this.governorateId,
     this.location,
     this.rating = 0.0,
     this.ratingCount = 0,
-    required this.isActive,
-    required this.isApproved, // ADDED
     this.isFeatured = false,
     this.amenities = const [],
-    required this.pricingModel,
     this.subscriptionPlans = const [],
     this.bookableServices = const [],
     this.openingHours = const {},
-    // Initialize new fields from Guide
     this.supportedReservationTypes = const [],
-    this.reservationTypeConfigs, // ADDED
+    this.reservationTypeConfigs,
     this.seatMapUrl,
     this.maxGroupSize,
     this.accessOptions,
     this.serviceSpecificConfigs,
+    this.updatedAt,
+    // New optional fields
+    this.website,
+    this.primaryPhoneNumber,
+    this.additionalPhoneNumbers,
+    this.primaryEmail,
+    this.additionalEmails,
+    this.socialMediaLinks,
+    this.yearsInBusiness,
+    this.certifications,
+    this.awards,
+    this.paymentMethodsAccepted,
+    this.verificationStatus,
+    this.averageResponseTime,
+    // this.reviews, // Reviews likely fetched separately
   });
 
   /// Creates a [ServiceProviderModel] from a Firestore document snapshot.
   factory ServiceProviderModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {}; // Safe access to data
+    final data = doc.data() as Map<String, dynamic>? ?? {};
 
-    // --- Parse Existing Fields (with Safety Checks) ---
-    final addressMap = (data['address'] as Map?)?.map(
-          (key, value) => MapEntry(key.toString(), value?.toString() ?? ''), // Handle null values in map
-        ) ?? {};
-    final amenitiesList = (data['amenities'] as List?)?.map((item) => item.toString()).toList() ?? [];
-    final subscriptionPlansList = (data['subscriptionPlans'] as List?)
-        ?.map((planData) {
-          if (planData is Map<String, dynamic>) {
-            final planId = planData['id']?.toString() ?? doc.id + DateTime.now().millisecondsSinceEpoch.toString();
-            try { return SubscriptionPlan.fromMap(planData, planId); }
-            catch (e) { print("Error parsing SubscriptionPlan (ID: ${planData['id']}): $e"); return null; }
-          } return null;
-        }).whereType<SubscriptionPlan>().toList() ?? [];
-    final bookableServicesList = (data['bookableServices'] as List?)
-        ?.map((serviceData) {
-          if (serviceData is Map<String, dynamic>) {
-             final serviceId = serviceData['id']?.toString() ?? doc.id + DateTime.now().microsecondsSinceEpoch.toString();
-             try { return BookableService.fromMap(serviceData, serviceId); }
-             catch (e) { print("Error parsing BookableService (ID: ${serviceData['id']}): $e"); return null; }
-          } return null;
-        }).whereType<BookableService>().toList() ?? [];
-    final openingHoursData = data['openingHours'] as Map?;
-    final Map<String, OpeningHours> parsedOpeningHours = {};
+    // --- Re-use existing parsing logic ---
+    final Map<String, String> addressMap = {};
+    (data['address'] as Map?)?.forEach((key, value) { if (key is String && value is String?) { addressMap[key] = value ?? ''; } });
+    final List<String> amenitiesList = List<String>.from(data['amenities'] as List? ?? []);
+    final Map<String, OpeningHoursDay> parsedOpeningHours = {};
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    if (openingHoursData != null) {
-       days.forEach((dayKey) {
-          final actualKey = openingHoursData.keys.firstWhere((k) => k.toLowerCase() == dayKey, orElse: () => '');
-          if (actualKey.isNotEmpty && openingHoursData[actualKey] is Map<String, dynamic>) {
-             try { parsedOpeningHours[dayKey] = OpeningHours.fromMap(openingHoursData[actualKey]); }
-             catch (e) { print("Error parsing OpeningHours for $dayKey: $e"); parsedOpeningHours[dayKey] = const OpeningHours(isOpen: false); }
-          } else { parsedOpeningHours[dayKey] = const OpeningHours(isOpen: false); } // Missing or invalid data for the day
-       });
-    } else { days.forEach((dayKey) => parsedOpeningHours[dayKey] = const OpeningHours(isOpen: false)); }
-    // --- End Parse Existing Fields ---
+    final openingHoursData = data['openingHours'] as Map?;
+    if (openingHoursData != null) { days.forEach((dayKey) { final actualKey = openingHoursData.keys.firstWhere((k) => k.toString().toLowerCase() == dayKey, orElse: () => ''); if (actualKey.isNotEmpty && openingHoursData[actualKey] is Map<String, dynamic>) { try { parsedOpeningHours[dayKey] = OpeningHoursDay.fromMap(openingHoursData[actualKey]); } catch (e) { print("Error parsing OpeningHoursDay for $dayKey: $e"); parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false); } } else { parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false); } }); } else { days.forEach((dayKey) => parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false)); }
+    final List<SubscriptionPlan> subscriptionPlansList = (data['subscriptionPlans'] as List?)?.map((planData) { if (planData is Map<String, dynamic>) { final String planId = planData['id']?.toString() ?? '${doc.id}_plan_${DateTime.now().microsecondsSinceEpoch}'; try { return SubscriptionPlan.fromMap(planData, planId); } catch (e) { print("Error parsing SubscriptionPlan (ID: ${planData['id']}): $e"); return null; } } return null; }).whereType<SubscriptionPlan>().toList() ?? [];
+    final List<BookableService> bookableServicesList = (data['bookableServices'] as List?)?.map((serviceData) { if (serviceData is Map<String, dynamic>) { final String serviceId = serviceData['id']?.toString() ?? '${doc.id}_service_${DateTime.now().microsecondsSinceEpoch}'; try { return BookableService.fromMap(serviceData, serviceId); } catch (e) { print("Error parsing BookableService (ID: ${serviceData['id']}): $e"); return null; } } return null; }).whereType<BookableService>().toList() ?? [];
+    final List<AccessPassOption>? accessOptionsList = (data['accessOptions'] as List?)?.map((optionData) { if (optionData is Map<String, dynamic>) { try { return AccessPassOption.fromMap(optionData); } catch (e) { print("Error parsing AccessPassOption: $e. Data: $optionData"); return null; } } return null; }).whereType<AccessPassOption>().toList();
+    // --- End re-used parsing logic ---
 
-    // --- Construct the Model ---
+    // Safely parse new fields
+    final Map<String, String> socialLinksMap = {};
+    (data['socialMediaLinks'] as Map?)?.forEach((key, value) { if (key is String && value is String) { socialLinksMap[key] = value; } });
+
     return ServiceProviderModel(
-      id: doc.id, // Use doc.id as the provider's uid
+      id: doc.id,
       businessName: data['businessName'] as String? ?? '',
-      category: data['businessCategory'] as String? ?? '', // Use correct key
-      subCategory: data['businessSubCategory'] as String?, // ADDED: Parse subCategory
-      businessDescription: data['businessDescription'] as String? ?? '',
+      category: data['businessCategory'] as String? ?? '',
+      subCategory: data['businessSubCategory'] as String?,
+      businessDescription: data['businessDescription'] as String? ?? data['description'] as String? ?? '', // Allow fallback from 'description'
       mainImageUrl: data['mainImageUrl'] as String?,
       logoUrl: data['logoUrl'] as String?,
-      galleryImageUrls: List<String>.from(data['galleryImageUrls'] ?? []), // ADDED: Parse gallery URLs
+      galleryImageUrls: List<String>.from(data['galleryImageUrls'] ?? []),
       address: addressMap,
-      governorateId: data['governorateId'] as String?, // ADDED: Parse governorateId
+      governorateId: data['governorateId'] as String?,
       location: data['location'] as GeoPoint?,
-      rating: (data['averageRating'] as num?)?.toDouble() ?? (data['rating'] as num?)?.toDouble() ?? 0.0, // Use 'averageRating' preferentially
+      rating: (data['averageRating'] as num?)?.toDouble() ?? (data['rating'] as num?)?.toDouble() ?? 0.0,
       ratingCount: (data['ratingCount'] as num?)?.toInt() ?? 0,
-      isActive: data['isActive'] as bool? ?? false, // Default to false if missing
-      isApproved: data['isApproved'] as bool? ?? false, // ADDED: Parse approval status, default false
+      isActive: data['isActive'] as bool? ?? false,
+      isApproved: data['isApproved'] as bool? ?? false,
       isFeatured: data['isFeatured'] as bool? ?? false,
       amenities: amenitiesList,
       pricingModel: pricingModelFromString(data['pricingModel']),
       subscriptionPlans: subscriptionPlansList,
       bookableServices: bookableServicesList,
       openingHours: parsedOpeningHours,
-
-      // Parse new fields for multi-reservation support based on Guide
       supportedReservationTypes: List<String>.from(data['supportedReservationTypes'] ?? []),
-      reservationTypeConfigs: data['reservationTypeConfigs'] as Map<String, dynamic>?, // ADDED
+      reservationTypeConfigs: data['reservationTypeConfigs'] as Map<String, dynamic>?,
       seatMapUrl: data['seatMapUrl'] as String?,
       maxGroupSize: (data['maxGroupSize'] as num?)?.toInt(),
-      accessOptions: (data['accessOptions'] as List?)?.map((opt) {
-         return opt is Map<String, dynamic> ? opt : null; // Ensure items are maps
-      }).whereType<Map<String, dynamic>>().toList(), // Filter out nulls
+      accessOptions: accessOptionsList,
       serviceSpecificConfigs: data['serviceSpecificConfigs'] as Map<String, dynamic>?,
+      createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
+      updatedAt: data['updatedAt'] as Timestamp?,
+
+      // Parse new fields
+      website: data['website'] as String?,
+      primaryPhoneNumber: data['primaryPhoneNumber'] as String?,
+      additionalPhoneNumbers: List<String>.from(data['additionalPhoneNumbers'] ?? []),
+      primaryEmail: data['primaryEmail'] as String?,
+      additionalEmails: List<String>.from(data['additionalEmails'] ?? []),
+      socialMediaLinks: socialLinksMap,
+      yearsInBusiness: (data['yearsInBusiness'] as num?)?.toInt(),
+      certifications: List<String>.from(data['certifications'] ?? []),
+      awards: List<String>.from(data['awards'] ?? []),
+      paymentMethodsAccepted: List<String>.from(data['paymentMethodsAccepted'] ?? []),
+      verificationStatus: data['verificationStatus'] as String?,
+      averageResponseTime: data['averageResponseTime'] as String?,
+      // Reviews are likely fetched separately
     );
   }
 
-  // --- Helper Getters for Address ---
+  // Helper Getters (keep existing)
   String? get street => address['street'];
   String? get city => address['city'];
   String? get governorate => address['governorate'];
-  String? get postalCode => address['postalCode']; // ADDED: Postal code getter
+  String? get postalCode => address['postalCode'];
 
-  /// Converts this [ServiceProviderModel] object into a map suitable for Firestore.
-  Map<String, dynamic> toMap() {
-    return {
-      'businessName': businessName,
-      'businessCategory': category,
-      'businessSubCategory': subCategory, // ADDED
-      'businessDescription': businessDescription,
-      'mainImageUrl': mainImageUrl,
-      'logoUrl': logoUrl,
-      'galleryImageUrls': galleryImageUrls, // ADDED
-      'address': address,
-      'governorateId': governorateId, // ADDED
-      'location': location,
-      'averageRating': rating, // Use consistent key 'averageRating'
-      'ratingCount': ratingCount,
-      'isActive': isActive,
-      'isApproved': isApproved, // ADDED
-      'isFeatured': isFeatured,
-      'amenities': amenities,
-      'pricingModel': pricingModel.name,
-      // Store nested lists/maps using their toMap methods
-      'subscriptionPlans': subscriptionPlans.map((plan) => plan.toMap()..['id'] = plan.id).toList(), // Include ID in map for clarity if needed elsewhere
-      'bookableServices': bookableServices.map((service) => service.toMap()..['id'] = service.id).toList(),
-      'openingHours': openingHours.map((key, value) => MapEntry(key, value.toMap())),
-      // Include new fields in the map
-      'supportedReservationTypes': supportedReservationTypes,
-      'reservationTypeConfigs': reservationTypeConfigs, // ADDED
-      'seatMapUrl': seatMapUrl,
-      'maxGroupSize': maxGroupSize,
-      'accessOptions': accessOptions,
-      'serviceSpecificConfigs': serviceSpecificConfigs,
-    };
-  }
-
-  /// Defines the properties used for Equatable comparison.
   @override
   List<Object?> get props => [
-        id, businessName, category, subCategory, businessDescription, // ADDED subCategory
-        mainImageUrl, logoUrl, galleryImageUrls, address, governorateId, // ADDED galleryImageUrls, governorateId
-        location, rating, ratingCount, isActive, isApproved, isFeatured, // ADDED isApproved
+        // Existing props
+        id, businessName, category, subCategory, businessDescription,
+        mainImageUrl, logoUrl, galleryImageUrls, address, governorateId,
+        location, rating, ratingCount, isActive, isApproved, isFeatured,
         amenities, pricingModel, subscriptionPlans, bookableServices, openingHours,
-        // Add new fields to props for comparison
-        supportedReservationTypes, reservationTypeConfigs, seatMapUrl, maxGroupSize, // ADDED reservationTypeConfigs
-        accessOptions, serviceSpecificConfigs,
+        supportedReservationTypes, reservationTypeConfigs, seatMapUrl, maxGroupSize,
+        accessOptions, serviceSpecificConfigs, createdAt, updatedAt,
+        // New props
+        website, primaryPhoneNumber, additionalPhoneNumbers, primaryEmail,
+        additionalEmails, socialMediaLinks, yearsInBusiness, certifications,
+        awards, paymentMethodsAccepted, verificationStatus, averageResponseTime,
       ];
 }
+
+// TODO: Define ReviewModel separately (e.g., in feature/details/data/review_model.dart)
+// class ReviewModel extends Equatable {
+//   final String id;
+//   final String reviewerId;
+//   final String reviewerName;
+//   final String? reviewerAvatarUrl;
+//   final int rating; // 1-5
+//   final String comment;
+//   final Timestamp createdAt;
+//   // Optional: Provider response
+//   final String? providerResponse;
+//   final Timestamp? responseCreatedAt;
+//   // ... constructor, fromFirestore, props
+// }

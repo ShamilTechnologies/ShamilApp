@@ -1,90 +1,215 @@
 // lib/feature/home/data/service_provider_display_model.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
-/// Represents the data needed specifically to display a service provider
-/// in the home screen lists (Popular, Recommended, Nearby, Offers).
-/// This model is typically created by mapping data from the full ServiceProvider model
-/// and merging user-specific data like favorite status and calculated distance in the Bloc.
+/// Represents a service provider in a display-friendly format for lists and detail headers.
 class ServiceProviderDisplayModel extends Equatable {
-  final String id;
+  final String id; // Document ID from Firestore
   final String businessName;
-  final String category;
-  final String? imageUrl;
-  final String? logoUrl;
-  final double rating;
-  final int reviewCount;
+  final String? imageUrl; // <<< Main image for Card/Header
+  final String? businessLogoUrl; // <<< Specific logo, e.g., for overlay
+  final String businessCategory;
+  final String? subCategory;
+  final double averageRating; // <<< Standardized field
+  final int ratingCount; // <<< Standardized field
   final String city;
   final bool isFavorite;
-  final double? distanceInKm; // <<< ADDED: Distance from user (nullable)
+  final String shortDescription;
+  final bool isFeatured;
+  final bool isActive;
+  final bool isApproved;
+
+  // Optional: For displaying distance if calculated
+  final double? distanceInKm;
+
+  // Optional: For displaying a primary service or offer prominently
+  final String? primaryServiceExample;
+  final String? startingPriceExample;
 
   const ServiceProviderDisplayModel({
     required this.id,
     required this.businessName,
-    required this.category,
-    this.imageUrl,
-    this.logoUrl,
-    this.rating = 0.0,
-    this.reviewCount = 0,
+    this.imageUrl, // <<< Added/Verified
+    this.businessLogoUrl,
+    required this.businessCategory,
+    this.subCategory,
+    required this.averageRating,
+    required this.ratingCount,
     required this.city,
-    this.isFavorite = false,
-    this.distanceInKm, // <<< ADDED (optional)
+    required this.isFavorite,
+    required this.shortDescription,
+    required this.isFeatured,
+    required this.isActive,
+    required this.isApproved,
+    this.distanceInKm,
+    this.primaryServiceExample,
+    this.startingPriceExample,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'businessName': businessName,
-      'category': category,
-      'imageUrl': imageUrl,
-      'logoUrl': logoUrl,
-      'rating': rating,
-      'reviewCount': reviewCount,
-      'city': city,
-      'isFavorite': isFavorite,
-      'distanceInKm': distanceInKm, // <<< ADDED
-    };
+  @override
+  List<Object?> get props => [
+        id,
+        businessName,
+        imageUrl, // <<< Added
+        businessLogoUrl,
+        businessCategory,
+        subCategory,
+        averageRating, // <<< Standardized
+        ratingCount, // <<< Standardized
+        city,
+        isFavorite,
+        shortDescription,
+        isFeatured,
+        isActive,
+        isApproved,
+        distanceInKm,
+        primaryServiceExample,
+        startingPriceExample,
+      ];
+
+  /// Factory constructor to create a `ServiceProviderDisplayModel` from a Firestore document.
+  factory ServiceProviderDisplayModel.fromFirestore(
+    DocumentSnapshot doc, {
+    required bool isFavorite,
+    double? distanceInKm,
+  }) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+
+    String? _getCity(Map<String, dynamic> addressData) {
+      return addressData['city'] as String?;
+    }
+
+    final Map<String, dynamic> addressData =
+        data['address'] is Map<String, dynamic>
+            ? data['address'] as Map<String, dynamic>
+            : {};
+
+    // Determine main image URL - prioritize a specific field if available, fallback
+    String? mainImageUrl = data['imageUrl'] as String? ??
+        data['mainImageUrl'] as String?; // <<< Read imageUrl or mainImageUrl
+
+    return ServiceProviderDisplayModel(
+      id: doc.id,
+      businessName: data['businessName'] as String? ?? 'N/A',
+      imageUrl: mainImageUrl, // <<< Assign main image URL
+      businessLogoUrl: data['businessLogoUrl'] as String? ??
+          data['logoUrl'] as String?, // <<< Read logo URL
+      businessCategory: data['businessCategory'] as String? ?? 'Uncategorized',
+      subCategory: data['subCategory'] as String?,
+      averageRating: (data['averageRating'] as num?)?.toDouble() ??
+          (data['rating'] as num?)?.toDouble() ??
+          0.0, // <<< Read averageRating or rating
+      ratingCount: data['ratingCount'] as int? ??
+          data['reviewCount'] as int? ??
+          0, // <<< Read ratingCount or reviewCount
+      city: _getCity(addressData) ?? '',
+      isFavorite: isFavorite,
+      shortDescription: data['shortDescription'] as String? ?? '',
+      isFeatured: data['isFeatured'] as bool? ?? false,
+      isActive: data['isActive'] as bool? ?? true,
+      isApproved: data['isApproved'] as bool? ?? true,
+      distanceInKm: distanceInKm,
+      primaryServiceExample: data['primaryServiceExample'] as String?,
+      startingPriceExample: data['startingPriceExample'] as String?,
+    );
   }
 
-  /// Creates a copy of this instance with potentially modified fields.
+  /// Creates a new `ServiceProviderDisplayModel` instance with updated values.
   ServiceProviderDisplayModel copyWith({
     String? id,
     String? businessName,
-    String? category,
-    String? imageUrl,
-    String? logoUrl,
-    double? rating,
-    int? reviewCount,
+    String? imageUrl, // <<< Added
+    String? businessLogoUrl,
+    String? businessCategory,
+    String? subCategory,
+    double? averageRating, // <<< Standardized
+    int? ratingCount, // <<< Standardized
     String? city,
     bool? isFavorite,
-    double? distanceInKm, // <<< ADDED
-    bool clearDistance = false, // Flag to explicitly set distance to null
+    String? shortDescription,
+    bool? isFeatured,
+    bool? isActive,
+    bool? isApproved,
+    double? distanceInKm,
+    String? primaryServiceExample,
+    String? startingPriceExample,
   }) {
     return ServiceProviderDisplayModel(
       id: id ?? this.id,
       businessName: businessName ?? this.businessName,
-      category: category ?? this.category,
-      imageUrl: imageUrl ?? this.imageUrl,
-      logoUrl: logoUrl ?? this.logoUrl,
-      rating: rating ?? this.rating,
-      reviewCount: reviewCount ?? this.reviewCount,
+      imageUrl: imageUrl ?? this.imageUrl, // <<< Added
+      businessLogoUrl: businessLogoUrl ?? this.businessLogoUrl,
+      businessCategory: businessCategory ?? this.businessCategory,
+      subCategory: subCategory ?? this.subCategory,
+      averageRating: averageRating ?? this.averageRating, // <<< Standardized
+      ratingCount: ratingCount ?? this.ratingCount, // <<< Standardized
       city: city ?? this.city,
       isFavorite: isFavorite ?? this.isFavorite,
-      // Handle distance update or clearing
-      distanceInKm: clearDistance ? null : (distanceInKm ?? this.distanceInKm), // <<< UPDATED
+      shortDescription: shortDescription ?? this.shortDescription,
+      isFeatured: isFeatured ?? this.isFeatured,
+      isActive: isActive ?? this.isActive,
+      isApproved: isApproved ?? this.isApproved,
+      distanceInKm: distanceInKm ?? this.distanceInKm,
+      primaryServiceExample:
+          primaryServiceExample ?? this.primaryServiceExample,
+      startingPriceExample: startingPriceExample ?? this.startingPriceExample,
     );
   }
 
-  @override
-  List<Object?> get props => [
-        id, businessName, category, imageUrl, logoUrl,
-        rating, reviewCount, city, isFavorite,
-        distanceInKm, // <<< ADDED
-      ];
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'businessName': businessName,
+      'imageUrl': imageUrl,
+      'businessLogoUrl': businessLogoUrl,
+      'businessCategory': businessCategory,
+      'subCategory': subCategory,
+      'averageRating': averageRating,
+      'ratingCount': ratingCount,
+      'city': city,
+      'isFavorite': isFavorite,
+      'shortDescription': shortDescription,
+      'isFeatured': isFeatured,
+      'isActive': isActive,
+      'isApproved': isApproved,
+    };
+  }
 
-  @override
-  String toString() {
-    // Format distance nicely if it exists
-    final distanceString = distanceInKm != null ? ', distance: ${distanceInKm!.toStringAsFixed(1)}km' : '';
-    return 'ServiceProviderDisplayModel(id: $id, name: $businessName, category: $category, rating: $rating, city: $city, isFavorite: $isFavorite, logo: $logoUrl, image: $imageUrl$distanceString)'; // <<< UPDATED
+  factory ServiceProviderDisplayModel.fromJson(Map<String, dynamic> json) {
+    return ServiceProviderDisplayModel(
+      id: json['id'] as String,
+      businessName: json['businessName'] as String,
+      imageUrl: json['imageUrl'] as String?,
+      businessLogoUrl: json['businessLogoUrl'] as String?,
+      businessCategory: json['businessCategory'] as String,
+      subCategory: json['subCategory'] as String?,
+      averageRating: (json['averageRating'] as num).toDouble(),
+      ratingCount: json['ratingCount'] as int,
+      city: json['city'] as String,
+      isFavorite: json['isFavorite'] as bool,
+      shortDescription: json['shortDescription'] as String,
+      isFeatured: json['isFeatured'] as bool,
+      isActive: json['isActive'] as bool,
+      isApproved: json['isApproved'] as bool,
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'businessName': businessName,
+      'imageUrl': imageUrl,
+      'businessLogoUrl': businessLogoUrl,
+      'businessCategory': businessCategory,
+      'subCategory': subCategory,
+      'averageRating': averageRating,
+      'ratingCount': ratingCount,
+      'city': city,
+      'isFavorite': isFavorite,
+      'shortDescription': shortDescription,
+      'isFeatured': isFeatured,
+      'isActive': isActive,
+      'isApproved': isApproved,
+    };
   }
 }

@@ -1,196 +1,305 @@
-import 'dart:async'; // Import Timer
+// lib/feature/home/widgets/explore_banner_carousel.dart
+
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
-import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
-import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart';
-import 'package:shamil_mobile_app/core/functions/navigation.dart';
-import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
-// *** Import the consolidated BannerModel ***
-import 'package:shamil_mobile_app/feature/home/data/banner_model.dart'; // Adjust path if needed
+import 'package:url_launcher/url_launcher.dart'; // For opening external URLs
 
-// *** REMOVED BannerModel class definition from here ***
-// class BannerModel { ... }
+// Models
+import 'package:shamil_mobile_app/feature/home/data/banner_model.dart';
+
+// Import the shared image constants file where transparentImageData is defined
+// Assuming the path is something like this:
+// import 'package:shamil_mobile_app/core/constants/image_constants.dart';
+
+// Optional: Define AppColors or use Theme.of(context)
 
 
 class ExploreBannerCarousel extends StatefulWidget {
   final List<BannerModel> banners;
+  final bool isLoading; // Flag to indicate if banners are still loading
 
-  const ExploreBannerCarousel({super.key, required this.banners});
+  const ExploreBannerCarousel({
+    super.key,
+    required this.banners,
+    this.isLoading = false, // Default to not loading
+  });
 
   @override
   State<ExploreBannerCarousel> createState() => _ExploreBannerCarouselState();
 }
 
 class _ExploreBannerCarouselState extends State<ExploreBannerCarousel> {
-  final PageController _pageController = PageController(
-    viewportFraction: 0.9, // Show parts of adjacent banners
-  );
-  Timer? _autoScrollTimer;
+  final PageController _pageController = PageController(viewportFraction: 0.9); // Show parts of adjacent banners
+  int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
-    if (widget.banners.length > 1) {
-      _startAutoScroll();
-    }
-  }
-
-  void _startAutoScroll() {
-    _autoScrollTimer?.cancel();
-    _autoScrollTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (!mounted) { timer.cancel(); return; }
-      int nextPage = _pageController.page!.round() + 1;
-      if (nextPage >= widget.banners.length) { nextPage = 0; }
-      _pageController.animateToPage(
-        nextPage,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-      );
+    _pageController.addListener(() {
+      // Use floor() or round() depending on desired sensitivity
+      final currentPageCandidate = _pageController.page?.round() ?? 0;
+      if (currentPageCandidate != _currentPage) {
+        // Use mounted check before calling setState
+        if (mounted) {
+          setState(() {
+            _currentPage = currentPageCandidate;
+          });
+        }
+      }
     });
   }
 
   @override
   void dispose() {
     _pageController.dispose();
-    _autoScrollTimer?.cancel();
     super.dispose();
   }
 
-  // Placeholder data generator (kept for fallback/testing)
-  List<BannerModel> _getPlaceholderBanners() {
-    // Use the imported BannerModel definition
-    return [
-      BannerModel(id: 'p1', imageUrl: 'https://placehold.co/600x300/019444/FFF?text=Offer+1', title: 'Special Discount This Week!'),
-      BannerModel(id: 'p2', imageUrl: 'https://placehold.co/600x300/3498db/FFF?text=New+Venue', title: 'New Gym Opening Soon'),
-      BannerModel(id: 'p3', imageUrl: 'https://placehold.co/600x300/e74c3c/FFF?text=Event', title: 'Upcoming Fitness Event'),
-    ];
+  // --- Banner Tap Handler ---
+  void _handleBannerTap(BuildContext context, BannerModel banner) async {
+    print("Banner Tapped: ${banner.id}, Type: ${banner.targetType}, Target: ${banner.targetId ?? banner.targetUrl}");
+
+    // Example navigation logic - adapt based on your app's routing and target types
+    final targetType = banner.targetType?.toLowerCase();
+    final targetId = banner.targetId;
+    final targetUrl = banner.targetUrl;
+
+    if (targetType == 'serviceprovider' && targetId != null) {
+      // Navigate to ServiceDetailsScreen
+      // Replace with your actual navigation call
+      print("Navigate to Service Provider Details: $targetId");
+      if (mounted) { // Check if widget is still in the tree
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Navigate to Provider: $targetId")));
+      }
+
+    } else if (targetType == 'category' && targetId != null) {
+      // Navigate to a category screen or trigger a filter event
+      // Replace with your actual event dispatch or navigation
+      print("Navigate/Filter by Category: $targetId");
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Filter by Category: $targetId")));
+      }
+
+    } else if (targetType == 'externalurl' && targetUrl != null) {
+      // Open external URL
+      final Uri? uri = Uri.tryParse(targetUrl);
+      if (uri != null) {
+        try {
+           bool launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+           if (!launched && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Could not open link: $targetUrl")));
+           }
+        } catch (e) {
+           print("Error launching URL: $e");
+           if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error opening link: $targetUrl")));
+           }
+        }
+      } else if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Invalid link format: $targetUrl")));
+      }
+    } else if (targetUrl != null) {
+       // Fallback: Try opening targetUrl if type is unknown or ID is missing
+       final Uri? uri = Uri.tryParse(targetUrl);
+        if (uri != null) {
+          try {
+             bool launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+             if (!launched && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Could not open link: $targetUrl")));
+             }
+          } catch (e) {
+             print("Error launching URL: $e");
+             if (mounted) {
+               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error opening link: $targetUrl")));
+             }
+          }
+        } else if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Invalid link format: $targetUrl")));
+        }
+    } else {
+      // No action defined
+      print("Banner has no defined action.");
+    }
   }
 
-  // Builds a single card within the carousel
-  Widget _buildBannerCard(BuildContext context, BannerModel banner) {
-    final theme = Theme.of(context);
-    final cardBorderRadius = BorderRadius.circular(16.0);
+  @override
+  Widget build(BuildContext context) {
+    // Calculate height dynamically based on screen width, capped at a max height
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double calculatedHeight = screenWidth * 0.4;
+    final double carouselHeight = calculatedHeight.clamp(150.0, 250.0); // Example min/max heights
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6.0),
-      child: Card(
-          shape: RoundedRectangleBorder(borderRadius: cardBorderRadius),
-          clipBehavior: Clip.antiAlias,
-          elevation: 4.0,
-          shadowColor: theme.colorScheme.shadow.withOpacity(0.2),
-          child: InkWell(
-            onTap: () {
-              // Handle Banner Tap
-              print("Banner tapped: ${banner.title} (Target: ${banner.targetType}/${banner.targetId})");
-              if (banner.targetType == 'provider' && banner.targetId != null) {
-                push(context, ServiceProviderDetailScreen(providerId: banner.targetId!, initialImageUrl: banner.imageUrl, heroTag: banner.id));
-              } else if (banner.targetType == 'offer') {
-                print("Navigate to Offer: ${banner.targetId}");
-              } else if (banner.targetType == 'external_link' && banner.targetId != null) {
-                print("Open External Link: ${banner.targetId}");
-                // Example: launchUrl(Uri.parse(banner.targetId!)); // Requires url_launcher package
-              }
-            },
-            borderRadius: cardBorderRadius,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Background Image using CachedNetworkImage
-                Positioned.fill(
-                  child: CachedNetworkImage(
-                    imageUrl: banner.imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => _buildImagePlaceholder(context),
-                    errorWidget: (context, url, error) => _buildImageErrorWidget(context),
-                  ),
-                ),
-                // Gradient Overlay
-                Positioned(
-                  bottom: 0, left: 0, right: 0, height: 70,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.vertical(bottom: cardBorderRadius.bottomLeft),
-                      gradient: LinearGradient(
-                        colors: [ Colors.black.withOpacity(0.75), Colors.black.withOpacity(0.0)],
-                        begin: Alignment.bottomCenter, end: Alignment.topCenter,
-                        stops: const [0.0, 1.0]
-                      ),
-                    ),
-                  ),
-                ),
-                // Title Text
-                Positioned(
-                  bottom: 12, left: 14, right: 14,
-                  child: Text(
-                    banner.title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                        color: AppColors.white, fontWeight: FontWeight.bold,
-                        shadows: [Shadow(color: Colors.black.withOpacity(0.6), blurRadius: 3, offset: const Offset(0,1))]),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+    // --- Loading State ---
+    if (widget.isLoading) {
+      return _buildLoadingShimmer(carouselHeight);
+    }
+
+    // --- Empty State ---
+    if (widget.banners.isEmpty) {
+      return SizedBox(
+        height: carouselHeight, // Use consistent height
+        child: const Center(
+          child: Text(
+            'No banners available right now.',
+            style: TextStyle(color: Colors.grey),
           ),
+        ),
+      );
+    }
+
+    // --- Loaded State ---
+    return Column(
+      mainAxisSize: MainAxisSize.min, // Take only needed vertical space
+      children: [
+        SizedBox(
+          height: carouselHeight,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: widget.banners.length,
+            itemBuilder: (context, index) {
+              final banner = widget.banners[index];
+              // Add padding between pages
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6.0), // Space between banners
+                child: _buildBannerItem(context, banner),
+              );
+            },
+            // Optional: Add accessibility semantics
+            // physics: const PageScrollPhysics(),
+            // allowImplicitScrolling: true,
+          ),
+        ),
+        // Conditionally show dots only if more than one banner
+        if (widget.banners.length > 1) ...[
+          const SizedBox(height: 8), // Space between carousel and dots
+          // --- Dot Indicators ---
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(widget.banners.length, (index) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 4.0),
+                height: 8.0,
+                width: _currentPage == index ? 24.0 : 8.0, // Active dot is wider
+                decoration: BoxDecoration(
+                  // Use Theme colors for better adaptability
+                  color: _currentPage == index
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              );
+            }),
+          ),
+        ] else
+          const SizedBox(height: 16), // Maintain some space even without dots
+      ],
+    );
+  }
+
+  // --- Build Banner Item ---
+  Widget _buildBannerItem(BuildContext context, BannerModel banner) {
+    final borderRadius = BorderRadius.circular(12.0);
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: borderRadius),
+      elevation: 4.0,
+      shadowColor: Colors.black.withOpacity(0.2),
+      clipBehavior: Clip.antiAlias, // Important for borderRadius on image
+      child: InkWell( // Use InkWell for tap feedback
+        borderRadius: borderRadius,
+        onTap: () => _handleBannerTap(context, banner),
+        child: CachedNetworkImage(
+          imageUrl: banner.imageUrl ?? '', // Provide a default empty string if null
+          fit: BoxFit.cover,
+          placeholder: (context, url) => _buildImagePlaceholder(),
+          errorWidget: (context, url, error) => _buildImageErrorWidget("Cannot load banner"),
+          // If you prefer FadeInImage with the constant:
+          // placeholder: MemoryImage(transparentImageData), // Use the imported constant
+          // fadeInDuration: const Duration(milliseconds: 300),
+        ),
       ),
     );
   }
 
-  // Placeholder and Error Widgets
-  Widget _buildImagePlaceholder(BuildContext context) {
-     final shimmerBaseColor = AppColors.accentColor.withOpacity(0.4);
-     final shimmerHighlightColor = AppColors.accentColor.withOpacity(0.1);
-     return Shimmer.fromColors(
-        baseColor: shimmerBaseColor, highlightColor: shimmerHighlightColor,
-        child: Container(color: AppColors.white),
-     );
-  }
+  // --- Build Loading Shimmer ---
+  Widget _buildLoadingShimmer(double height) {
+    final shimmerBaseColor = Colors.grey.shade300;
+    final shimmerHighlightColor = Colors.grey.shade100;
+    final shimmerContentColor = Colors.white;
+    final borderRadius = BorderRadius.circular(12.0);
 
-   Widget _buildImageErrorWidget(BuildContext context) {
-      return Container(
-        decoration: BoxDecoration( color: AppColors.secondaryColor.withOpacity(0.1) ),
-        child: Center(
-          child: Icon(Icons.image_not_supported_outlined,
-              color: AppColors.secondaryColor.withOpacity(0.5), size: 40),
-        ),
-      );
-   }
+    // Calculate item width based on viewport fraction and padding
+    final double itemWidth = MediaQuery.of(context).size.width * 0.9 - 12.0; // viewportFraction 0.9, padding 6.0 * 2
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final displayBanners = widget.banners.isEmpty ? _getPlaceholderBanners() : widget.banners;
-
-    if (displayBanners.isEmpty) { return const SizedBox.shrink(); }
-
-    return Column(
-      children: [
-        SizedBox(
-          height: 160,
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: displayBanners.length,
-            physics: const BouncingScrollPhysics(),
-            itemBuilder: (context, index) {
-              final banner = displayBanners[index];
-              return _buildBannerCard(context, banner);
-            },
+    return SizedBox(
+      height: height + 16, // Account for potential padding/dots space
+      child: Shimmer.fromColors(
+        baseColor: shimmerBaseColor,
+        highlightColor: shimmerHighlightColor,
+        child: ListView.builder( // Use ListView for horizontal shimmer effect
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(), // Disable scroll for shimmer
+          itemCount: 3, // Show a few shimmer items
+          padding: const EdgeInsets.symmetric(vertical: 8.0), // Add vertical padding if needed
+          itemBuilder: (_, __) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0), // Match PageView padding
+            child: Container(
+              width: itemWidth, // Use calculated width
+              decoration: BoxDecoration(
+                color: shimmerContentColor,
+                borderRadius: borderRadius,
+              ),
+            ),
           ),
         ),
-        const Gap(12),
-        SmoothPageIndicator(
-            controller: _pageController,
-            count: displayBanners.length,
-            effect: ExpandingDotsEffect(
-              dotHeight: 8, dotWidth: 8,
-              activeDotColor: AppColors.primaryColor,
-              dotColor: AppColors.secondaryColor.withOpacity(0.3),
-            ),
+      ),
+    );
+  }
+
+  // --- Build Image Placeholder ---
+  Widget _buildImagePlaceholder() {
+    // Consistent placeholder
+    return Container(
+      color: Colors.grey[200],
+      child: Center(
+        child: Icon(
+          Icons.image_outlined, // Use outlined version
+          color: Colors.grey[400],
+          size: 40,
         ),
-      ],
+      ),
+    );
+  }
+
+  // --- Build Image Error Widget ---
+  Widget _buildImageErrorWidget(String message) {
+    // Consistent error display
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.broken_image_outlined, // Use outlined version
+                color: Colors.grey.shade500, size: 40),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Text(
+                message,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall // Use bodySmall for consistency
+                    ?.copyWith(color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
+              ),
+            )
+          ],
+        ),
+      ),
     );
   }
 }
