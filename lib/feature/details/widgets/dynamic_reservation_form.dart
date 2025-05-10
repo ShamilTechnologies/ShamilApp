@@ -25,10 +25,13 @@ import 'package:shamil_mobile_app/feature/details/widgets/time_slot_swipe_select
 class DynamicReservationForm extends StatelessWidget {
   final ThemeData theme;
   final ReservationState state; // Accept the full state object
-  final bool isLoading; // General loading flag from parent (passed from ReservationPanel)
-  final bool slotsCurrentlyLoading; // Specific flag for slot loading (time-based)
+  final bool
+      isLoading; // General loading flag from parent (passed from ReservationPanel)
+  final bool
+      slotsCurrentlyLoading; // Specific flag for slot loading (time-based)
   final ReservationType type; // The currently selected reservation type
-  final Function(TimeOfDay start, TimeOfDay end) onTimeRangeSelected; // Callback for swipe selector
+  final Function(TimeOfDay start, TimeOfDay end)
+      onTimeRangeSelected; // Callback for swipe selector
 
   const DynamicReservationForm({
     super.key,
@@ -62,22 +65,23 @@ class DynamicReservationForm extends StatelessWidget {
                     s.type == ReservationType.group) &&
                 s.durationMinutes != null &&
                 s.durationMinutes! > 0,
-            orElse: () => const BookableService( // This orElse provides a non-null default
+            orElse: () => const BookableService(
+                // This orElse provides a non-null default
                 id: '_fallback_no_time_service',
                 name: '',
                 description: '',
                 type: ReservationType.unknown,
-                durationMinutes: 60)
-            );
+                durationMinutes: 60));
 
     // Since orElse guarantees a non-null BookableService, we can safely access durationMinutes.
     // However, the const BookableService in orElse has durationMinutes: 60.
     // If the intention is to return the found service's duration or 60 if nothing is found,
     // the logic can be simplified or made more explicit.
-    if (firstTimeBasedService != null && firstTimeBasedService.id != '_fallback_no_time_service' && firstTimeBasedService.durationMinutes != null) {
-         return firstTimeBasedService.durationMinutes!;
+    if (firstTimeBasedService != null &&
+        firstTimeBasedService.id != '_fallback_no_time_service' &&
+        firstTimeBasedService.durationMinutes != null) {
+      return firstTimeBasedService.durationMinutes!;
     }
-
 
     // 4. Absolute fallback if no other duration is found
     return 60;
@@ -151,8 +155,7 @@ class DynamicReservationForm extends StatelessWidget {
         state.availableSlots; // For time-based
     final TimeOfDay? preferredHour =
         state.selectedStartTime; // Used for sequence-based preferred hour
-    final TimeOfDay? confirmedEndTime =
-        state.selectedEndTime; // For time-based
+    final TimeOfDay? confirmedEndTime = state.selectedEndTime; // For time-based
     final bool isActionLoading =
         state is ReservationJoiningQueue || state is ReservationCreating;
     // Disable interactions if parent is loading OR a specific action is loading
@@ -163,13 +166,12 @@ class DynamicReservationForm extends StatelessWidget {
       case ReservationType.timeBased:
         final timeBasedServices = allServices
             .where((s) =>
-                s.type == ReservationType.timeBased || s.durationMinutes != null)
+                s.type == ReservationType.timeBased ||
+                s.durationMinutes != null)
             .toList();
         final defaultDuration = _getTimeBasedDefaultDuration(currentProvider);
-        final String dateStepNumber =
-            timeBasedServices.isNotEmpty ? "3" : "2";
-        final String timeStepNumber =
-            timeBasedServices.isNotEmpty ? "4" : "3";
+        final String dateStepNumber = timeBasedServices.isNotEmpty ? "3" : "2";
+        final String timeStepNumber = timeBasedServices.isNotEmpty ? "4" : "3";
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,8 +188,7 @@ class DynamicReservationForm extends StatelessWidget {
                 style: theme.textTheme.bodyLarge
                     ?.copyWith(overflow: TextOverflow.ellipsis),
                 decoration: _inputDecoration(theme,
-                    hint:
-                        "Select a specific service or use general booking"),
+                    hint: "Select a specific service or use general booking"),
                 items: [
                   DropdownMenuItem<BookableService?>(
                       value: null,
@@ -285,13 +286,11 @@ class DynamicReservationForm extends StatelessWidget {
                     ? null
                     : (s) {
                         if (s != null) {
-                          context
-                              .read<ReservationBloc>()
-                              .add(SelectReservationService(selectedService: s));
+                          context.read<ReservationBloc>().add(
+                              SelectReservationService(selectedService: s));
                         }
                       },
-                validator: (v) =>
-                    v == null ? 'Please select a service' : null,
+                validator: (v) => v == null ? 'Please select a service' : null,
               ),
             const Gap(20),
           ],
@@ -315,25 +314,22 @@ class DynamicReservationForm extends StatelessWidget {
                 isExpanded: true,
                 style: theme.textTheme.bodyLarge
                     ?.copyWith(overflow: TextOverflow.ellipsis),
-                decoration:
-                    _inputDecoration(theme, hint: "Select the event"),
+                decoration: _inputDecoration(theme, hint: "Select the event"),
                 items: seatBasedServices
                     .map((s) => DropdownMenuItem(
                         value: s,
-                        child:
-                            Text("${s.name} (${s.durationMinutes ?? 'N/A'} min)")))
+                        child: Text(
+                            "${s.name} (${s.durationMinutes ?? 'N/A'} min)")))
                     .toList(),
                 onChanged: disableInteractions
                     ? null
                     : (s) {
                         if (s != null) {
-                          context
-                              .read<ReservationBloc>()
-                              .add(SelectReservationService(selectedService: s));
+                          context.read<ReservationBloc>().add(
+                              SelectReservationService(selectedService: s));
                         }
                       },
-                validator: (v) =>
-                    v == null ? 'Please select an event' : null,
+                validator: (v) => v == null ? 'Please select an event' : null,
               ),
               const Gap(20),
             ],
@@ -366,10 +362,10 @@ class DynamicReservationForm extends StatelessWidget {
                             ? null
                             : (sel) {
                                 if (sel) {
-                                  int duration = state.selectedService
-                                          ?.durationMinutes ??
-                                      _getTimeBasedDefaultDuration(
-                                          currentProvider);
+                                  int duration =
+                                      state.selectedService?.durationMinutes ??
+                                          _getTimeBasedDefaultDuration(
+                                              currentProvider);
                                   int startMinutes =
                                       time.hour * 60 + time.minute;
                                   int endMinutes = startMinutes + duration;
@@ -430,17 +426,17 @@ class DynamicReservationForm extends StatelessWidget {
       // --- Access-Based Reservation Form ---
       case ReservationType.accessBased:
         AccessPassOption? selectedOption;
-        if (state.typeSpecificData != null && state.typeSpecificData!['selectedAccessPassId'] != null) {
-            selectedOption = accessOptions.firstWhere(
-                (opt) => opt.id == state.typeSpecificData!['selectedAccessPassId'],
-                orElse: () => AccessPassOption(
-                    id: '_default',
-                    label: 'Default Access Pass',
-                    price: 0.0,
-                    durationHours: 0),
-            );
+        if (state.typeSpecificData != null &&
+            state.typeSpecificData!['selectedAccessPassId'] != null) {
+          selectedOption = accessOptions.firstWhere(
+            (opt) => opt.id == state.typeSpecificData!['selectedAccessPassId'],
+            orElse: () => AccessPassOption(
+                id: '_default',
+                label: 'Default Access Pass',
+                price: 0.0,
+                durationHours: 0),
+          );
         }
-
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,8 +465,9 @@ class DynamicReservationForm extends StatelessWidget {
                     ? null
                     : (value) {
                         if (value != null) {
-                          context.read<ReservationBloc>().add(
-                              SelectAccessPassOption(option: value));
+                          context
+                              .read<ReservationBloc>()
+                              .add(SelectAccessPassOption(option: value));
                         }
                       },
                 validator: (v) =>
@@ -514,20 +511,17 @@ class DynamicReservationForm extends StatelessWidget {
                 items: sequenceServices
                     .map((s) => DropdownMenuItem(
                         value: s,
-                        child: Text(s.name,
-                            overflow: TextOverflow.ellipsis)))
+                        child: Text(s.name, overflow: TextOverflow.ellipsis)))
                     .toList(),
                 onChanged: disableInteractions
                     ? null
                     : (s) {
                         if (s != null) {
-                          context
-                              .read<ReservationBloc>()
-                              .add(SelectReservationService(selectedService: s));
+                          context.read<ReservationBloc>().add(
+                              SelectReservationService(selectedService: s));
                         }
                       },
-                validator: (v) =>
-                    v == null ? 'Please select a service' : null,
+                validator: (v) => v == null ? 'Please select a service' : null,
               ),
             const Gap(20),
             Text("3. Select Date:", style: _sectionTitleStyle(theme)),
@@ -597,7 +591,8 @@ class DynamicReservationForm extends StatelessWidget {
                 ),
               const Gap(24),
             ],
-            _buildQueueStatusSection(context, theme, state, disableInteractions),
+            _buildQueueStatusSection(
+                context, theme, state, disableInteractions),
             const Gap(20),
           ],
         );
@@ -619,12 +614,8 @@ class DynamicReservationForm extends StatelessWidget {
 
   // --- Helper Widgets ---
 
-  Widget _buildDatePickerTile(
-      BuildContext context,
-      ThemeData theme,
-      ReservationState state,
-      bool isDisabled,
-      bool slotsCurrentlyLoading) {
+  Widget _buildDatePickerTile(BuildContext context, ThemeData theme,
+      ReservationState state, bool isDisabled, bool slotsCurrentlyLoading) {
     final bool dateSelected = state.selectedDate != null;
     return Card(
       elevation: 1,
@@ -635,15 +626,17 @@ class DynamicReservationForm extends StatelessWidget {
       child: ListTile(
         enabled: !isDisabled,
         leading: Icon(Icons.calendar_today_outlined,
-            color:
-                isDisabled ? Colors.grey.shade500 : theme.colorScheme.secondary),
+            color: isDisabled
+                ? Colors.grey.shade500
+                : theme.colorScheme.secondary),
         title: Text(
           dateSelected
-              ? DateFormat('EEE, MMM d, yyyy').format(state.selectedDate!) // Corrected DateFormat
+              ? DateFormat('EEE, MMM d, yyyy')
+                  .format(state.selectedDate!) // Corrected DateFormat
               : "Select a date",
           style: dateSelected
-              ? theme.textTheme.bodyLarge?.copyWith(
-                  color: isDisabled ? Colors.grey.shade600 : null)
+              ? theme.textTheme.bodyLarge
+                  ?.copyWith(color: isDisabled ? Colors.grey.shade600 : null)
               : theme.textTheme.bodyLarge?.copyWith(color: theme.hintColor),
         ),
         trailing: (slotsCurrentlyLoading && type == ReservationType.timeBased)
@@ -701,8 +694,7 @@ class DynamicReservationForm extends StatelessWidget {
     return InputDecoration(
       hintText: hint,
       hintStyle: theme.inputDecorationTheme.hintStyle,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey.shade300)),
@@ -742,13 +734,11 @@ class DynamicReservationForm extends StatelessWidget {
       return const Center(
           child: Padding(
               padding: EdgeInsets.all(16.0),
-              child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(strokeWidth: 2),
-                    Gap(12),
-                    Text("Joining Queue...")
-                  ])));
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                CircularProgressIndicator(strokeWidth: 2),
+                Gap(12),
+                Text("Joining Queue...")
+              ])));
     } else if (state is ReservationInQueue) {
       String estimateText = "Estimating entry time...";
       if (state.estimatedEntryTime != null) {
@@ -763,7 +753,8 @@ class DynamicReservationForm extends StatelessWidget {
             color: AppColors.accentColor.withOpacity(0.8),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
-                side: BorderSide(color: AppColors.primaryColor.withOpacity(0.3))),
+                side:
+                    BorderSide(color: AppColors.primaryColor.withOpacity(0.3))),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
@@ -782,8 +773,8 @@ class DynamicReservationForm extends StatelessWidget {
                           const Gap(6),
                           if (state.queuePosition > 0)
                             Text("Your Position: #${state.queuePosition}",
-                                style: theme.textTheme.bodyLarge
-                                    ?.copyWith(color: AppColors.secondaryColor)),
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: AppColors.secondaryColor)),
                           Text(estimateText,
                               style: theme.textTheme.bodyMedium
                                   ?.copyWith(color: AppColors.secondaryColor)),
@@ -811,7 +802,8 @@ class DynamicReservationForm extends StatelessWidget {
               label: const Text("Leave Queue"),
               style: OutlinedButton.styleFrom(
                   foregroundColor: theme.colorScheme.error,
-                  side: BorderSide(color: theme.colorScheme.error.withOpacity(0.5)),
+                  side: BorderSide(
+                      color: theme.colorScheme.error.withOpacity(0.5)),
                   padding: const EdgeInsets.symmetric(vertical: 12)),
               onPressed: disableActions
                   ? null

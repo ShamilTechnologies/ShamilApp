@@ -33,12 +33,12 @@ class UserInfoSection extends StatelessWidget {
     Widget profileImageWidget = ClipRRect(
       borderRadius: borderRadius,
       child: (profilePicUrl == null)
-         ? buildProfilePlaceholder(avatarSize, theme, borderRadius) // Use helper
+         ? buildProfilePlaceholder(size: avatarSize, borderRadius: borderRadius, name: 'Profile Placeholder') // Use helper
          : FadeInImage.memoryNetwork(
             placeholder: transparentImageData, // Use imported data
             image: profilePicUrl,
             width: avatarSize, height: avatarSize, fit: BoxFit.cover,
-            imageErrorBuilder: (context, error, stackTrace) => buildProfilePlaceholder(avatarSize, theme, borderRadius),
+            imageErrorBuilder: (context, error, stackTrace) => buildProfilePlaceholder(size: avatarSize, borderRadius: borderRadius, name: 'Error Placeholder'),
          ),
     );
 

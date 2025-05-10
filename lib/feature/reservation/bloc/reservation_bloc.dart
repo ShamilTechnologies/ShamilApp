@@ -58,15 +58,14 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     if (_userId != null && _userName != null) {
       final initialState = state;
       if (initialState is ReservationInitial) {
-        emit(initialState.copyWith(
-            selectedAttendees: [
-              AttendeeModel(
-                userId: _userId!,
-                name: _userName!,
-                type: 'self',
-                status: 'going',
-              )
-            ]));
+        emit(initialState.copyWith(selectedAttendees: [
+          AttendeeModel(
+            userId: _userId!,
+            name: _userName!,
+            type: 'self',
+            status: 'going',
+          )
+        ]));
         print("ReservationBloc: Initialized attendees with 'self'.");
       }
     } else {
@@ -103,7 +102,9 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
       selectedReservationType: event.reservationType,
       selectedAttendees: state.selectedAttendees,
       // Reset typeSpecificData when type changes, unless it's accessBased again
-      typeSpecificData: event.reservationType == ReservationType.accessBased ? state.typeSpecificData : null,
+      typeSpecificData: event.reservationType == ReservationType.accessBased
+          ? state.typeSpecificData
+          : null,
     ));
   }
 
@@ -172,8 +173,8 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     int? durationMinutes;
 
     if (requiresFineGrainedSlots) {
-      durationMinutes =
-          currentService?.durationMinutes ?? _getTimeBasedDefaultDuration(currentProvider);
+      durationMinutes = currentService?.durationMinutes ??
+          _getTimeBasedDefaultDuration(currentProvider);
       if (durationMinutes == null || durationMinutes <= 0) {
         emit(ReservationError(
             message: "Invalid or missing service duration for fetching slots.",
@@ -256,8 +257,7 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
 
     if (currentProvider != null &&
         currentState is ReservationDateSelected &&
-        currentState.selectedReservationType ==
-            ReservationType.sequenceBased) {
+        currentState.selectedReservationType == ReservationType.sequenceBased) {
       String formattedTime = event.preferredHour != null
           ? "${event.preferredHour!.hour}:${event.preferredHour!.minute.toString().padLeft(2, '0')}"
           : "None";
@@ -278,7 +278,8 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
   void _onSelectAccessPassOption(
       SelectAccessPassOption event, Emitter<ReservationState> emit) {
     final currentState = state;
-    if (currentState.provider == null || currentState.selectedReservationType != ReservationType.accessBased) {
+    if (currentState.provider == null ||
+        currentState.selectedReservationType != ReservationType.accessBased) {
       print("ReservationBloc: Cannot select access pass, invalid state.");
       // Optionally emit an error or just return
       return;
@@ -294,7 +295,6 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
       availableSlots: [],
     ));
   }
-
 
   int _getTimeBasedDefaultDuration(ServiceProviderModel provider) {
     if (state.selectedService?.durationMinutes != null &&
@@ -353,16 +353,16 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
       return;
     }
     emit(ReservationRangeSelected(
-        provider: currentProvider,
-        selectedReservationType: currentState.selectedReservationType!,
-        selectedService: currentState.selectedService,
-        date: currentState.selectedDate!,
-        startTime: startTime,
-        endTime: endTime,
-        availableSlots: currentState.availableSlots,
-        selectedAttendees: currentState.selectedAttendees,
-        typeSpecificData: currentState.typeSpecificData, // Preserve
-        ));
+      provider: currentProvider,
+      selectedReservationType: currentState.selectedReservationType!,
+      selectedService: currentState.selectedService,
+      date: currentState.selectedDate!,
+      startTime: startTime,
+      endTime: endTime,
+      availableSlots: currentState.availableSlots,
+      selectedAttendees: currentState.selectedAttendees,
+      typeSpecificData: currentState.typeSpecificData, // Preserve
+    ));
   }
 
   void _onAddAttendee(AddAttendee event, Emitter<ReservationState> emit) {
@@ -378,25 +378,24 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
       // This requires knowing the current concrete state type or having a more flexible error state.
       // For simplicity here, we'll emit a general ReservationError.
       emit(ReservationError(
-          message: "Maximum group size ($maxGroupSize) reached.",
-          provider: currentProvider,
-          selectedReservationType: state.selectedReservationType,
-          selectedService: state.selectedService,
-          selectedDate: state.selectedDate,
-          selectedStartTime: state.selectedStartTime,
-          selectedEndTime: state.selectedEndTime,
-          availableSlots: state.availableSlots,
-          selectedAttendees: state.selectedAttendees,
-          typeSpecificData: state.typeSpecificData,
-          ));
+        message: "Maximum group size ($maxGroupSize) reached.",
+        provider: currentProvider,
+        selectedReservationType: state.selectedReservationType,
+        selectedService: state.selectedService,
+        selectedDate: state.selectedDate,
+        selectedStartTime: state.selectedStartTime,
+        selectedEndTime: state.selectedEndTime,
+        availableSlots: state.availableSlots,
+        selectedAttendees: state.selectedAttendees,
+        typeSpecificData: state.typeSpecificData,
+      ));
       return;
     }
     currentAttendees.add(event.attendee);
     emit(state.copyWith(selectedAttendees: currentAttendees));
   }
 
-  void _onRemoveAttendee(
-      RemoveAttendee event, Emitter<ReservationState> emit) {
+  void _onRemoveAttendee(RemoveAttendee event, Emitter<ReservationState> emit) {
     final currentProvider = state.provider;
     if (currentProvider == null) return;
     final currentAttendees = List<AttendeeModel>.from(state.selectedAttendees);
@@ -447,7 +446,8 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     if (maxGroup != null &&
         stateBeforeCreate.selectedAttendees.length > maxGroup) {
       emit(ReservationError(
-          message: "Number of attendees exceeds the maximum allowed ($maxGroup).",
+          message:
+              "Number of attendees exceeds the maximum allowed ($maxGroup).",
           provider: currentProvider,
           selectedReservationType: stateBeforeCreate.selectedReservationType,
           selectedAttendees: stateBeforeCreate.selectedAttendees,
@@ -486,16 +486,16 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     final endTime = stateBeforeCreate.selectedEndTime;
 
     emit(ReservationCreating(
-        provider: currentProvider,
-        selectedReservationType: reservationType,
-        selectedService: service,
-        selectedDate: date,
-        selectedStartTime: startTime,
-        selectedEndTime: endTime,
-        availableSlots: stateBeforeCreate.availableSlots,
-        selectedAttendees: attendees,
-        typeSpecificData: stateBeforeCreate.typeSpecificData, // Preserve
-        ));
+      provider: currentProvider,
+      selectedReservationType: reservationType,
+      selectedService: service,
+      selectedDate: date,
+      selectedStartTime: startTime,
+      selectedEndTime: endTime,
+      availableSlots: stateBeforeCreate.availableSlots,
+      selectedAttendees: attendees,
+      typeSpecificData: stateBeforeCreate.typeSpecificData, // Preserve
+    ));
     print(
         "ReservationBloc: Creating '${reservationType.displayString}' reservation...");
 
@@ -515,9 +515,8 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
               : null),
       'pricePerSlotOrService': service?.price,
       if (date != null)
-        'reservationDateMillis':
-            DateTime.utc(date.year, date.month, date.day)
-                .millisecondsSinceEpoch,
+        'reservationDateMillis': DateTime.utc(date.year, date.month, date.day)
+            .millisecondsSinceEpoch,
       if ([
         ReservationType.timeBased,
         ReservationType.seatBased,
@@ -525,7 +524,10 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
         ReservationType.group
       ].contains(reservationType)) ...{
         if (startTime != null)
-          'startTimeOfDay': {'hour': startTime.hour, 'minute': startTime.minute},
+          'startTimeOfDay': {
+            'hour': startTime.hour,
+            'minute': startTime.minute
+          },
         if (endTime != null)
           'endTimeOfDay': {'hour': endTime.hour, 'minute': endTime.minute},
       },
@@ -539,36 +541,7 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
         final successMessage =
             result['message'] as String? ?? "Reservation confirmed!";
         emit(ReservationSuccess(
-            message: successMessage,
-            provider: currentProvider,
-            selectedReservationType: reservationType,
-            selectedService: service,
-            selectedDate: date,
-            selectedStartTime: startTime,
-            selectedEndTime: endTime,
-            availableSlots: stateBeforeCreate.availableSlots,
-            selectedAttendees: attendees,
-            typeSpecificData: stateBeforeCreate.typeSpecificData, // Preserve
-            ));
-      } else {
-        final errorMessage =
-            result['error'] as String? ?? 'Reservation failed on the server.';
-        emit(ReservationError(
-            message: errorMessage,
-            provider: currentProvider,
-            selectedReservationType: reservationType,
-            selectedService: service,
-            selectedDate: date,
-            selectedStartTime: startTime,
-            selectedEndTime: endTime,
-            availableSlots: stateBeforeCreate.availableSlots,
-            selectedAttendees: attendees,
-            typeSpecificData: stateBeforeCreate.typeSpecificData, // Preserve
-            ));
-      }
-    } catch (e) {
-      emit(ReservationError(
-          message: "Failed to create reservation: ${e.toString()}",
+          message: successMessage,
           provider: currentProvider,
           selectedReservationType: reservationType,
           selectedService: service,
@@ -578,18 +551,47 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
           availableSlots: stateBeforeCreate.availableSlots,
           selectedAttendees: attendees,
           typeSpecificData: stateBeforeCreate.typeSpecificData, // Preserve
-          ));
+        ));
+      } else {
+        final errorMessage =
+            result['error'] as String? ?? 'Reservation failed on the server.';
+        emit(ReservationError(
+          message: errorMessage,
+          provider: currentProvider,
+          selectedReservationType: reservationType,
+          selectedService: service,
+          selectedDate: date,
+          selectedStartTime: startTime,
+          selectedEndTime: endTime,
+          availableSlots: stateBeforeCreate.availableSlots,
+          selectedAttendees: attendees,
+          typeSpecificData: stateBeforeCreate.typeSpecificData, // Preserve
+        ));
+      }
+    } catch (e) {
+      emit(ReservationError(
+        message: "Failed to create reservation: ${e.toString()}",
+        provider: currentProvider,
+        selectedReservationType: reservationType,
+        selectedService: service,
+        selectedDate: date,
+        selectedStartTime: startTime,
+        selectedEndTime: endTime,
+        availableSlots: stateBeforeCreate.availableSlots,
+        selectedAttendees: attendees,
+        typeSpecificData: stateBeforeCreate.typeSpecificData, // Preserve
+      ));
     }
   }
 
   Map<String, dynamic>? _getTypeSpecificData(ReservationState currentState) {
-     if (currentState.selectedReservationType == ReservationType.accessBased && currentState.typeSpecificData != null) {
-        return currentState.typeSpecificData;
-     }
-     // Add other types if they use typeSpecificData
-     return null;
+    if (currentState.selectedReservationType == ReservationType.accessBased &&
+        currentState.typeSpecificData != null) {
+      return currentState.typeSpecificData;
+    }
+    // Add other types if they use typeSpecificData
+    return null;
   }
-
 
   void _onResetReservationFlow(
       ResetReservationFlow event, Emitter<ReservationState> emit) {
@@ -621,11 +623,13 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     }
     if (initialType != null) {
       emit(ReservationTypeSelected(
-          provider: providerToUse,
-          selectedReservationType: initialType,
-          selectedAttendees: initialAttendees,
-          typeSpecificData: initialType == ReservationType.accessBased ? state.typeSpecificData : null, // Preserve for access based if it was the single type
-          ));
+        provider: providerToUse,
+        selectedReservationType: initialType,
+        selectedAttendees: initialAttendees,
+        typeSpecificData: initialType == ReservationType.accessBased
+            ? state.typeSpecificData
+            : null, // Preserve for access based if it was the single type
+      ));
     } else {
       emit(ReservationInitial(provider: providerToUse)
           .copyWith(selectedAttendees: initialAttendees));
@@ -746,26 +750,26 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
         final errorMsg =
             result['error'] as String? ?? "Failed to join the queue.";
         // Revert to ReservationDateSelected with an error message or keep specific error state
-         emit(ReservationQueueError(
-            message: errorMsg,
-            provider: currentProvider,
-            selectedReservationType: ReservationType.sequenceBased,
-            selectedService: currentService,
-            selectedAttendees: currentAttendees,
-            selectedDate: preferredDate,
-            selectedStartTime: preferredHour,
-        ));
-      }
-    } catch (e) {
-      emit(ReservationQueueError(
-          message: "Error joining queue: ${e.toString()}",
+        emit(ReservationQueueError(
+          message: errorMsg,
           provider: currentProvider,
           selectedReservationType: ReservationType.sequenceBased,
           selectedService: currentService,
           selectedAttendees: currentAttendees,
           selectedDate: preferredDate,
           selectedStartTime: preferredHour,
-          ));
+        ));
+      }
+    } catch (e) {
+      emit(ReservationQueueError(
+        message: "Error joining queue: ${e.toString()}",
+        provider: currentProvider,
+        selectedReservationType: ReservationType.sequenceBased,
+        selectedService: currentService,
+        selectedAttendees: currentAttendees,
+        selectedDate: preferredDate,
+        selectedStartTime: preferredHour,
+      ));
     }
   }
 
@@ -798,8 +802,8 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
           preferredDate: preferredDate,
           preferredHour: preferredHour);
       if (result['success'] == true) {
-        final int position =
-            (result['queuePosition'] as num?)?.toInt() ?? currentState.queuePosition;
+        final int position = (result['queuePosition'] as num?)?.toInt() ??
+            currentState.queuePosition;
         final Timestamp? estimateTimestamp =
             result['estimatedEntryTime'] as Timestamp?;
         final DateTime? estimateDateTime =
@@ -907,18 +911,20 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
         return currentState.selectedService != null;
       case ReservationType.seatBased:
         // Add seat selection check when implemented
-        return currentState.selectedDate != null && currentState.selectedStartTime != null;
+        return currentState.selectedDate != null &&
+            currentState.selectedStartTime != null;
       case ReservationType.accessBased:
         // Check if an access pass option is selected via typeSpecificData
-        return currentState.selectedDate != null && currentState.typeSpecificData?['selectedAccessPassId'] != null;
+        return currentState.selectedDate != null &&
+            currentState.typeSpecificData?['selectedAccessPassId'] != null;
       case ReservationType.recurring:
         return currentState.selectedService != null &&
             currentState.selectedDate != null;
       case ReservationType.group:
         final primaryType = provider.supportedReservationTypes
             .map(reservationTypeFromString)
-            .firstWhereOrNull(
-                (t) => t != ReservationType.group && t != ReservationType.unknown);
+            .firstWhereOrNull((t) =>
+                t != ReservationType.group && t != ReservationType.unknown);
         return primaryType != null
             ? isReservationReadyToConfirm(currentState, primaryType)
             : false;

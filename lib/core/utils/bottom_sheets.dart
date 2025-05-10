@@ -1,145 +1,165 @@
+// lib/core/utils/bottom_sheets.dart
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart';
-import 'package:shamil_mobile_app/core/utils/text_style.dart';
-// *** Import the icon constants and helper functions ***
-import 'package:shamil_mobile_app/core/constants/icon_constants.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
+import 'package:gap/gap.dart'; // For spacing
+import 'package:shamil_mobile_app/core/constants/app_constants.dart'; // Assuming kGovernorates is here
+import 'package:shamil_mobile_app/core/constants/icon_constants.dart'; // Assuming kGovernorateIcons and getIconForGovernorate are here
+import 'package:shamil_mobile_app/core/utils/colors.dart'; // Your AppColors
+import 'package:shamil_mobile_app/core/utils/text_style.dart' as app_text_style; // Your AppTextStyles
 
-Future<String?> showGovernoratesBottomSheet({
-  required BuildContext context,
-  required List<String> items,
-  String title = 'Select Your Governorate',
-}) {
-  return showModalBottomSheet<String>(
+/// Displays a modal bottom sheet for selecting a governorate.
+///
+/// Returns the selected governorate [String] or `null` if no selection is made.
+Future<String?> showGovernoratesBottomSheet(
+  BuildContext context,
+  String? currentSelectedGovernorate,
+) async {
+  return await showModalBottomSheet<String>(
     context: context,
-    backgroundColor:
-        Colors.transparent, // Keep background transparent for custom container
-    isScrollControlled: true, // Allows sheet to take more height if needed
-    builder: (context) {
-      final theme = Theme.of(context); // Get theme context
+    isScrollControlled: true, // Allows the sheet to take up more height
+    backgroundColor: Colors.transparent, // Make default background transparent
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+    ),
+    builder: (BuildContext sheetContext) {
+      return StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          String searchQuery = "";
+          final List<String> filteredGovernorates = kGovernorates
+              .where((gov) =>
+                  gov.toLowerCase().contains(searchQuery.toLowerCase()))
+              .toList();
 
-      return SafeArea(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.white, // Use AppColor
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                // Use theme shadow color or a subtle AppColor
-                color: theme.colorScheme.shadow.withOpacity(0.15),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              )
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min, // Take minimum space
-            children: [
-              // Header row with title and a close button.
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    title,
-                    style: getbodyStyle(
-                      color: AppColors.primaryColor,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+          return DraggableScrollableSheet(
+            initialChildSize: 0.6, // Start at 60% of screen height
+            minChildSize: 0.4, // Minimum 40%
+            maxChildSize: 0.85, // Maximum 85%
+            expand: false,
+            builder: (_, scrollController) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor, // Use cardColor for sheet background
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
+                ),
+                child: Column(
+                  children: [
+                    // Drag Handle
+                    Container(
+                      width: 40,
+                      height: 5,
+                      margin: const EdgeInsets.symmetric(vertical: 10.0),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon:
-                        const Icon(Icons.close, color: AppColors.primaryColor),
-                    // Use visual density to reduce tap target size slightly if needed
-                    // visualDensity: VisualDensity.compact,
-                    // padding: EdgeInsets.zero,
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // List of items.
-              Flexible(
-                // Allows list to scroll if content exceeds available height
-                child: ListView.separated(
-                  shrinkWrap: true, // Important when nested in Column/Flexible
-                  itemCount: items.length,
-                  separatorBuilder: (context, index) => Divider(
-                    indent: 10, endIndent: 10,
-                    // Use a theme color or subtle AppColor for divider
-                    color: AppColors.accentColor.withOpacity(0.5),
-                    height: 1, // Explicit height for divider
-                  ),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    // *** Get the icon for the current governorate item ***
-                    final IconData governorateIcon =
-                        getIconForGovernorate(item);
-
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => Navigator.of(context)
-                          .pop(item), // Return selected item
-                      child: Container(
-                        // Added Container for consistent padding/decoration if needed later
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 16,
-                        ),
-                        child: Row(
-                          children: [
-                            // *** Use the dynamically fetched icon ***
-                            Icon(
-                              governorateIcon, // Use the fetched icon
-                              color: AppColors.primaryColor,
-                              size: 22, // Adjust size if needed
-                            ),
-                            const SizedBox(width: 12), // Spacing
-                            Expanded(
-                              child: Text(
-                                item, // Governorate name
-                                style: getbodyStyle(
-                                  color: AppColors.primaryColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            // Optional: Add a trailing check or arrow if needed
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 16,
-                              color: AppColors.secondaryColor.withOpacity(0.7),
-                            ),
-                          ],
+                    // Title
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                      child: Text(
+                        "Select Governorate",
+                        style: app_text_style.getTitleStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600
                         ),
                       ),
-                    );
-                  },
+                    ),
+                    // Search Bar
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: TextField(
+                        onChanged: (value) {
+                          setState(() {
+                            searchQuery = value;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: "Search governorate...",
+                          hintStyle: app_text_style.getbodyStyle(color: AppColors.secondaryText.withOpacity(0.7)),
+                          prefixIcon: Icon(Icons.search_rounded, color: AppColors.secondaryText.withOpacity(0.7)),
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                        ),
+                        style: app_text_style.getbodyStyle(color: AppColors.primaryText),
+                      ),
+                    ),
+                    // Governorate List
+                    Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        itemCount: filteredGovernorates.length,
+                        separatorBuilder: (context, index) => Divider(
+                          height: 1,
+                          thickness: 0.5,
+                          color: Colors.grey[200],
+                          indent: 16,
+                          endIndent: 16,
+                        ),
+                        itemBuilder: (BuildContext context, int index) {
+                          final governorate = filteredGovernorates[index];
+                          final bool isSelected = governorate == currentSelectedGovernorate;
+                          return ListTile(
+                            leading: Icon(
+                              getIconForGovernorate(governorate),
+                              color: isSelected ? AppColors.primaryColor : AppColors.secondaryText.withOpacity(0.8),
+                              size: 22,
+                            ),
+                            title: Text(
+                              governorate,
+                              style: app_text_style.getbodyStyle(
+                                color: isSelected ? AppColors.primaryColor : Theme.of(context).colorScheme.onSurface,
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? Icon(Icons.check_circle_rounded, color: AppColors.primaryColor, size: 20)
+                                : null,
+                            tileColor: isSelected ? AppColors.primaryColor.withOpacity(0.05) : null,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.pop(sheetContext, governorate);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const Gap(8), // For bottom padding inside the sheet
+                  ],
                 ),
-              ),
-            ],
-          ),
-        ),
+              );
+            },
+          );
+        },
       );
     },
   );
 }
 
-// --- Example Usage (if you wanted to use it for Amenities) ---
-// You would need to create kAmenities list similar to kGovernorates
-/*
-Future<String?> showAmenitiesBottomSheet({
-  required BuildContext context,
-  required List<String> items, // Should be kAmenities list
-  String title = 'Select Amenities',
-}) {
-  // ... similar structure to showGovernoratesBottomSheet ...
-  // Inside itemBuilder:
-  // final IconData amenityIcon = getIconForAmenity(item);
-  // Use amenityIcon in the Row's Icon widget
-  // ...
-}
-*/
+// Example of how kGovernorates might be defined in app_constants.dart
+// const List<String> kGovernorates = [
+//   "Cairo", "Giza", "Alexandria", "Qalyubia", "Sharqia", "Dakahlia",
+//   "Beheira", "Kafr El Sheikh", "Gharbia", "Monufia", "Damietta",
+//   "Port Said", "Ismailia", "Suez", "North Sinai", "South Sinai",
+//   "Beni Suef", "Faiyum", "Minya", "Asyut", "Sohag", "Qena",
+//   "Luxor", "Aswan", "Red Sea", "New Valley", "Matrouh",
+// ];
+
+// Example of how kGovernorateIcons and getIconForGovernorate might be defined in icon_constants.dart
+// const Map<String, IconData> kGovernorateIcons = {
+//   'Cairo': Icons.location_city_rounded,
+//   'Giza': Icons.account_balance_outlined, // Pyramids
+//   'Alexandria': Icons.waves_rounded, // Sea
+//   // ... other mappings
+//   '_default': Icons.map_outlined,
+// };
+//
+// IconData getIconForGovernorate(String governorateName) {
+//   return kGovernorateIcons[governorateName] ?? kGovernorateIcons['_default']!;
+// }

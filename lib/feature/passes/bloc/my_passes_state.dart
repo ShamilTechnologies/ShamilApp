@@ -2,9 +2,6 @@
 
 part of 'my_passes_bloc.dart'; // Link to the Bloc file
 
-
-
-@immutable
 abstract class MyPassesState extends Equatable {
   const MyPassesState();
 
@@ -20,39 +17,37 @@ class MyPassesLoading extends MyPassesState {}
 
 /// State indicating data has been successfully loaded.
 class MyPassesLoaded extends MyPassesState {
-  // Reservations categorized by status/time
-  final List<ReservationModel> upcomingReservations;
-  final List<ReservationModel> pastReservations;
-  final List<ReservationModel> cancelledReservations;
-
-  // Subscriptions categorized by status/time
-  final List<SubscriptionModel> activeSubscriptions;
-  final List<SubscriptionModel> expiredSubscriptions; // Includes cancelled/failed etc.
+  final List<ReservationModel> reservations;
+  final List<SubscriptionModel> subscriptions;
+  final String? errorMessage;
+  final String? successMessage;
 
   const MyPassesLoaded({
-    this.upcomingReservations = const [],
-    this.pastReservations = const [],
-    this.cancelledReservations = const [],
-    this.activeSubscriptions = const [],
-    this.expiredSubscriptions = const [],
+    required this.reservations,
+    required this.subscriptions,
+    this.errorMessage,
+    this.successMessage,
   });
 
   @override
-  List<Object?> get props => [
-        upcomingReservations,
-        pastReservations,
-        cancelledReservations,
-        activeSubscriptions,
-        expiredSubscriptions,
-      ];
+  List<Object?> get props =>
+      [reservations, subscriptions, errorMessage, successMessage];
 
-  // Helper to check if there's any data to display at all
-  bool get isEmpty =>
-      upcomingReservations.isEmpty &&
-      pastReservations.isEmpty &&
-      cancelledReservations.isEmpty &&
-      activeSubscriptions.isEmpty &&
-      expiredSubscriptions.isEmpty;
+  MyPassesLoaded copyWith({
+    List<ReservationModel>? reservations,
+    List<SubscriptionModel>? subscriptions,
+    String? errorMessage,
+    String? successMessage,
+    bool clearMessages = false,
+  }) {
+    return MyPassesLoaded(
+      reservations: reservations ?? this.reservations,
+      subscriptions: subscriptions ?? this.subscriptions,
+      errorMessage: clearMessages ? null : (errorMessage ?? this.errorMessage),
+      successMessage:
+          clearMessages ? null : (successMessage ?? this.successMessage),
+    );
+  }
 }
 
 /// State indicating an error occurred while loading data.

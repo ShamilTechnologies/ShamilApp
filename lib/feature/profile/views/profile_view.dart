@@ -1,18 +1,23 @@
 import 'dart:io'; // For File type
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
-import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Keep for placeholder helper
+import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shamil_mobile_app/core/widgets/actionScreens.dart'; // For LoadingScreen
+import 'package:gap/gap.dart';
 import 'dart:typed_data'; // Import for Uint8List for placeholder
 
 // Import Social Bloc & Event
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 // Import the content widget
-import 'package:shamil_mobile_app/feature/profile/widgets/profile_content.dart';
+import 'package:shamil_mobile_app/feature/profile/views/edit_profile_view.dart';
+import 'package:shamil_mobile_app/feature/passes/view/passes_screen.dart';
+import 'package:shamil_mobile_app/feature/social/views/friends_view.dart';
+import 'package:shamil_mobile_app/feature/social/views/family_view.dart';
 
 // Placeholder for transparent image data (can be moved to a constants file)
 const kTransparentImage = <int>[
@@ -134,23 +139,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // --- Image Picking Logic ---
   Future<ImageSource?> _showImageSourceSelector() async {
-    // (Implementation remains the same)
     return showModalBottomSheet<ImageSource>(
         context: context,
         backgroundColor: Colors.transparent,
-        builder: (BuildContext context) {
+        builder: (context) {
           return Container(
             margin: const EdgeInsets.all(16.0),
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: AppColors
-                  .white, // Use AppColors if defined, else Colors.white
+              color: Colors.white,
               borderRadius: BorderRadius.circular(20.0),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black26,
+                  color: Colors.black.withOpacity(0.1),
                   blurRadius: 10,
-                  offset: Offset(0, 5),
+                  offset: const Offset(0, 5),
                 ),
               ],
             ),
@@ -158,27 +161,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Choose Image Source',
-                  style: getbodyStyle(
-                    color: AppColors.primaryColor,
+                  'Profile Photo',
+                  style: AppTextStyle.getTitleStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                   ),
-                ), // Assuming getbodyStyle exists
-                const SizedBox(height: 10),
+                ),
+                const Gap(16),
                 ListTile(
-                  leading: const Icon(Icons.camera_alt,
-                      color: AppColors.primaryColor),
-                  title: Text('Camera',
-                      style: getbodyStyle(color: AppColors.primaryColor)),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.camera_fill,
+                      color: AppColors.primaryColor,
+                    ),
+                  ),
+                  title: Text(
+                    'Take a Photo',
+                    style: AppTextStyle.getbodyStyle(),
+                  ),
                   onTap: () => Navigator.of(context).pop(ImageSource.camera),
                 ),
                 const Divider(),
                 ListTile(
-                  leading:
-                      const Icon(Icons.photo, color: AppColors.primaryColor),
-                  title: Text('Gallery',
-                      style: getbodyStyle(color: AppColors.primaryColor)),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.photo_fill,
+                      color: AppColors.primaryColor,
+                    ),
+                  ),
+                  title: Text(
+                    'Choose from Gallery',
+                    style: AppTextStyle.getbodyStyle(),
+                  ),
                   onTap: () => Navigator.of(context).pop(ImageSource.gallery),
                 ),
               ],
@@ -188,7 +212,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickAndUpdateProfilePicture() async {
-    // (Implementation remains the same - dispatches to AuthBloc)
     if (_isUpdatingPicture) return;
     final source = await _showImageSourceSelector();
     if (source == null) return;
@@ -222,21 +245,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // --- Logout Logic ---
   Future<void> _handleLogout() async {
-    // (Implementation remains the same - dispatches to AuthBloc)
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Confirm Logout"),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                CupertinoIcons.exclamationmark_triangle,
+                color: Colors.red,
+                size: 24,
+              ),
+            ),
+            const Gap(16),
+            const Text('Confirm Logout'),
+          ],
+        ),
         content: const Text("Are you sure you want to log out?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("Cancel"),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.grey),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text("Logout",
-                style: TextStyle(color: AppColors.redColor)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(50),
+              ),
+            ),
+            child: const Text("Logout"),
           ),
         ],
       ),
@@ -260,13 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final theme = Theme.of(context);
     // REMOVED: BlocProvider.value wrapper
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Profile'),
-        backgroundColor: theme.scaffoldBackgroundColor,
-        elevation: 0, // Keep AppBar clean
-        foregroundColor: theme.colorScheme.primary,
-      ),
-      // Use MultiBlocListener to handle side effects from both Blocs
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: MultiBlocListener(
         listeners: [
           // Listener for AuthBloc side effects
@@ -326,12 +372,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final userModel = authState.user;
               // Pass data and callbacks down to the content widget
               // ProfileContent will access the globally provided SocialBloc via context
-              return ProfileContent(
-                userModel: userModel,
-                isUpdatingPicture: _isUpdatingPicture, // Pass loading flag down
-                onUpdatePicture:
-                    _pickAndUpdateProfilePicture, // Pass callback down
-                onLogout: _handleLogout, // Pass callback down
+              return SafeArea(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(30),
+                      bottomRight: Radius.circular(30),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(context),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(30),
+                              topRight: Radius.circular(30),
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(30),
+                              topRight: Radius.circular(30),
+                            ),
+                            child: RefreshIndicator(
+                              onRefresh: () async {
+                                context
+                                    .read<AuthBloc>()
+                                    .add(const CheckEmailVerificationStatus());
+                                context
+                                    .read<SocialBloc>()
+                                    .add(const LoadFamilyMembers());
+                                context
+                                    .read<SocialBloc>()
+                                    .add(const LoadFriendsAndRequests());
+                                await Future.delayed(
+                                    const Duration(milliseconds: 500));
+                              },
+                              child: _buildProfileContent(context, userModel),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               );
             }
             // Fallback for any unexpected AuthBloc state
@@ -342,36 +431,532 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primaryColor,
+                          AppColors.primaryColor.withOpacity(0.7),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.person_fill,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                  const Gap(14),
+                  Text(
+                    'My Profile',
+                    style: AppTextStyle.getHeadlineTextStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              _buildRefreshButton(context),
+            ],
+          ),
+          const Gap(12),
+          Text(
+            'Manage your account settings and preferences',
+            style: AppTextStyle.getbodyStyle(
+              color: AppColors.secondaryText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefreshButton(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        context.read<AuthBloc>().add(const CheckEmailVerificationStatus());
+        context.read<SocialBloc>().add(const LoadFamilyMembers());
+        context.read<SocialBloc>().add(const LoadFriendsAndRequests());
+      },
+      borderRadius: BorderRadius.circular(50),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(50),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 0,
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          CupertinoIcons.arrow_clockwise,
+          color: AppColors.primaryColor,
+          size: 20,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileContent(BuildContext context, final userModel) {
+    // Profile picture section
+    String? profilePicUrl = userModel.profilePicUrl ?? userModel.image;
+    if (profilePicUrl != null && profilePicUrl.isEmpty) {
+      profilePicUrl = null;
+    }
+
+    // Profile card
+    final profileCard = Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            spreadRadius: 0,
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Profile image
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primaryColor.withOpacity(0.1),
+                        AppColors.primaryColor.withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: AppColors.primaryColor.withOpacity(0.2),
+                      width: 4,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: (profilePicUrl == null)
+                        ? Icon(
+                            CupertinoIcons.person_fill,
+                            size: 60,
+                            color: AppColors.primaryColor.withOpacity(0.5),
+                          )
+                        : FadeInImage.memoryNetwork(
+                            placeholder: transparentImageData,
+                            image: profilePicUrl,
+                            fit: BoxFit.cover,
+                            imageErrorBuilder: (context, error, stackTrace) =>
+                                Icon(
+                              CupertinoIcons.person_fill,
+                              size: 60,
+                              color: AppColors.primaryColor.withOpacity(0.5),
+                            ),
+                          ),
+                  ),
+                ),
+                // Edit button
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: _isUpdatingPicture
+                        ? null
+                        : _pickAndUpdateProfilePicture,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryColor.withOpacity(0.3),
+                            spreadRadius: 0,
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: _isUpdatingPicture
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              CupertinoIcons.camera_fill,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Gap(16),
+          Text(
+            userModel.name,
+            style: AppTextStyle.getTitleStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Gap(4),
+          Text(
+            userModel.email,
+            style: AppTextStyle.getbodyStyle(
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const Gap(16),
+          if (userModel.phone != null && userModel.phone!.isNotEmpty)
+            _buildInfoItem(CupertinoIcons.phone_fill, userModel.phone!),
+        ],
+      ),
+    );
+
+    // Options section
+    final optionsCard = Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            spreadRadius: 0,
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildOptionItem(
+            CupertinoIcons.person_crop_circle,
+            'Edit Profile',
+            'Update your personal information',
+            () {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const EditProfileView()));
+            },
+          ),
+          const Divider(height: 1),
+          _buildOptionItem(
+            CupertinoIcons.person_2_fill,
+            'Family Members',
+            'Manage your family connections',
+            () {
+              try {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BlocProvider.value(
+                      value: BlocProvider.of<SocialBloc>(context),
+                      child: const FamilyView(),
+                    ),
+                  ),
+                ).then((_) {
+                  // Refresh profile data when returning from family view
+                  context
+                      .read<AuthBloc>()
+                      .add(const CheckEmailVerificationStatus());
+                });
+              } catch (e) {
+                print("Error navigating to FamilyView: $e");
+                showGlobalSnackBar(
+                    context, "Unable to access Family Members view",
+                    isError: true);
+              }
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                CupertinoIcons.person_2_fill,
+                color: AppColors.primaryColor,
+                size: 22,
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          _buildOptionItem(
+            CupertinoIcons.person_3_fill,
+            'Friends',
+            'Connect with other users',
+            () {
+              try {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BlocProvider.value(
+                      value: BlocProvider.of<SocialBloc>(context),
+                      child: const FriendsView(),
+                    ),
+                  ),
+                ).then((_) {
+                  // Refresh profile data when returning
+                  context
+                      .read<AuthBloc>()
+                      .add(const CheckEmailVerificationStatus());
+                });
+              } catch (e) {
+                print("Error navigating to FriendsView: $e");
+                showGlobalSnackBar(context, "Unable to access Friends view",
+                    isError: true);
+              }
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.accentColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                CupertinoIcons.person_3_fill,
+                color: AppColors.accentColor,
+                size: 22,
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          _buildOptionItem(
+            CupertinoIcons.ticket_fill,
+            'My Passes',
+            'View your reservations and subscriptions',
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PassesScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          _buildOptionItem(
+            CupertinoIcons.settings,
+            'Settings',
+            'App preferences and notifications',
+            () {
+              // Will be implemented later
+              showGlobalSnackBar(context, "Settings coming soon!");
+            },
+          ),
+          const Divider(height: 1),
+          _buildOptionItem(
+            CupertinoIcons.question_circle,
+            'Help & Support',
+            'Get assistance with the app',
+            () {
+              // Will be implemented later
+              showGlobalSnackBar(context, "Help & Support coming soon!");
+            },
+          ),
+        ],
+      ),
+    );
+
+    // Logout section
+    final logoutButton = Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: ElevatedButton.icon(
+        onPressed: _handleLogout,
+        icon: const Icon(CupertinoIcons.square_arrow_left, size: 20),
+        label: const Text('Logout'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red.withOpacity(0.1),
+          foregroundColor: Colors.red,
+          elevation: 0,
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+    );
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 20),
+      children: [
+        profileCard,
+        const Gap(16),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Account Options',
+            style: AppTextStyle.getTitleStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const Gap(8),
+        optionsCard,
+        logoutButton,
+      ],
+    );
+  }
+
+  Widget _buildInfoItem(IconData icon, String text) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: AppColors.primaryColor,
+        ),
+        const Gap(8),
+        Text(
+          text,
+          style: AppTextStyle.getbodyStyle(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOptionItem(
+    IconData defaultIcon,
+    String title,
+    String subtitle,
+    VoidCallback onTap, {
+    Widget? icon,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      leading: icon ??
+          Icon(
+            defaultIcon,
+            color: AppColors.primaryColor,
+            size: 24,
+          ),
+      title: Text(
+        title,
+        style: AppTextStyle.getTitleStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: AppTextStyle.getSmallStyle(
+          color: AppColors.secondaryText,
+        ),
+      ),
+      trailing: const Icon(
+        CupertinoIcons.chevron_right,
+        color: AppColors.primaryColor,
+        size: 18,
+      ),
+      onTap: onTap,
+    );
+  }
+
   /// Widget to display error message
   Widget _buildErrorDisplay(
       BuildContext context, ThemeData theme, String message,
       {bool showRetry = true}) {
-    // (Implementation remains the same)
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, color: theme.colorScheme.error, size: 50),
-            const SizedBox(height: 16),
-            Text(message,
-                style: theme.textTheme.titleLarge?.copyWith(fontSize: 18),
-                textAlign: TextAlign.center),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                CupertinoIcons.exclamationmark_triangle,
+                color: Colors.red,
+                size: 48,
+              ),
+            ),
+            const Gap(16),
+            Text(
+              'Error Loading Profile',
+              style: AppTextStyle.getTitleStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Gap(8),
+            Text(
+              message,
+              style: AppTextStyle.getbodyStyle(
+                color: AppColors.secondaryText,
+              ),
+              textAlign: TextAlign.center,
+            ),
             if (showRetry) ...[
-              const SizedBox(height: 20),
-              ElevatedButton(
-                  onPressed: () {
-                    try {
-                      context
-                          .read<AuthBloc>()
-                          .add(const CheckEmailVerificationStatus());
-                    } catch (e) {
-                      print("Error dispatching retry event: $e");
-                    }
-                  },
-                  child: const Text("Retry")),
-            ]
+              const Gap(24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  try {
+                    context
+                        .read<AuthBloc>()
+                        .add(const CheckEmailVerificationStatus());
+                  } catch (e) {
+                    print("Error dispatching retry event: $e");
+                  }
+                },
+                icon: const Icon(CupertinoIcons.refresh),
+                label: const Text('Try Again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -381,16 +966,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 /// Helper to build the placeholder image (can be moved to a shared file)
 Widget buildProfilePlaceholder(
-    double size, ThemeData theme, BorderRadius borderRadius) {
-  // (Implementation remains the same)
+    {required double size, required BorderRadius borderRadius, String? name}) {
   return Container(
     width: size,
     height: size,
     decoration: BoxDecoration(
-      color: theme.colorScheme.primary.withOpacity(0.05),
-      borderRadius: borderRadius,
+      color: AppColors.primaryColor.withOpacity(0.05),
+      borderRadius: BorderRadius.circular(8),
       border: Border.all(
-        color: theme.colorScheme.primary.withOpacity(0.1),
+        color: AppColors.primaryColor.withOpacity(0.1),
         width: 1.0,
       ),
     ),
@@ -398,7 +982,7 @@ Widget buildProfilePlaceholder(
       child: Icon(
         Icons.person_rounded,
         size: size * 0.6,
-        color: theme.colorScheme.primary.withOpacity(0.4),
+        color: AppColors.primaryColor.withOpacity(0.4),
       ),
     ),
   );

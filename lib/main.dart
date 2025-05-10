@@ -37,6 +37,7 @@ import 'package:shamil_mobile_app/feature/social/repository/social_repository.da
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shamil_mobile_app/feature/favorites/repository/firebase_favorites_repository.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
+import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 
 // --- FCM Background Handler ---
 @pragma('vm:entry-point')
@@ -90,6 +91,9 @@ Future<void> main() async {
         RepositoryProvider<SocialRepository>(
           create: (context) => FirebaseSocialRepository(),
         ),
+        RepositoryProvider<UserRepository>(
+          create: (context) => FirebaseUserRepository(),
+        ),
         // RepositoryProvider<SubscriptionRepository>(
         //   create: (context) => FirebaseSubscriptionRepository(),
         // ),
@@ -120,14 +124,8 @@ Future<void> main() async {
           // ),
           BlocProvider<FavoritesBloc>(
             create: (context) {
-              String userId = 'guest_placeholder';
-              final authState = context.read<AuthBloc>().state;
-              if (authState is LoginSuccessState) {
-                userId = authState.user.uid;
-              }
-              return FavoritesBloc(
-                FirebaseFavoritesRepository(userId: userId),
-              )..add(const LoadFavorites());
+              return FavoritesBloc.fromCurrentUser()
+                ..add(const LoadFavorites());
             },
             lazy: false,
           ),

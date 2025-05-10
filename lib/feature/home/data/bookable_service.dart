@@ -10,19 +10,20 @@ import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dar
 /// Represents a service or class that can be booked, potentially with a specific reservation type.
 class BookableService extends Equatable {
   final String id; // Unique identifier for the service
-  final String name; // Name of the service or class (e.g., "Personal Training", "Yoga Class")
+  final String name; // Name of the service or class
   final String description; // Description of the service
   final ReservationType type; // The type of reservation this service uses
-  final int? durationMinutes; // Duration of the service/slot in minutes (Optional)
+  final int?
+      durationMinutes; // Duration of the service/slot in minutes (Optional)
   final double? price; // Price per booking/slot (Optional)
-  final int? capacity; // Max number of people per slot (Optional, defaults based on type?)
+  final int? capacity; // Max number of people per slot (Optional)
   final Map<String, dynamic>? configData; // Optional extra config
 
   const BookableService({
     required this.id,
     required this.name,
     required this.description,
-    required this.type, // Make type required
+    required this.type,
     this.durationMinutes,
     this.price,
     this.capacity,
@@ -36,10 +37,13 @@ class BookableService extends Equatable {
       name: map['name'] as String? ?? '',
       description: map['description'] as String? ?? '',
       type: reservationTypeFromString(map['type'] as String?), // Parse type
-      durationMinutes: (map['durationMinutes'] as num?)?.toInt(), // Keep optional
+      durationMinutes:
+          (map['durationMinutes'] as num?)?.toInt(), // Keep optional
       price: (map['price'] as num?)?.toDouble(), // Keep optional
       capacity: (map['capacity'] as num?)?.toInt(), // Keep optional
-      configData: map['configData'] != null ? Map<String, dynamic>.from(map['configData']) : null, // Parse configData
+      configData: map['configData'] != null
+          ? Map<String, dynamic>.from(map['configData'])
+          : null, // Parse configData
     );
   }
 
@@ -67,7 +71,7 @@ class BookableService extends Equatable {
     double? price,
     int? capacity,
     Map<String, dynamic>? configData,
-    // Flags to explicitly set fields to null if needed (e.g., in Bloc)
+    // Flags to explicitly set fields to null if needed
     bool forceDurationNull = false,
     bool forcePriceNull = false,
     bool forceCapacityNull = false,
@@ -78,7 +82,8 @@ class BookableService extends Equatable {
       name: name ?? this.name,
       description: description ?? this.description,
       type: type ?? this.type,
-      durationMinutes: forceDurationNull ? null : (durationMinutes ?? this.durationMinutes),
+      durationMinutes:
+          forceDurationNull ? null : (durationMinutes ?? this.durationMinutes),
       price: forcePriceNull ? null : (price ?? this.price),
       capacity: forceCapacityNull ? null : (capacity ?? this.capacity),
       configData: forceConfigDataNull ? null : (configData ?? this.configData),

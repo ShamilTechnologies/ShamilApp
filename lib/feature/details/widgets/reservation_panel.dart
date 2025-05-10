@@ -45,7 +45,10 @@ class ReservationPanel extends StatelessWidget {
 
   /// Shows a dialog to select family members.
   void _showFamilySelector(
-      BuildContext context, List<AttendeeModel> currentAttendees, ServiceProviderModel currentProvider) { // Requires provider context now
+      BuildContext context,
+      List<AttendeeModel> currentAttendees,
+      ServiceProviderModel currentProvider) {
+    // Requires provider context now
     final socialBloc = context.read<SocialBloc>();
     final reservationBloc = context.read<ReservationBloc>();
     final maxGroupSize = currentProvider.maxGroupSize; // Get from provider
@@ -102,7 +105,8 @@ class ReservationPanel extends StatelessWidget {
                                   subtitle: Text(familyMember.relationship),
                                   value: false, // Checkbox starts unchecked
                                   enabled: canAddMore,
-                                  activeColor: theme.colorScheme.primary, // Use theme color
+                                  activeColor: theme
+                                      .colorScheme.primary, // Use theme color
                                   onChanged: canAddMore
                                       ? (bool? selected) {
                                           if (selected == true) {
@@ -112,9 +116,11 @@ class ReservationPanel extends StatelessWidget {
                                               userId: familyMember.userId!,
                                               name: familyMember.name,
                                               type: 'family',
-                                              status: 'going', // Family members are 'going' by default
+                                              status:
+                                                  'going', // Family members are 'going' by default
                                             )));
-                                            Navigator.of(dialogContext).pop(); // Close dialog after selection
+                                            Navigator.of(dialogContext)
+                                                .pop(); // Close dialog after selection
                                           }
                                         }
                                       : null, // Disable checkbox if cannot add more
@@ -148,100 +154,105 @@ class ReservationPanel extends StatelessWidget {
 
   /// Shows a dialog to select friends to invite.
   void _showFriendSelector(
-      BuildContext context, List<AttendeeModel> currentAttendees, ServiceProviderModel currentProvider) { // Requires provider context now
-     final socialBloc = context.read<SocialBloc>();
-     final reservationBloc = context.read<ReservationBloc>();
-     final maxGroupSize = currentProvider.maxGroupSize; // Get from provider
+      BuildContext context,
+      List<AttendeeModel> currentAttendees,
+      ServiceProviderModel currentProvider) {
+    // Requires provider context now
+    final socialBloc = context.read<SocialBloc>();
+    final reservationBloc = context.read<ReservationBloc>();
+    final maxGroupSize = currentProvider.maxGroupSize; // Get from provider
 
-     showDialog(
-       context: context,
-       builder: (dialogContext) {
-         return BlocProvider.value(
-           value: socialBloc,
-           child: BlocBuilder<SocialBloc, SocialState>(
-             builder: (ctx, socialState) {
-               List<Friend> availableFriends = [];
-               if (socialState is FriendsAndRequestsLoaded) {
-                 final currentAttendeeIds =
-                     currentAttendees.map((a) => a.userId).toSet();
-                 availableFriends = socialState.friends
-                     .where((f) => !currentAttendeeIds.contains(f.userId))
-                     .toList();
-               }
-               bool canAddMore = maxGroupSize == null ||
-                   currentAttendees.length < maxGroupSize;
-               bool isLoadingSocial =
-                   socialState is SocialLoading && socialState.isLoadingList;
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return BlocProvider.value(
+          value: socialBloc,
+          child: BlocBuilder<SocialBloc, SocialState>(
+            builder: (ctx, socialState) {
+              List<Friend> availableFriends = [];
+              if (socialState is FriendsAndRequestsLoaded) {
+                final currentAttendeeIds =
+                    currentAttendees.map((a) => a.userId).toSet();
+                availableFriends = socialState.friends
+                    .where((f) => !currentAttendeeIds.contains(f.userId))
+                    .toList();
+              }
+              bool canAddMore = maxGroupSize == null ||
+                  currentAttendees.length < maxGroupSize;
+              bool isLoadingSocial =
+                  socialState is SocialLoading && socialState.isLoadingList;
 
-               return AlertDialog(
-                 shape: RoundedRectangleBorder(
-                     borderRadius: BorderRadius.circular(15)),
-                 title: const Text("Invite Friends"),
-                 contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                 content: SizedBox(
-                   width: double.maxFinite,
-                   height: 300,
-                   child: isLoadingSocial
-                       ? const Center(child: CircularProgressIndicator())
-                       : (availableFriends.isEmpty)
-                           ? Center(
-                               child: Text("No other friends found.",
-                                   style: Theme.of(ctx)
-                                       .textTheme
-                                       .bodySmall
-                                       ?.copyWith(color: Colors.grey)))
-                           : ListView.builder(
-                               shrinkWrap: true,
-                               itemCount: availableFriends.length,
-                               itemBuilder: (listCtx, index) {
-                                 final friend = availableFriends[index];
-                                 return CheckboxListTile(
-                                   contentPadding: EdgeInsets.zero,
-                                   title: Text(friend.name),
-                                   value: false, // Checkbox starts unchecked
-                                   enabled: canAddMore,
-                                   activeColor: theme.colorScheme.primary,
-                                   onChanged: canAddMore
-                                       ? (bool? selected) {
-                                           if (selected == true) {
-                                             // Dispatch AddAttendee with 'invited' status
-                                             reservationBloc.add(AddAttendee(
-                                                 attendee: AttendeeModel(
-                                               userId: friend.userId,
-                                               name: friend.name,
-                                               type: 'friend',
-                                               status: 'invited', // Friend status starts as 'invited'
-                                             )));
-                                             Navigator.of(dialogContext).pop(); // Close dialog
-                                           }
-                                         }
-                                       : null, // Disable if max size reached
-                                 );
-                               },
-                             ),
-                 ),
-                 actionsAlignment: MainAxisAlignment.spaceBetween,
-                 actions: [
-                   // Show max group size warning if applicable
-                   if (!canAddMore && maxGroupSize != null)
-                     Padding(
-                       padding: const EdgeInsets.only(left: 10.0),
-                       child: Text("Max group size ($maxGroupSize) reached.",
-                           style: TextStyle(
-                               color: Colors.orange.shade800, fontSize: 12)),
-                     ),
-                   TextButton(
-                       onPressed: () => Navigator.of(dialogContext).pop(),
-                       child: Text("Close",
-                           style:
-                               TextStyle(color: theme.colorScheme.secondary))),
-                 ],
-               );
-             },
-           ),
-         );
-       },
-     );
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15)),
+                title: const Text("Invite Friends"),
+                contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  height: 300,
+                  child: isLoadingSocial
+                      ? const Center(child: CircularProgressIndicator())
+                      : (availableFriends.isEmpty)
+                          ? Center(
+                              child: Text("No other friends found.",
+                                  style: Theme.of(ctx)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: Colors.grey)))
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: availableFriends.length,
+                              itemBuilder: (listCtx, index) {
+                                final friend = availableFriends[index];
+                                return CheckboxListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(friend.name),
+                                  value: false, // Checkbox starts unchecked
+                                  enabled: canAddMore,
+                                  activeColor: theme.colorScheme.primary,
+                                  onChanged: canAddMore
+                                      ? (bool? selected) {
+                                          if (selected == true) {
+                                            // Dispatch AddAttendee with 'invited' status
+                                            reservationBloc.add(AddAttendee(
+                                                attendee: AttendeeModel(
+                                              userId: friend.userId,
+                                              name: friend.name,
+                                              type: 'friend',
+                                              status:
+                                                  'invited', // Friend status starts as 'invited'
+                                            )));
+                                            Navigator.of(dialogContext)
+                                                .pop(); // Close dialog
+                                          }
+                                        }
+                                      : null, // Disable if max size reached
+                                );
+                              },
+                            ),
+                ),
+                actionsAlignment: MainAxisAlignment.spaceBetween,
+                actions: [
+                  // Show max group size warning if applicable
+                  if (!canAddMore && maxGroupSize != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 10.0),
+                      child: Text("Max group size ($maxGroupSize) reached.",
+                          style: TextStyle(
+                              color: Colors.orange.shade800, fontSize: 12)),
+                    ),
+                  TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: Text("Close",
+                          style:
+                              TextStyle(color: theme.colorScheme.secondary))),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -250,9 +261,11 @@ class ReservationPanel extends StatelessWidget {
     final currentProvider = state.provider;
     // Handle the case where provider might be null (e.g., during initial error)
     if (currentProvider == null) {
-      return const Center(child: Padding(
+      return const Center(
+          child: Padding(
         padding: EdgeInsets.all(20.0),
-        child: Text("Error: Provider details are unavailable.", textAlign: TextAlign.center),
+        child: Text("Error: Provider details are unavailable.",
+            textAlign: TextAlign.center),
       ));
     }
 
@@ -263,14 +276,17 @@ class ReservationPanel extends StatelessWidget {
         .toList();
     final currentSelectedType = state.selectedReservationType;
     final attendees = state.selectedAttendees;
-    final maxGroupSize = currentProvider.maxGroupSize ?? 999; // Use provider from state
+    final maxGroupSize =
+        currentProvider.maxGroupSize ?? 999; // Use provider from state
     final bool isProcessing = isLoading || state is ReservationCreating;
 
     // Determine slotsLoading safely by CHECKING the state type
-    final bool slotsAreCurrentlyLoading = state is ReservationDateSelected && (state as ReservationDateSelected).isLoadingSlots;
+    final bool slotsAreCurrentlyLoading = state is ReservationDateSelected &&
+        (state as ReservationDateSelected).isLoadingSlots;
 
     // Determine errorMessage safely by CHECKING the state type
-    final String? errorMessage = state is ReservationError ? (state as ReservationError).message : null;
+    final String? errorMessage =
+        state is ReservationError ? (state as ReservationError).message : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,7 +351,8 @@ class ReservationPanel extends StatelessWidget {
             theme: theme,
             state: state, // Pass the full current state
             isLoading: isProcessing,
-            slotsCurrentlyLoading: slotsAreCurrentlyLoading, // Pass the safe boolean
+            slotsCurrentlyLoading:
+                slotsAreCurrentlyLoading, // Pass the safe boolean
             type: currentSelectedType,
             onTimeRangeSelected: (start, end) {
               if (!isProcessing) {
@@ -345,7 +362,8 @@ class ReservationPanel extends StatelessWidget {
               }
             },
           )
-        else if (supportedTypes.length > 1) // Show prompt only if multiple types exist and none selected
+        else if (supportedTypes.length >
+            1) // Show prompt only if multiple types exist and none selected
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20.0),
             child: Center(
@@ -354,8 +372,9 @@ class ReservationPanel extends StatelessWidget {
                       ?.copyWith(color: theme.colorScheme.secondary)),
             ),
           )
-        else if (supportedTypes.isEmpty && !isHybrid) // Handle case where reservation enabled but no types configured
-           Padding(
+        else if (supportedTypes.isEmpty &&
+            !isHybrid) // Handle case where reservation enabled but no types configured
+          Padding(
             padding: const EdgeInsets.symmetric(vertical: 20.0),
             child: Center(
               child: Text("No reservation types configured by provider.",
@@ -363,7 +382,6 @@ class ReservationPanel extends StatelessWidget {
                       ?.copyWith(color: theme.colorScheme.secondary)),
             ),
           ),
-
 
         // --- 4. Attendees Section ---
         // Render only if a type is selected
@@ -375,37 +393,46 @@ class ReservationPanel extends StatelessWidget {
             maxGroupSize: maxGroupSize,
             isLoading: isProcessing,
             // Pass the provider from state to the dialog launchers
-            onAddFamily: () => _showFamilySelector(context, attendees, currentProvider),
-            onInviteFriend: () => _showFriendSelector(context, attendees, currentProvider),
+            onAddFamily: () =>
+                _showFamilySelector(context, attendees, currentProvider),
+            onInviteFriend: () =>
+                _showFriendSelector(context, attendees, currentProvider),
           ),
-           const Gap(32),
+          const Gap(32),
         ],
-
 
         // --- Error Display & Confirmation Button ---
         // Render only if a type is selected
-        if (currentSelectedType != null) ... [
-           // Display error message if present and not currently creating
-           if (errorMessage != null && state is! ReservationCreating)
-             Padding(
-               padding: const EdgeInsets.only(bottom: 16.0),
-               child: Center(
-                   child: Text(
-                 errorMessage,
-                 style: TextStyle(color: theme.colorScheme.error),
-                 textAlign: TextAlign.center,
-               )),
-             ),
-           // Confirmation Button
-           Center(
-             child: CustomButton(
-               text: state is ReservationCreating ? 'Booking...' : 'Confirm Reservation',
-               // Check readiness using the Bloc helper method
-               onPressed: context.read<ReservationBloc>().isReservationReadyToConfirm(state, currentSelectedType) && !isProcessing
-                   ? () => context.read<ReservationBloc>().add(const CreateReservation())
-                   : null, // Button is disabled if not ready or processing
-             ),
-           ),
+        if (currentSelectedType != null) ...[
+          // Display error message if present and not currently creating
+          if (errorMessage != null && state is! ReservationCreating)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Center(
+                  child: Text(
+                errorMessage,
+                style: TextStyle(color: theme.colorScheme.error),
+                textAlign: TextAlign.center,
+              )),
+            ),
+          // Confirmation Button
+          Center(
+            child: CustomButton(
+              text: state is ReservationCreating
+                  ? 'Booking...'
+                  : 'Confirm Reservation',
+              // Check readiness using the Bloc helper method
+              onPressed: context
+                          .read<ReservationBloc>()
+                          .isReservationReadyToConfirm(
+                              state, currentSelectedType) &&
+                      !isProcessing
+                  ? () => context
+                      .read<ReservationBloc>()
+                      .add(const CreateReservation())
+                  : null, // Button is disabled if not ready or processing
+            ),
+          ),
         ],
 
         const Gap(20), // Bottom padding

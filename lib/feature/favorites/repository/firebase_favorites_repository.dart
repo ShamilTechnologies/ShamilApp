@@ -18,9 +18,11 @@ class FirebaseFavoritesRepository implements FavoritesRepository {
   Stream<List<ServiceProviderDisplayModel>> getFavorites() {
     print('Getting favorites for user: $_userId');
     try {
-      // Get the favorites collection reference
-      final favoritesRef =
-          _firestore.collection('users').doc(_userId).collection('favorites');
+      // Get the favorites collection reference - use endusers instead of users
+      final favoritesRef = _firestore
+          .collection('endusers')
+          .doc(_userId)
+          .collection('favorites');
 
       // Listen to changes in the favorites collection
       return favoritesRef.snapshots().asyncMap((favoritesSnapshot) async {
@@ -95,7 +97,7 @@ class FirebaseFavoritesRepository implements FavoritesRepository {
       print('Provider found, adding to favorites');
       // Add to favorites collection
       await _firestore
-          .collection('users')
+          .collection('endusers')
           .doc(_userId)
           .collection('favorites')
           .doc(provider.id)
@@ -114,7 +116,7 @@ class FirebaseFavoritesRepository implements FavoritesRepository {
     print('Removing from favorites: $providerId');
     try {
       await _firestore
-          .collection('users')
+          .collection('endusers')
           .doc(_userId)
           .collection('favorites')
           .doc(providerId)
@@ -130,8 +132,14 @@ class FirebaseFavoritesRepository implements FavoritesRepository {
   Future<bool> isFavorite(String providerId) async {
     print('Checking if favorite: $providerId');
     try {
+      // Check if user id is valid
+      if (_userId.isEmpty || _userId == 'guest_placeholder') {
+        print('No valid user ID to check favorite status');
+        return false;
+      }
+
       final doc = await _firestore
-          .collection('users')
+          .collection('endusers')
           .doc(_userId)
           .collection('favorites')
           .doc(providerId)
@@ -140,18 +148,97 @@ class FirebaseFavoritesRepository implements FavoritesRepository {
       return doc.exists;
     } catch (e) {
       print('Error checking favorite status: $e');
-      rethrow;
+      // Return false on error rather than rethrowing
+      return false;
     }
   }
 
   // Add a stream for checking favorite status
   Stream<bool> isFavoriteStream(String providerId) {
+    // Check if user id is valid
+    if (_userId.isEmpty || _userId == 'guest_placeholder') {
+      print('No valid user ID for favorite stream');
+      return Stream.value(false);
+    }
+
     return _firestore
-        .collection('users')
+        .collection('endusers')
         .doc(_userId)
         .collection('favorites')
         .doc(providerId)
         .snapshots()
         .map((doc) => doc.exists);
+  }
+
+  @override
+  Future<List<ServiceProviderDisplayModel>> getFavoritesList() async {
+    print('Getting favorites list for user: $_userId');
+    try {
+      // Check if user id is valid
+      if (_userId.isEmpty || _userId == 'guest_placeholder') {
+        print('No valid user ID to get favorites');
+        return [];
+      }
+
+      // Get the favorites collection reference
+      final favoritesRef = _firestore
+          .collection('endusers')
+          .doc(_userId)
+          .collection('favorites');
+
+      // Get favorites snapshot once
+      final favoritesSnapshot = await favoritesRef.get();
+
+      print(
+          'Favorites snapshot received with ${favoritesSnapshot.docs.length} documents');
+
+      if (favoritesSnapshot.docs.isEmpty) {
+        print('No favorites found');
+        return [];
+      }
+
+      final List<ServiceProviderDisplayModel> favorites = [];
+      final List<Future<void>> fetchFutures = [];
+
+      // For each favorite document, fetch the corresponding service provider
+      for (var favoriteDoc in favoritesSnapshot.docs) {
+        final providerId = favoriteDoc.id;
+        final future = _firestore
+            .collection('service_providers')
+            .doc(providerId)
+            .get()
+            .then((providerDoc) {
+          if (providerDoc.exists) {
+            try {
+              final provider = ServiceProviderDisplayModel.fromFirestore(
+                providerDoc,
+                isFavorite: true,
+              );
+              favorites.add(provider);
+              print(
+                  'Added provider to favorites list: ${provider.businessName}');
+            } catch (e) {
+              print('Error processing provider document ${providerId}: $e');
+            }
+          } else {
+            print('Provider document not found: $providerId');
+          }
+        }).catchError((error) {
+          print('Error fetching provider document ${providerId}: $error');
+        });
+
+        fetchFutures.add(future);
+      }
+
+      // Wait for all provider documents to be fetched
+      await Future.wait(fetchFutures);
+
+      print('Returning ${favorites.length} favorites (direct)');
+      return favorites;
+    } catch (e) {
+      print('Error in getFavoritesList: $e');
+      // Return empty list on error instead of rethrowing
+      return [];
+    }
   }
 }

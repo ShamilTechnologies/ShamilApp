@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NFCReaderUsageDescription</key>
+	<string>We need to use NFC to enable contactless access to venues.</string>
 </dict>
 </plist>

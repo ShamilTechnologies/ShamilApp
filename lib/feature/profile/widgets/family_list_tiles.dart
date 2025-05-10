@@ -1,104 +1,362 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
+import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
+import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
+import 'package:gap/gap.dart';
+import 'package:shimmer/shimmer.dart';
 // Import placeholder builder and image data if needed directly
-import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart' show buildProfilePlaceholder, transparentImageData;
-
+import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart'
+    show buildProfilePlaceholder, transparentImageData;
 
 /// Builds a ListTile for an accepted/external family member.
-Widget buildFamilyMemberTile(BuildContext context, ThemeData theme, FamilyMember member) {
-   const double listAvatarSize = 44.0;
-   final listBorderRadius = BorderRadius.circular(8.0);
-
-   Widget leadingWidget = SizedBox(
-      width: listAvatarSize, height: listAvatarSize,
-      child: ClipRRect(
-        borderRadius: listBorderRadius,
-        child: (member.profilePicUrl == null || member.profilePicUrl!.isEmpty)
-            ? buildProfilePlaceholder(listAvatarSize, theme, listBorderRadius)
-            : FadeInImage.memoryNetwork(
-                placeholder: transparentImageData, image: member.profilePicUrl!,
-                width: listAvatarSize, height: listAvatarSize, fit: BoxFit.cover,
-                imageErrorBuilder: (context, error, stackTrace) => buildProfilePlaceholder(listAvatarSize, theme, listBorderRadius),
-              ),
+Widget buildFamilyMemberTile(
+    BuildContext context, ThemeData theme, FamilyMember member) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            // Could navigate to member details in the future
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Profile picture or placeholder
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: member.profilePicUrl != null &&
+                          member.profilePicUrl!.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            member.profilePicUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              CupertinoIcons.person_fill,
+                              color: AppColors.primaryColor,
+                              size: 28,
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          CupertinoIcons.person_fill,
+                          color: AppColors.primaryColor,
+                          size: 28,
+                        ),
+                ),
+                const Gap(16),
+                // Member details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              member.name,
+                              style: AppTextStyle.getTitleStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              member.relationship,
+                              style: AppTextStyle.getSmallStyle(
+                                color: AppColors.primaryColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Gap(4),
+                      if (member.phone != null && member.phone!.isNotEmpty)
+                        Row(
+                          children: [
+                            Icon(
+                              CupertinoIcons.phone,
+                              size: 14,
+                              color: AppColors.secondaryText,
+                            ),
+                            const Gap(4),
+                            Text(
+                              member.phone!,
+                              style: AppTextStyle.getSmallStyle(
+                                color: AppColors.secondaryText,
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (member.email != null && member.email!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Row(
+                            children: [
+                              Icon(
+                                CupertinoIcons.mail,
+                                size: 14,
+                                color: AppColors.secondaryText,
+                              ),
+                              const Gap(4),
+                              Expanded(
+                                child: Text(
+                                  member.email!,
+                                  style: AppTextStyle.getSmallStyle(
+                                    color: AppColors.secondaryText,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // Remove button
+                IconButton(
+                  icon: const Icon(
+                    CupertinoIcons.person_badge_minus,
+                    color: Colors.red,
+                  ),
+                  onPressed: () {
+                    _showRemoveMemberDialog(context, member);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-   );
-
-   return Card(
-     elevation: 1.5, margin: const EdgeInsets.symmetric(vertical: 5.0), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-     child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
-        leading: leadingWidget,
-        title: Text(member.name, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-        subtitle: Text("${member.relationship}${member.status == 'pending_sent' ? ' (Request Sent)' : ''}"),
-        trailing: (member.status != 'pending_sent')
-           ? IconButton( icon: Icon(Icons.delete_outline_rounded, color: Colors.red.shade400, size: 22,), tooltip: "Remove Member",
-              onPressed: () {
-                 showDialog(context: context, builder: (ctx) => AlertDialog( title: const Text("Confirm Removal"), content: Text("Remove ${member.name} from your family list?"),
-                    actions: [ TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text("Cancel")),
-                       TextButton(onPressed: () { context.read<SocialBloc>().add(RemoveFamilyMember(memberDocId: member.id)); Navigator.of(ctx).pop(); }, child: const Text("Remove", style: TextStyle(color: AppColors.redColor))), ], )); }, )
-           : null,
-     ),
-   );
+    ),
+  );
 }
 
 /// Builds a ListTile for an incoming family request.
-Widget buildFamilyRequestTile(BuildContext context, ThemeData theme, FamilyRequest request) {
-    const double listAvatarSize = 44.0;
-    final listBorderRadius = BorderRadius.circular(8.0);
-
-    Widget leadingWidget = SizedBox(
-      width: listAvatarSize, height: listAvatarSize,
-      child: ClipRRect(
-        borderRadius: listBorderRadius,
-        child: (request.profilePicUrl == null || request.profilePicUrl!.isEmpty)
-            ? buildProfilePlaceholder(listAvatarSize, theme, listBorderRadius)
-            : FadeInImage.memoryNetwork(
-                placeholder: transparentImageData, image: request.profilePicUrl!,
-                width: listAvatarSize, height: listAvatarSize, fit: BoxFit.cover,
-                imageErrorBuilder: (context, error, stackTrace) => buildProfilePlaceholder(listAvatarSize, theme, listBorderRadius),
-              ),
+Widget buildFamilyRequestTile(
+    BuildContext context, ThemeData theme, FamilyRequest request) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+      border: Border.all(
+        color: AppColors.accentColor.withOpacity(0.3),
+        width: 1,
       ),
-    );
-
-    return Card(
-      elevation: 1.5, color: AppColors.accentColor.withOpacity(0.6),
-      margin: const EdgeInsets.symmetric(vertical: 5.0), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: ListTile(
-         contentPadding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
-         leading: leadingWidget,
-         title: Text(request.name, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-         subtitle: Text("Wants to add you as: ${request.relationship}"),
-         trailing: Row( // Accept / Decline Buttons
-           mainAxisSize: MainAxisSize.min,
-           children: [
-              _buildRequestActionButton( context: context, theme: theme, icon: Icons.check_rounded, color: Colors.green, tooltip: 'Accept',
-                 onTap: () {
-                    print("Accept family request from ${request.userId}");
-                    // Dispatch event with all necessary info for the other user's update
-                    context.read<SocialBloc>().add(AcceptFamilyRequest(requesterUserId: request.userId, requesterName: request.name, requesterProfilePicUrl: request.profilePicUrl, requesterRelationship: request.relationship));
-                 },
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Profile picture or placeholder
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: AppColors.accentColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: request.profilePicUrl != null &&
+                        request.profilePicUrl!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          request.profilePicUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            CupertinoIcons.person_fill,
+                            color: AppColors.accentColor,
+                            size: 24,
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        CupertinoIcons.person_fill,
+                        color: AppColors.accentColor,
+                        size: 24,
+                      ),
               ),
-              const SizedBox(width: 8),
-              _buildRequestActionButton( context: context, theme: theme, icon: Icons.close_rounded, color: Colors.red, tooltip: 'Decline',
-                 onTap: () {
-                    print("Decline family request from ${request.userId}");
-                    context.read<SocialBloc>().add(DeclineFamilyRequest(requesterUserId: request.userId));
-                 },
+              const Gap(16),
+              // Request details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      request.name,
+                      style: AppTextStyle.getTitleStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Gap(2),
+                    Text(
+                      "Wants to connect as your ${request.relationship}",
+                      style: AppTextStyle.getSmallStyle(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-           ],
-         )
+            ],
+          ),
+          // Action buttons
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  onPressed: () {
+                    context.read<SocialBloc>().add(
+                        DeclineFamilyRequest(requesterUserId: request.userId));
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    minimumSize: const Size(0, 36),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: const Text('Decline'),
+                ),
+                const Gap(12),
+                ElevatedButton(
+                  onPressed: () {
+                    context.read<SocialBloc>().add(
+                          AcceptFamilyRequest(
+                            requesterUserId: request.userId,
+                            requesterName: request.name,
+                            requesterProfilePicUrl: request.profilePicUrl,
+                            requesterRelationship: request.relationship,
+                          ),
+                        );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    minimumSize: const Size(0, 36),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: const Text('Accept'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-    );
+    ),
+  );
 }
 
-/// Helper to build action buttons for requests
-Widget _buildRequestActionButton({ required BuildContext context, required ThemeData theme, required IconData icon, required Color color, required String tooltip, required VoidCallback onTap }) {
-    return Tooltip( message: tooltip, child: Material( color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8.0),
-       child: InkWell( onTap: onTap, borderRadius: BorderRadius.circular(8.0), splashColor: color.withOpacity(0.3), highlightColor: color.withOpacity(0.2),
-          child: Padding( padding: const EdgeInsets.all(8.0), child: Icon(icon, color: color, size: 20), ),
-       ), ), );
- }
-
+void _showRemoveMemberDialog(BuildContext context, FamilyMember member) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      title: const Text('Remove Family Member'),
+      content: RichText(
+        text: TextSpan(
+          style: AppTextStyle.getbodyStyle(
+            color: Colors.black87,
+          ),
+          children: [
+            const TextSpan(
+              text: 'Are you sure you want to remove ',
+            ),
+            TextSpan(
+              text: member.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const TextSpan(
+              text: ' from your family members?',
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: AppTextStyle.getbodyStyle(
+              color: AppColors.secondaryText,
+            ),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+            context.read<SocialBloc>().add(
+                  RemoveFamilyMember(memberDocId: member.id),
+                );
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(50),
+            ),
+          ),
+          child: const Text('Remove'),
+        ),
+      ],
+    ),
+  );
+}

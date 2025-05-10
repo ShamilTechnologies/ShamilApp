@@ -1,368 +1,303 @@
+// lib/feature/social/views/find_friends_view.dart
+import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shamil_mobile_app/core/utils/text_field_templates.dart';
-import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
-import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart'; // Import SocialBloc & States
+import 'package:gap/gap.dart';
+import 'package:shamil_mobile_app/core/utils/colors.dart';
+import 'package:shamil_mobile_app/core/utils/text_style.dart' as app_text_style;
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // Import AppColors if needed
-import 'dart:async'; // Import for Timer (debounce)
-import 'dart:typed_data'; // For placeholder image data
-// Import placeholder builder helper from profile view
-import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart'
-    show buildProfilePlaceholder, transparentImageData;
+import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
+import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
+import 'package:shamil_mobile_app/core/widgets/placeholders.dart';
 
 class FindFriendsView extends StatefulWidget {
   const FindFriendsView({super.key});
+
   @override
   State<FindFriendsView> createState() => _FindFriendsViewState();
 }
 
 class _FindFriendsViewState extends State<FindFriendsView> {
-  final _searchController = TextEditingController();
-  // Store results with status from Bloc state
-  List<UserSearchResultWithStatus> _searchResults = [];
-  bool _isLoading = false; // Local loading state for search initiation
-  String _currentQuery = '';
-  Timer? _debounce; // Timer for debouncing search input
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+  String _activeSearchQuery = "";
 
   @override
   void dispose() {
     _searchController.dispose();
-    _debounce?.cancel(); // Cancel timer on dispose
+    _debounce?.cancel();
     super.dispose();
   }
 
-  /// Debounced search function - called when search text changes
   void _onSearchChanged(String query) {
-    // Cancel previous timer if active
+    _activeSearchQuery = query.trim();
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    // Start new timer - wait 500ms after user stops typing
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _searchUsers(query); // Perform search after delay
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      context.read<SocialBloc>().add(SearchUsers(query: _activeSearchQuery));
     });
   }
 
-  /// Triggers the user search via the SocialBloc.
-  void _searchUsers(String query) {
-    final trimmedQuery = query.trim();
-    // Update local state immediately for loading feedback
-    setState(() {
-      _currentQuery = trimmedQuery;
-      _isLoading =
-          trimmedQuery.isNotEmpty; // Show loading only if query is not empty
-      // Clear previous results when starting a new search
-      if (_isLoading) {
-        _searchResults = [];
-      }
-    });
-    // Dispatch event only if query is not empty
-    if (trimmedQuery.isNotEmpty) {
-      try {
-        // Access SocialBloc provided by parent (e.g., ProfileScreen or FriendsView)
-        context.read<SocialBloc>().add(SearchUsers(query: trimmedQuery));
-      } catch (e) {
-        print("Error accessing SocialBloc: $e");
-        // Handle error if Bloc is not available
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-          showGlobalSnackBar(context, "Could not perform search.",
-              isError: true);
-        }
-      }
+  Widget _buildActionButton(BuildContext context, ThemeData theme, UserSearchResultWithStatus userWithStatus) {
+    final socialBloc = context.read<SocialBloc>();
+    final String targetUserId = userWithStatus.user.uid;
+    final String targetUserName = userWithStatus.user.name;
+    final String? targetUserPicUrl = userWithStatus.user.profilePicUrl ?? userWithStatus.user.image;
+
+    final bool isProcessingThisUser = (socialBloc.state is SocialLoading &&
+                                     (socialBloc.state as SocialLoading).processingUserId == targetUserId);
+
+    if (isProcessingThisUser) {
+      return const SizedBox(
+        width: 100, height: 38,
+        child: Center(child: CupertinoActivityIndicator(radius: 9, color: AppColors.primaryColor)),
+      );
     }
+
+    Widget button;
+    switch (userWithStatus.status) {
+      case FriendshipStatus.none:
+        button = ElevatedButton.icon(
+          icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+          label: const Text("Add"),
+          onPressed: () => socialBloc.add(SendFriendRequest(
+              targetUserId: targetUserId,
+              targetUserName: targetUserName,
+              targetUserPicUrl: targetUserPicUrl)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryColor, foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            textStyle: app_text_style.getSmallStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+        break;
+      case FriendshipStatus.requestSent:
+        button = OutlinedButton.icon(
+          icon: Icon(Icons.outgoing_mail, size: 18, color: Colors.orange.shade700),
+          label: Text("Sent", style: app_text_style.getSmallStyle(color: Colors.orange.shade800, fontWeight: FontWeight.w500, fontSize: 13)),
+          onPressed: () => socialBloc.add(UnsendFriendRequest(targetUserId: targetUserId)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: Colors.orange.shade400),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+        break;
+      case FriendshipStatus.requestReceived:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(
+              onPressed: ()  => socialBloc.add(DeclineFriendRequest(requesterUserId: targetUserId)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal:12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text("Decline", style: app_text_style.getSmallStyle(color: theme.colorScheme.error, fontSize: 13, fontWeight: FontWeight.w500))
+            ),
+            const Gap(6),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+              label: const Text("Accept"),
+              onPressed: () => socialBloc.add(AcceptFriendRequest(
+                  requesterUserId: targetUserId,
+                  requesterUserName: targetUserName,
+                  requesterUserPicUrl: targetUserPicUrl)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade600, foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                textStyle: app_text_style.getSmallStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        );
+      case FriendshipStatus.friends:
+        button = Chip(
+          avatar: Icon(Icons.check_circle_rounded, size: 18, color: theme.colorScheme.primary),
+          label: Text("Friends", style: app_text_style.getSmallStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w500)),
+          backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        );
+        break;
+    }
+    return SizedBox(width: 110, child: button); // Ensure buttons have a consistent min width
   }
 
-  /// Dispatches the SendFriendRequest event.
-  void _sendRequest(AuthModel targetUser) {
-    try {
-      // Access SocialBloc provided by parent
-      context.read<SocialBloc>().add(SendFriendRequest(
-            targetUserId: targetUser.uid,
-            targetUserName: targetUser.name, // Pass denormalized data
-            targetUserPicUrl: targetUser.profilePicUrl ??
-                targetUser.image, // Pass denormalized data
-          ));
-      // Provide immediate feedback to the user
-      showGlobalSnackBar(context, "Friend request sent to ${targetUser.name}");
-      // Update local state to show "Sent" immediately for better UX
-      // This provides instant feedback while waiting for Bloc to reload lists
-      setState(() {
-        final index =
-            _searchResults.indexWhere((res) => res.user.uid == targetUser.uid);
-        if (index != -1) {
-          // Create a new object with updated status
-          _searchResults[index] = UserSearchResultWithStatus(
-              user: targetUser, status: FriendshipStatus.requestSent);
-        }
-      });
-    } catch (e) {
-      print("Error accessing SocialBloc: $e");
-      showGlobalSnackBar(context, "Could not send request.", isError: true);
-    }
-  }
-
-  /// Dispatches the UnsendFriendRequest event.
-  void _unsendRequest(AuthModel targetUser) {
-    try {
-      context
-          .read<SocialBloc>()
-          .add(UnsendFriendRequest(targetUserId: targetUser.uid));
-      showGlobalSnackBar(
-          context, "Friend request cancelled for ${targetUser.name}");
-      // Update local state to show "Add" immediately
-      setState(() {
-        final index =
-            _searchResults.indexWhere((res) => res.user.uid == targetUser.uid);
-        if (index != -1) {
-          // Create a new object with updated status
-          _searchResults[index] = UserSearchResultWithStatus(
-              user: targetUser, status: FriendshipStatus.none);
-        }
-      });
-    } catch (e) {
-      print("Error accessing SocialBloc: $e");
-      showGlobalSnackBar(context, "Could not cancel request.", isError: true);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Find Friends')),
-      // Use BlocListener to update local state based on Bloc state changes
-      body: BlocListener<SocialBloc, SocialState>(
-        // Listen for the specific result state or errors related to search
-        listenWhen: (prev, current) =>
-            current is FriendSearchResultsWithStatus ||
-            (current is SocialError && current.message.contains("search")),
-        listener: (context, state) {
-          // Update local state when new search results arrive from the Bloc
-          if (state is FriendSearchResultsWithStatus &&
-              state.query == _currentQuery) {
-            if (mounted) {
-              setState(() {
-                _searchResults =
-                    state.results; // Update with results containing status
-                _isLoading = false; // Turn off loading indicator
-              });
-            }
-          } else if (state is SocialError && _isLoading) {
-            // Check local loading flag
-            // Handle search error
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _searchResults = [];
-              });
-            }
-            showGlobalSnackBar(
-                context, "Error searching users: ${state.message}",
-                isError: true);
-          }
-          // Note: Success/Error feedback for send/unsend actions are handled
-          // via snackbars in their respective methods (_sendRequest, _unsendRequest)
-          // and the button state updates locally immediately. The Bloc reloading
-          // the main friend list ensures consistency if the user navigates back.
-        },
-        // Main UI structure
-        child: Column(
-          children: [
-            // Search Bar
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: GeneralTextFormField(
-                controller: _searchController,
-                labelText: 'Search Users',
-                hintText: 'Enter name or username...',
-                textInputAction: TextInputAction.search,
-                prefixIcon: const Icon(Icons.search),
-                onChanged: _onSearchChanged, // Trigger debounced search
-              ),
-            ),
-            // Conditional display based on loading and search results
-            if (_isLoading)
-              const Expanded(child: Center(child: CircularProgressIndicator()))
-            else if (_searchResults.isEmpty && _currentQuery.isNotEmpty)
-              Expanded(
-                  child: Center(
-                      child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Text('No users found matching "$_currentQuery".',
-                    textAlign: TextAlign.center),
-              )))
-            else if (_searchResults.isEmpty && _currentQuery.isEmpty)
-              Expanded(
-                  child: Center(
-                      child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Text('Enter a name or username above to find friends.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: Colors.grey)),
-              )))
-            else
-              // Display search results list
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.only(
-                      bottom: 16.0), // Add padding at the bottom
-                  itemCount: _searchResults.length,
-                  separatorBuilder: (context, index) => const Divider(
-                      height: 1,
-                      indent: 78,
-                      endIndent:
-                          16), // Adjust indent based on leading size + padding
-                  itemBuilder: (context, index) {
-                    final result =
-                        _searchResults[index]; // UserSearchResultWithStatus
-                    final user = result.user;
-                    final status =
-                        result.status; // Actual status from Bloc/local update
-
-                    // Squared Photo Logic
-                    const double listAvatarSize = 48.0;
-                    final listBorderRadius = BorderRadius.circular(10.0);
-                    final String profilePicUrl =
-                        user.profilePicUrl ?? user.image;
-                    Widget leadingWidget = SizedBox(
-                      width: listAvatarSize,
-                      height: listAvatarSize,
-                      child: ClipRRect(
-                        borderRadius: listBorderRadius,
-                        child: (profilePicUrl.isEmpty)
-                            ? buildProfilePlaceholder(listAvatarSize, theme,
-                                listBorderRadius) // Use helper
-                            : FadeInImage.memoryNetwork(
-                                placeholder: transparentImageData,
-                                image: profilePicUrl,
-                                width: listAvatarSize,
-                                height: listAvatarSize,
-                                fit: BoxFit.cover,
-                                imageErrorBuilder:
-                                    (context, error, stackTrace) =>
-                                        buildProfilePlaceholder(listAvatarSize,
-                                            theme, listBorderRadius),
-                              ),
-                      ),
-                    );
-
-                    // Build list tile for each user
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 8.0,
-                          horizontal: 16.0), // Increased vertical padding
-                      leading: leadingWidget, // Use squared photo widget
-                      title: Text(user.name,
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600)),
-                      subtitle: Text("@${user.username}",
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(color: Colors.grey.shade600)),
-                      // Pass actual status to button builder
-                      trailing:
-                          _buildFriendButton(context, theme, user, status),
-                    );
-                  },
+      appBar: AppBar(
+        title: Text('Find Friends', style: app_text_style.getTitleStyle(color: Colors.white)),
+        backgroundColor: AppColors.primaryColor,
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 2,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(64.0),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 12.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by name or username...',
+                hintStyle: app_text_style.getbodyStyle(color: AppColors.secondaryText.withOpacity(0.7)),
+                prefixIcon: Icon(Icons.search_rounded, color: AppColors.secondaryText.withOpacity(0.7)),
+                filled: true,
+                fillColor: theme.scaffoldBackgroundColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  borderSide: BorderSide(color: AppColors.primaryColor, width: 1.5),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear_rounded, color: AppColors.secondaryText.withOpacity(0.7)),
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                      )
+                    : null,
               ),
+              onChanged: _onSearchChanged,
+              style: app_text_style.getbodyStyle(color: AppColors.primaryText),
+            ),
+          ),
+        ),
+      ),
+      body: BlocConsumer<SocialBloc, SocialState>(
+        listener: (context, state) {
+          if (state is SocialSuccess && ModalRoute.of(context)?.isCurrent == true) {
+            showGlobalSnackBar(context, state.message, isError: false);
+          } else if (state is SocialError && ModalRoute.of(context)?.isCurrent == true) {
+            showGlobalSnackBar(context, state.message, isError: true);
+          }
+        },
+        builder: (context, state) {
+          if (state is SocialLoading && state.isLoadingList && _activeSearchQuery.isEmpty) {
+            return const Center(child: CupertinoActivityIndicator(radius: 15));
+          }
+          if (state is SocialLoading && _activeSearchQuery.isNotEmpty && state.processingUserId == null) {
+            return _buildShimmerList(theme);
+          }
+
+          if (state is FriendSearchResultsLoaded) {
+            if (state.results.isEmpty && state.query.isNotEmpty) {
+              return _buildEmptyState(
+                theme,
+                icon: Icons.person_search_outlined,
+                title: "No users found for \"${state.query}\"",
+                message: "Try a different name or username, or check for typos. Make sure the user has an account.",
+              );
+            } else if (state.results.isEmpty && state.query.isEmpty) {
+               return _buildEmptyState(
+                theme,
+                icon: Icons.connect_without_contact_rounded,
+                title: "Find Your Friends",
+                message: "Enter a name or username in the search bar above to connect with people you know on the platform.",
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+              itemCount: state.results.length,
+              separatorBuilder: (context, index) => const Divider(height: 0.5, thickness: 0.3, indent: 16, endIndent: 16),
+              itemBuilder: (context, index) {
+                final userWithStatus = state.results[index];
+                final user = userWithStatus.user;
+                return ListTile(
+                  leading: buildProfilePlaceholder( // Corrected call with named parameters
+                    imageUrl: user.profilePicUrl ?? user.image,
+                    name: user.name,
+                    size: 48.0,
+                    borderRadius: BorderRadius.circular(8.0), // Squared with 8px radius
+                  ),
+                  title: Text(user.name, style: app_text_style.getTitleStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                  subtitle: Text("@${user.username}", style: app_text_style.getSmallStyle(color: theme.colorScheme.secondary)),
+                  trailing: _buildActionButton(context, theme, userWithStatus),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 8.0),
+                  onTap: () {
+                     showGlobalSnackBar(context, "Tapped on ${user.name}", isError: false);
+                  },
+                );
+              },
+            );
+          }
+          return _buildEmptyState(
+            theme,
+            icon: Icons.group_add_outlined,
+            title: "Connect with Others",
+            message: "Use the search bar to find friends and family on the platform.",
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme, {required IconData icon, required String title, required String message}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, size: 70, color: theme.colorScheme.secondary.withOpacity(0.5)),
+            const Gap(20),
+            Text(title, style: app_text_style.getTitleStyle(fontSize: 19, color: theme.colorScheme.onBackground.withOpacity(0.8)), textAlign: TextAlign.center),
+            const Gap(10),
+            Text(message, style: app_text_style.getbodyStyle(color: theme.colorScheme.secondary, height: 1.5), textAlign: TextAlign.center),
           ],
         ),
       ),
     );
   }
 
-  /// Helper widget to build the appropriate button based on friend status
-  Widget _buildFriendButton(BuildContext context, ThemeData theme,
-      AuthModel targetUser, FriendshipStatus status) {
-    final socialBloc = context.read<SocialBloc>(); // Get bloc instance
-
-    // Define common button styles
-    final buttonStyle = ElevatedButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      textStyle:
-          theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-      minimumSize: const Size(80, 38),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  Widget _buildShimmerList(ThemeData theme) {
+    return ListView.builder(
+      itemCount: 7,
+      padding: const EdgeInsets.all(16.0),
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10.0),
+          child: Row(
+            children: [
+              Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                      color: theme.disabledColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8.0)
+                  )
+              ),
+              const Gap(12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(height: 18, width: MediaQuery.of(context).size.width * 0.45, color: theme.disabledColor.withOpacity(0.1)),
+                    const Gap(8),
+                    Container(height: 14, width: MediaQuery.of(context).size.width * 0.3, color: theme.disabledColor.withOpacity(0.1)),
+                  ],
+                ),
+              ),
+              const Gap(12),
+              Container(height: 36, width: 90, decoration: BoxDecoration(color: theme.disabledColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8))),
+            ],
+          ),
+        );
+      },
     );
-    final outlinedButtonStyle = OutlinedButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      textStyle:
-          theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-      minimumSize: const Size(80, 38),
-      side: BorderSide(color: Colors.grey.shade400),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    );
-
-    // Determine button based on actual status
-    switch (status) {
-      case FriendshipStatus.friends:
-        // Already friends - show disabled "Friends" button
-        return OutlinedButton(
-          style: outlinedButtonStyle.copyWith(
-              foregroundColor: WidgetStateProperty.all(Colors.grey)),
-          onPressed: null,
-          child: const Text("Friends"),
-        );
-      case FriendshipStatus.requestSent:
-        // Request already sent by current user - show "Sent" button with unsend action
-        return OutlinedButton(
-          style: outlinedButtonStyle.copyWith(
-              foregroundColor:
-                  WidgetStateProperty.all(Colors.orange.shade800),
-              side: WidgetStateProperty.all(
-                  BorderSide(color: Colors.orange.shade300))),
-          onPressed: () => _unsendRequest(targetUser), // Call unsend handler
-          child: const Text("Sent"),
-        );
-      case FriendshipStatus.requestReceived:
-        // Request received from this user - show "Accept" button
-        return ElevatedButton(
-          onPressed: () {
-            socialBloc.add(AcceptFriendRequest(
-              requesterUserId: targetUser.uid,
-              requesterUserName: targetUser.name,
-              requesterUserPicUrl: targetUser.profilePicUrl ?? targetUser.image,
-            ));
-          },
-          style: buttonStyle.copyWith(
-              backgroundColor:
-                  WidgetStateProperty.all(Colors.green.shade600)),
-          child: const Text("Accept"),
-        );
-      case FriendshipStatus.none:
-      default: // No relationship or request pending - show "Add" button
-        return ElevatedButton(
-          style: buttonStyle,
-          onPressed: () => _sendRequest(targetUser),
-          child: const Text("Add"),
-        );
-    }
   }
-}
-
-/// Helper to build placeholder (copied from profile_view.dart)
-Widget buildProfilePlaceholder(
-    double size, ThemeData theme, BorderRadius borderRadius) {
-  return Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      color: theme.colorScheme.primary.withOpacity(0.05),
-      borderRadius: borderRadius,
-      border: Border.all(
-        color: theme.colorScheme.primary.withOpacity(0.1),
-        width: 1.0,
-      ),
-    ),
-    child: Center(
-      child: Icon(
-        Icons.person_rounded,
-        size: size * 0.6,
-        color: theme.colorScheme.primary.withOpacity(0.4),
-      ),
-    ),
-  );
 }

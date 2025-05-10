@@ -238,199 +238,299 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      body: MultiBlocListener(
-        listeners: [
-          BlocListener<HomeBloc, HomeState>(
-            listener: (context, state) {
-              if (!mounted) return;
-              if (state is HomeDataLoaded) {
-                setStateIfMounted(() {
-                  _currentCity = state.selectedCity ?? "Unknown City";
-                  _activeFilterCategory = state.filteredByCategory;
-                  _activeSearchQuery = state.searchQuery;
-                });
-              } else if (state is HomeError && !state.isInitialError) {
-                ScaffoldMessenger.of(context).removeCurrentSnackBar();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text("Couldn't refresh: ${state.message}"),
-                      backgroundColor: Colors.orange[700]),
+      // Update background to a beautiful gradient
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      body: Container(
+        decoration: BoxDecoration(
+          // Subtle gradient background that complements the content
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppColors.primaryColor,
+              AppColors.primaryColor.withOpacity(0.95),
+              AppColors.lightBackground,
+            ],
+            stops: const [0.0, 0.25, 0.5],
+          ),
+        ),
+        child: MultiBlocListener(
+          listeners: [
+            BlocListener<HomeBloc, HomeState>(
+              listener: (context, state) {
+                if (!mounted) return;
+                if (state is HomeDataLoaded) {
+                  setStateIfMounted(() {
+                    _currentCity = state.selectedCity ?? "Unknown City";
+                    _activeFilterCategory = state.filteredByCategory;
+                    _activeSearchQuery = state.searchQuery;
+                  });
+                } else if (state is HomeError && !state.isInitialError) {
+                  ScaffoldMessenger.of(context).removeCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text("Couldn't refresh: ${state.message}"),
+                        backgroundColor: Colors.orange[700]),
+                  );
+                }
+              },
+            ),
+            BlocListener<AuthBloc, AuthState>(
+              listener: (context, authState) {
+                if (!mounted) return;
+                _updateUserDataFromAuthBloc(authState);
+              },
+            ),
+          ],
+          child: BlocBuilder<HomeBloc, HomeState>(
+            builder: (context, state) {
+              final bool isInitialLoading = state is HomeLoading &&
+                  state.isInitialLoading &&
+                  state.previousState == null;
+              final bool isInitialError = state is HomeError &&
+                  state.isInitialError &&
+                  state.previousState == null;
+
+              if (isInitialLoading) {
+                return HomeLoadingShimmer(
+                    userName: _userName, profileImageUrl: _userImageUrl);
+              }
+              if (isInitialError) {
+                return HomeErrorWidget(
+                  message: (state as HomeError).message,
+                  onRetry: () => context
+                      .read<HomeBloc>()
+                      .add(const LoadHomeData(isRefresh: true)),
                 );
               }
-            },
-          ),
-          BlocListener<AuthBloc, AuthState>(
-            listener: (context, authState) {
-              if (!mounted) return;
-              _updateUserDataFromAuthBloc(authState);
-            },
-          ),
-        ],
-        child: BlocBuilder<HomeBloc, HomeState>(
-          builder: (context, state) {
-            final bool isInitialLoading = state is HomeLoading &&
-                state.isInitialLoading &&
-                state.previousState == null;
-            final bool isInitialError = state is HomeError &&
-                state.isInitialError &&
-                state.previousState == null;
 
-            if (isInitialLoading) {
-              return HomeLoadingShimmer(
-                  userName: _userName, profileImageUrl: _userImageUrl);
-            }
-            if (isInitialError) {
-              return HomeErrorWidget(
-                message: (state as HomeError).message,
-                onRetry: () => context
-                    .read<HomeBloc>()
-                    .add(const LoadHomeData(isRefresh: true)),
-              );
-            }
+              HomeData? homeData;
+              bool isEffectivelyLoading = state is HomeLoading;
 
-            HomeData? homeData;
-            bool isEffectivelyLoading = state is HomeLoading;
-
-            if (state is HomeDataLoaded) {
-              homeData = state.homeData;
-            } else if (state is HomeLoading && state.previousState != null) {
-              homeData = state.previousState!.homeData;
-            } else if (state is HomeError && state.previousState != null) {
-              homeData = state.previousState!.homeData;
-            }
-
-            // Determine if results are being shown (from search or filter)
-            final bool isShowingResults =
-                _activeSearchQuery != null || _activeFilterCategory != null;
-            List<ServiceProviderDisplayModel> mainProviderList = homeData
-                    ?.nearbyPlaces ??
-                []; // Default to nearby, will be overwritten if searching/filtering
-            String mainListTitle = "Nearby You"; // Default title
-
-            if (isShowingResults) {
-              if (_activeSearchQuery != null) {
-                mainListTitle = "Results for \"$_activeSearchQuery\"";
-                // Assuming searchResults are placed in nearbyPlaces by the Bloc for now
-                mainProviderList =
-                    homeData?.searchResults ?? homeData?.nearbyPlaces ?? [];
-              } else if (_activeFilterCategory != null) {
-                mainListTitle = "Results for \"$_activeFilterCategory\"";
-                // Assuming categoryFilteredResults are placed in nearbyPlaces by the Bloc for now
-                mainProviderList = homeData?.categoryFilteredResults ??
-                    homeData?.nearbyPlaces ??
-                    [];
+              if (state is HomeDataLoaded) {
+                homeData = state.homeData;
+              } else if (state is HomeLoading && state.previousState != null) {
+                homeData = state.previousState!.homeData;
+              } else if (state is HomeError && state.previousState != null) {
+                homeData = state.previousState!.homeData;
               }
-            }
 
-            return RefreshIndicator(
-              onRefresh: () async {
-                context
-                    .read<HomeBloc>()
-                    .add(const LoadHomeData(isRefresh: true));
-                await context
-                    .read<HomeBloc>()
-                    .stream
-                    .firstWhere((s) => s is HomeDataLoaded || s is HomeError);
-              },
-              color: AppColors.primaryColor,
-              backgroundColor: AppColors.lightBackground,
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const BouncingScrollPhysics(),
-                slivers: <Widget>[
-                  SliverPersistentHeader(
-                    delegate: ExploreTopSectionDelegate(
-                      theme: theme,
-                      currentCity: _currentCity,
-                      onCityChangeRequest: () async {
-                        final String? selectedCity =
-                            await showGovernoratesBottomSheet(
-                          context: context,
-                          items: kGovernorates,
-                          title: 'Select Your City',
-                        );
-                        if (selectedCity != null && selectedCity.isNotEmpty) {
-                          _onCityChanged(selectedCity);
-                        }
-                      },
-                      userName: _userName ?? "User",
-                      userImageUrl: _userImageUrl,
-                      onSearchChanged: _onSearchSubmitted,
-                      onProfileTap: () {
-                        try {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const AccessCodeView(),
+              // Determine if results are being shown (from search or filter)
+              final bool isShowingResults =
+                  _activeSearchQuery != null || _activeFilterCategory != null;
+              List<ServiceProviderDisplayModel> mainProviderList = homeData
+                      ?.nearbyPlaces ??
+                  []; // Default to nearby, will be overwritten if searching/filtering
+              String mainListTitle = "Nearby You"; // Default title
+
+              if (isShowingResults) {
+                if (_activeSearchQuery != null) {
+                  mainListTitle = "Results for \"$_activeSearchQuery\"";
+                  // Assuming searchResults are placed in nearbyPlaces by the Bloc for now
+                  mainProviderList =
+                      homeData?.searchResults ?? homeData?.nearbyPlaces ?? [];
+                } else if (_activeFilterCategory != null) {
+                  mainListTitle = "Results for \"$_activeFilterCategory\"";
+                  // Assuming categoryFilteredResults are placed in nearbyPlaces by the Bloc for now
+                  mainProviderList = homeData?.categoryFilteredResults ??
+                      homeData?.nearbyPlaces ??
+                      [];
+                }
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async {
+                  context
+                      .read<HomeBloc>()
+                      .add(const LoadHomeData(isRefresh: true));
+                  await context
+                      .read<HomeBloc>()
+                      .stream
+                      .firstWhere((s) => s is HomeDataLoaded || s is HomeError);
+                },
+                color: AppColors.primaryColor,
+                backgroundColor: Colors.white,
+                child: Stack(
+                  children: [
+                    // Main content
+                    CustomScrollView(
+                      controller: _scrollController,
+                      physics: const BouncingScrollPhysics(),
+                      slivers: <Widget>[
+                        SliverPersistentHeader(
+                          delegate: ExploreTopSectionDelegate(
+                            currentCityDisplay: _currentCity,
+                            onSearchTap: () {
+                              // Show search UI or navigate to search screen
+                              // You can implement this based on your app's requirements
+                              print("Search tapped");
+                            },
+                            onCitySelected: (city) {
+                              if (city.isNotEmpty) {
+                                _onCityChanged(city);
+                              }
+                            },
+                            onProfileTap: () {
+                              try {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const AccessCodeView(),
+                                  ),
+                                );
+                              } catch (e) {
+                                print(
+                                    "Error navigating to Access Code screen: $e");
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        "Could not navigate to Access Code screen."),
+                                  ),
+                                );
+                              }
+                            },
+                            onNotificationsTap: () {
+                              // Handle notifications tap
+                              print("Notifications tapped");
+                              // TODO: Implement notifications screen navigation
+                            },
+                            topSafeAreaPadding:
+                                MediaQuery.of(context).padding.top,
+                          ),
+                          pinned: true,
+                          floating: false,
+                        ),
+
+                        // Main content sections with white background
+                        SliverToBoxAdapter(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.lightBackground,
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(24),
+                                topRight: Radius.circular(24),
+                              ),
                             ),
-                          );
-                        } catch (e) {
-                          print("Error navigating to Access Code screen: $e");
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  "Could not navigate to Access Code screen."),
+                            child: Column(
+                              children: [
+                                // Drag handle for visual affordance
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Container(
+                                    height: 5,
+                                    width: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(2.5),
+                                    ),
+                                  ),
+                                ),
+
+                                // Content sections
+                                if (isShowingResults)
+                                  _buildSearchResultsContent(
+                                    context: context,
+                                    title: mainListTitle,
+                                    results: mainProviderList,
+                                    isLoading: isEffectivelyLoading &&
+                                        mainProviderList.isEmpty,
+                                    query: _activeSearchQuery ??
+                                        _activeFilterCategory ??
+                                        "",
+                                  )
+                                else
+                                  _buildNearbyContent(
+                                    context: context,
+                                    homeData: homeData,
+                                    isLoading: isEffectivelyLoading,
+                                  ),
+                              ],
                             ),
-                          );
-                        }
-                      },
-                    ),
-                    pinned: true,
-                    floating: false,
-                  ),
-
-                  // REMOVED: Sticky Category Filter Header
-                  // SliverPersistentHeader(
-                  //   delegate: _CategoryFilterHeaderDelegate(...),
-                  //   pinned: true,
-                  // ),
-
-                  // --- Main Content Area ---
-                  if (isShowingResults)
-                    ..._buildSearchResultsSliver(
-                        // Use the helper for search/filter results
-                        context: context,
-                        title: mainListTitle,
-                        results: mainProviderList, // Pass the results list
-                        isLoading:
-                            isEffectivelyLoading && mainProviderList.isEmpty,
-                        query:
-                            _activeSearchQuery ?? _activeFilterCategory ?? "")
-                  else ...[
-                    // Show Nearby section if not searching/filtering
-                    const SliverGap(16),
-                    ..._buildProviderSliverSection(
-                      context: context,
-                      title: "Nearby You",
-                      providers: homeData?.nearbyPlaces,
-                      emptyMessage: "No nearby places found for $_currentCity.",
-                      emptyIcon: Icons.location_off_outlined,
-                      heroTagPrefix: "nearby",
-                      onSeeAll: () => _navigateToSeeAll(
-                          "Nearby You", homeData?.nearbyPlaces),
-                      isLoading: isEffectivelyLoading &&
-                          homeData?.nearbyPlaces == null,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-
-                  // --- Categories Grid Section (Always shown after Nearby/Results) ---
-                  const SliverToBoxAdapter(
-                    child: ExploreCategoriesGridSection(),
-                  ),
-
-                  const SliverGap(24), // Bottom padding
-                ],
-              ),
-            );
-          },
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  // *** MODIFIED: Returns List<Widget> (Slivers) for search results ***
-  List<Widget> _buildSearchResultsSliver({
+  // Nearby content section
+  Widget _buildNearbyContent({
+    required BuildContext context,
+    required HomeData? homeData,
+    required bool isLoading,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        // Nearby places section
+        _buildSectionTitleWidget(context, "Nearby You",
+            () => _navigateToSeeAll("Nearby You", homeData?.nearbyPlaces)),
+
+        // Nearby places cards
+        SizedBox(
+          height: 270,
+          child: (isLoading && homeData?.nearbyPlaces == null)
+              ? _buildLoadingShimmer()
+              : (homeData?.nearbyPlaces == null ||
+                      homeData!.nearbyPlaces.isEmpty)
+                  ? _buildEmptyState(
+                      "No nearby places found for $_currentCity.",
+                      Icons.location_off_outlined)
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: homeData!.nearbyPlaces.length,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12.0, vertical: 8.0),
+                      itemBuilder: (context, index) {
+                        final provider = homeData.nearbyPlaces[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: ServiceProviderCard(
+                            provider: provider,
+                            heroTagPrefix: "nearby",
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => BlocProvider.value(
+                                    value:
+                                        BlocProvider.of<FavoritesBloc>(context),
+                                    child: ServiceProviderDetailScreen(
+                                      providerId: provider.id,
+                                      heroTag: 'nearby_${provider.id}',
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+        ),
+
+        // Categories section
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: ExploreCategoriesGridSection(),
+        ),
+
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  // Search results content
+  Widget _buildSearchResultsContent({
     required BuildContext context,
     required String title,
     required List<ServiceProviderDisplayModel> results,
@@ -438,63 +538,66 @@ class _ExploreScreenState extends State<ExploreScreen> {
     required String query,
   }) {
     final theme = Theme.of(context);
-    Widget titleSliver = SliverToBoxAdapter(
-        child: _buildSectionTitleWidget(context, title, null));
 
     if (isLoading) {
-      return [titleSliver, _SectionLoadingShimmer(title: title)];
+      return Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: _buildLoadingShimmer(),
+      );
     }
+
     if (results.isEmpty) {
-      return [
-        titleSliver,
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.search_off_rounded,
-                      size: 64, color: AppColors.secondaryText),
-                  const Gap(16),
-                  Text(
-                    'No results found for "$query"',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: AppColors.primaryText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Gap(8),
-                  Text(
-                    "Try checking your spelling or use different keywords.",
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                ],
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.search_off_rounded,
+                  size: 64, color: AppColors.secondaryText),
+              const Gap(16),
+              Text(
+                'No results found for "$query"',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
+              const Gap(8),
+              Text(
+                "Try checking your spelling or use different keywords.",
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+            ],
           ),
         ),
-      ];
+      );
     }
-    return [
-      titleSliver,
-      SliverPadding(
-        padding: const EdgeInsets.only(
-            left: 20.0, right: 20.0, top: 8.0, bottom: 24.0),
-        sliver: SliverGrid(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 16.0,
-            mainAxisSpacing: 16.0,
-            childAspectRatio: 0.75,
-          ),
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        _buildSectionTitleWidget(context, title, null),
+
+        Padding(
+          padding: const EdgeInsets.only(
+              left: 20.0, right: 20.0, top: 8.0, bottom: 24.0),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16.0,
+              mainAxisSpacing: 16.0,
+              childAspectRatio: 0.75,
+            ),
+            itemCount: results.length,
+            itemBuilder: (context, index) {
               final provider = results[index];
               return ServiceProviderCard(
                 provider: provider,
@@ -515,11 +618,72 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 },
               );
             },
-            childCount: results.length,
           ),
         ),
+
+        // Categories section
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: ExploreCategoriesGridSection(),
+        ),
+
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  // Loading shimmer
+  Widget _buildLoadingShimmer() {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      itemCount: 3,
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      itemBuilder: (context, index) {
+        return Shimmer.fromColors(
+          baseColor: Colors.grey.shade300,
+          highlightColor: Colors.grey.shade100,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.0)),
+              child: const SizedBox(
+                width: 180,
+                height: 250,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Empty state widget
+  Widget _buildEmptyState(String message, IconData icon) {
+    final theme = Theme.of(context);
+    return Container(
+      height: 180,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 56, color: AppColors.secondaryText),
+          const Gap(16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: AppColors.secondaryText,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
-    ];
+    );
   }
 
   void _navigateToSeeAll(

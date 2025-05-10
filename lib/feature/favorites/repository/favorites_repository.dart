@@ -4,9 +4,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 
 abstract class FavoritesRepository {
+  // Stream for real-time updates of favorites
   Stream<List<ServiceProviderDisplayModel>> getFavorites();
+
+  // Direct Future-based method to get favorites once
+  Future<List<ServiceProviderDisplayModel>> getFavoritesList();
+
+  // Add a service provider to favorites
   Future<void> addToFavorites(ServiceProviderDisplayModel provider);
+
+  // Remove a service provider from favorites
   Future<void> removeFromFavorites(String providerId);
+
+  // Check if a service provider is in favorites
   Future<bool> isFavorite(String providerId);
 }
 
@@ -35,6 +45,11 @@ class LocalFavoritesRepository implements FavoritesRepository {
   @override
   Stream<List<ServiceProviderDisplayModel>> getFavorites() {
     return _favoritesController.stream;
+  }
+
+  @override
+  Future<List<ServiceProviderDisplayModel>> getFavoritesList() async {
+    return await _getFavoritesList();
   }
 
   @override

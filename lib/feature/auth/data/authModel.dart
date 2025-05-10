@@ -1,128 +1,161 @@
+// lib/feature/auth/data/authModel.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Needed for emailVerified check
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth; // Aliased
 
 class AuthModel extends Equatable {
   final String uid;
   final String name;
-  // *** ADDED: username field ***
   final String username;
   final String email;
-  final String nationalId;
-  final String phone;
-  final String gender;
-  final String dob;
-  final String image; // Original image field (keep for potential fallback)
-  final String? profilePicUrl; // Specific field for Cloudinary profile picture URL
+  final String? nationalId;
+  final String? phone;
+  final String? gender;
+  final String? dob;
+  final String? image; // Legacy or general image
+  final String? profilePicUrl; // Preferred for Cloudinary/CDN
   final bool uploadedId;
-  final bool isVerified; // Firebase email verification status
-  final bool isBlocked; // App-specific blocking flag
+  final bool isVerified;
+  final bool isBlocked;
   final Timestamp createdAt;
-  final Timestamp updatedAt;
-  final Timestamp lastSeen;
-  // final bool isApproved; // Assuming this field exists based on previous context
+  final Timestamp? updatedAt;
+  final Timestamp? lastSeen;
 
   const AuthModel({
     required this.uid,
     required this.name,
-    // *** ADDED: username required ***
     required this.username,
     required this.email,
-    required this.nationalId,
-    required this.phone,
-    required this.gender,
-    required this.dob,
-    this.image = '', // Default empty string
-    this.profilePicUrl, // Default null
+    this.nationalId,
+    this.phone,
+    this.gender,
+    this.dob,
+    this.image,
+    this.profilePicUrl,
     this.uploadedId = false,
     this.isVerified = false,
     this.isBlocked = false,
     required this.createdAt,
-    required this.updatedAt,
-    required this.lastSeen,
-    // this.isApproved = false,
+    this.updatedAt,
+    this.lastSeen,
   });
 
-  // Factory method to create an AuthModel from Firestore document.
+  // Getter for backward compatibility
+  String? get phoneNumber => phone;
+
   factory AuthModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {}; // Handle null data
-    final currentUser = FirebaseAuth.instance.currentUser;
-    // Get current verification status directly from Firebase Auth if possible
-    final bool firebaseVerified = (currentUser != null && currentUser.uid == doc.id)
-                                   ? currentUser.emailVerified
-                                   : data['isVerified'] as bool? ?? false; // Fallback to stored value
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final fb_auth.User? currentUser = fb_auth.FirebaseAuth.instance.currentUser;
+    // Prioritize Firebase's real-time email verification status if available for the current user
+    final bool firebaseVerified =
+        (currentUser != null && currentUser.uid == doc.id)
+            ? currentUser.emailVerified
+            : data['isVerified'] as bool? ?? false;
 
     return AuthModel(
-      uid: data['uid'] as String? ?? doc.id, // Use doc.id as fallback
+      uid: data['uid'] as String? ??
+          doc.id, // Use doc.id if 'uid' field is missing
       name: data['name'] as String? ?? '',
-      // *** ADDED: Read username, provide default if missing ***
-      username: data['username'] as String? ?? '', // Default to empty if missing
+      username: data['username'] as String? ??
+          (data['email'] as String? ?? '')
+              .split('@')
+              .first, // Fallback username
       email: data['email'] as String? ?? '',
-      nationalId: data['nationalId'] as String? ?? '',
-      phone: data['phone'] as String? ?? '',
-      gender: data['gender'] as String? ?? '',
-      dob: data['dob'] as String? ?? '',
-      image: data['image'] as String? ?? '', // Read original image field
-      profilePicUrl: data['profilePicUrl'] as String?, // Read profilePicUrl field
+      nationalId: data['nationalId'] as String?,
+      phone: data['phone'] as String?,
+      gender: data['gender'] as String?,
+      dob: data['dob'] as String?,
+      image: data['image'] as String?,
+      profilePicUrl: data['profilePicUrl'] as String?,
       uploadedId: data['uploadedId'] as bool? ?? false,
-      isVerified: firebaseVerified, // Use potentially refreshed status
+      isVerified: firebaseVerified,
       isBlocked: data['isBlocked'] as bool? ?? false,
-      createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
-      updatedAt: data['updatedAt'] as Timestamp? ?? Timestamp.now(),
-      lastSeen: data['lastSeen'] as Timestamp? ?? Timestamp.now(),
-      // isApproved: data['isApproved'] as bool? ?? false,
+      createdAt: data['createdAt'] as Timestamp? ??
+          Timestamp.now(), // Fallback for createdAt
+      updatedAt: data['updatedAt'] as Timestamp?,
+      lastSeen: data['lastSeen'] as Timestamp?,
     );
   }
 
-  // Converts the AuthModel into a Map for saving to Firestore.
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
       'name': name,
-      'username': username, // *** ADDED: username ***
+      'username': username,
       'email': email,
-      'nationalId': nationalId,
-      'phone': phone,
-      'gender': gender,
-      'dob': dob,
-      'image': image,
-      'profilePicUrl': profilePicUrl,
+      if (nationalId != null) 'nationalId': nationalId,
+      if (phone != null) 'phone': phone,
+      if (gender != null) 'gender': gender,
+      if (dob != null) 'dob': dob,
+      if (image != null) 'image': image,
+      if (profilePicUrl != null) 'profilePicUrl': profilePicUrl,
       'uploadedId': uploadedId,
       'isVerified': isVerified,
       'isBlocked': isBlocked,
-      // Timestamps handled by server on write/update
-      // 'createdAt': createdAt,
-      // 'updatedAt': updatedAt,
-      // 'lastSeen': lastSeen,
-      // 'isApproved': isApproved,
+      'createdAt':
+          createdAt, // Should ideally be FieldValue.serverTimestamp() on create
+      'updatedAt':
+          updatedAt, // Should be FieldValue.serverTimestamp() on update
+      'lastSeen':
+          lastSeen, // Should be FieldValue.serverTimestamp() on activity
     };
   }
 
-   // Add copyWith for easier updates
-   AuthModel copyWith({
-    String? uid, String? name, String? username, String? email, String? nationalId,
-    String? phone, String? gender, String? dob, String? image, String? profilePicUrl,
-    bool? uploadedId, bool? isVerified, bool? isBlocked, Timestamp? createdAt,
-    Timestamp? updatedAt, Timestamp? lastSeen, bool? isApproved,
+  AuthModel copyWith({
+    String? uid,
+    String? name,
+    String? username,
+    String? email,
+    String? nationalId,
+    String? phone,
+    String? gender,
+    String? dob,
+    String? image,
+    String? profilePicUrl,
+    bool? uploadedId,
+    bool? isVerified,
+    bool? isBlocked,
+    Timestamp? createdAt,
+    Timestamp? updatedAt,
+    Timestamp? lastSeen,
   }) {
     return AuthModel(
-      uid: uid ?? this.uid, name: name ?? this.name,
-      username: username ?? this.username, // *** ADDED: username ***
-      email: email ?? this.email, nationalId: nationalId ?? this.nationalId,
-      phone: phone ?? this.phone, gender: gender ?? this.gender, dob: dob ?? this.dob,
-      image: image ?? this.image, profilePicUrl: profilePicUrl ?? this.profilePicUrl,
-      uploadedId: uploadedId ?? this.uploadedId, isVerified: isVerified ?? this.isVerified,
-      isBlocked: isBlocked ?? this.isBlocked, createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt, lastSeen: lastSeen ?? this.lastSeen,
-      // isApproved: isApproved ?? this.isApproved,
+      uid: uid ?? this.uid,
+      name: name ?? this.name,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      nationalId: nationalId ?? this.nationalId,
+      phone: phone ?? this.phone,
+      gender: gender ?? this.gender,
+      dob: dob ?? this.dob,
+      image: image ?? this.image,
+      profilePicUrl: profilePicUrl ?? this.profilePicUrl,
+      uploadedId: uploadedId ?? this.uploadedId,
+      isVerified: isVerified ?? this.isVerified,
+      isBlocked: isBlocked ?? this.isBlocked,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      lastSeen: lastSeen ?? this.lastSeen,
     );
   }
 
-
-  // Implement props for Equatable
   @override
   List<Object?> get props => [
-        uid, name, username, email, nationalId, phone, gender, dob, image, profilePicUrl, // *** ADDED: username ***
-        uploadedId, isVerified, isBlocked, createdAt, updatedAt, lastSeen, //isApproved
+        uid,
+        name,
+        username,
+        email,
+        nationalId,
+        phone,
+        gender,
+        dob,
+        image,
+        profilePicUrl,
+        uploadedId,
+        isVerified,
+        isBlocked,
+        createdAt,
+        updatedAt,
+        lastSeen,
       ];
 }

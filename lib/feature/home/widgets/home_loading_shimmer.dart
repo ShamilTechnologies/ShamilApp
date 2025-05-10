@@ -64,7 +64,7 @@ class HomeLoadingShimmer extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: profileBorderRadius,
                       child: (profileImageUrl == null || profileImageUrl!.isEmpty)
-                          ? buildProfilePlaceholder(avatarSize, theme, profileBorderRadius)
+                          ? buildProfilePlaceholder(size: avatarSize, name: 'ProfilePlaceholder', borderRadius: profileBorderRadius)
                           : FadeInImage.memoryNetwork( // Still use FadeInImage for consistency
                               placeholder: transparentImageData,
                               image: profileImageUrl!,
@@ -72,7 +72,7 @@ class HomeLoadingShimmer extends StatelessWidget {
                               width: avatarSize,
                               height: avatarSize,
                               imageErrorBuilder: (context, error, stackTrace) {
-                                return buildProfilePlaceholder(avatarSize, theme, profileBorderRadius);
+                                return buildProfilePlaceholder(size: avatarSize, name: 'ProfilePlaceholder', borderRadius: profileBorderRadius);
                               },
                             ),
                     ),

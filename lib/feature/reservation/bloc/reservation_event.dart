@@ -14,7 +14,8 @@ abstract class ReservationEvent extends Equatable {
 class SelectReservationType extends ReservationEvent {
   final ReservationType reservationType;
   const SelectReservationType({required this.reservationType});
-  @override List<Object?> get props => [reservationType];
+  @override
+  List<Object?> get props => [reservationType];
 }
 
 /// Event when user selects a service (for service/time based/sequence based)
@@ -22,14 +23,16 @@ class SelectReservationService extends ReservationEvent {
   // Allow service to be nullable for general time-based booking
   final BookableService? selectedService;
   const SelectReservationService({required this.selectedService});
-  @override List<Object?> get props => [selectedService];
+  @override
+  List<Object?> get props => [selectedService];
 }
 
 /// Event when user selects a date
 class SelectReservationDate extends ReservationEvent {
   final DateTime selectedDate;
   const SelectReservationDate({required this.selectedDate});
-  @override List<Object?> get props => [selectedDate];
+  @override
+  List<Object?> get props => [selectedDate];
 }
 
 /// Event from UI after swipe gesture completes (for time-based)
@@ -37,7 +40,8 @@ class UpdateSwipeSelection extends ReservationEvent {
   final TimeOfDay startTime;
   final TimeOfDay endTime;
   const UpdateSwipeSelection({required this.startTime, required this.endTime});
-  @override List<Object?> get props => [startTime, endTime];
+  @override
+  List<Object?> get props => [startTime, endTime];
 }
 
 // --- Attendee Events ---
@@ -45,17 +49,18 @@ class UpdateSwipeSelection extends ReservationEvent {
 class AddAttendee extends ReservationEvent {
   final AttendeeModel attendee;
   const AddAttendee({required this.attendee});
-  @override List<Object?> get props => [attendee];
+  @override
+  List<Object?> get props => [attendee];
 }
 
 /// Event to remove an attendee (identified by userId)
 class RemoveAttendee extends ReservationEvent {
   final String userIdToRemove;
   const RemoveAttendee({required this.userIdToRemove});
-  @override List<Object?> get props => [userIdToRemove];
+  @override
+  List<Object?> get props => [userIdToRemove];
 }
 // --- End Attendee Events ---
-
 
 /// Event to trigger reservation creation (for non-queue based types)
 class CreateReservation extends ReservationEvent {
@@ -70,16 +75,18 @@ class ResetReservationFlow extends ReservationEvent {
 
   const ResetReservationFlow({this.provider, this.initialAttendee});
 
-  @override List<Object?> get props => [provider, initialAttendee];
+  @override
+  List<Object?> get props => [provider, initialAttendee];
 }
 
 // --- Sequence-Based Events ---
 
 /// Event triggered when the user selects a preferred hour slot for the queue.
 class SelectSequenceTimeSlot extends ReservationEvent {
-   final TimeOfDay? preferredHour; // Nullable to allow clearing the selection
-   const SelectSequenceTimeSlot({required this.preferredHour});
-   @override List<Object?> get props => [preferredHour];
+  final TimeOfDay? preferredHour; // Nullable to allow clearing the selection
+  const SelectSequenceTimeSlot({required this.preferredHour});
+  @override
+  List<Object?> get props => [preferredHour];
 }
 
 /// Event triggered when the user taps "Join Queue".
@@ -105,5 +112,6 @@ class LeaveQueue extends ReservationEvent {
 class SelectAccessPassOption extends ReservationEvent {
   final AccessPassOption option;
   const SelectAccessPassOption({required this.option});
-  @override List<Object?> get props => [option];
+  @override
+  List<Object?> get props => [option];
 }

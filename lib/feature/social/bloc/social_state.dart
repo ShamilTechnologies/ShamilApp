@@ -1,43 +1,31 @@
+// lib/feature/social/bloc/social_state.dart
 part of 'social_bloc.dart';
 
-// Removed imports as they are moved to the library file
-
-// Enum to represent friendship status relative to the current user
 enum FriendshipStatus { none, friends, requestSent, requestReceived }
 
-// Base State
 abstract class SocialState extends Equatable {
   const SocialState();
   @override
   List<Object?> get props => [];
 }
 
-// Initial State
 class SocialInitial extends SocialState {}
 
-// Loading State
 class SocialLoading extends SocialState {
-  final bool isLoadingList; // True when loading the whole list
-  // *** ADDED: ID of user whose request/friendship is being processed ***
+  final bool isLoadingList;
   final String? processingUserId;
 
-  const SocialLoading({
-    this.isLoadingList = false, // Default to false for action loading
-    this.processingUserId, // Optional ID for per-item loading
-  });
+  const SocialLoading({this.isLoadingList = false, this.processingUserId});
 
   @override
   List<Object?> get props => [isLoadingList, processingUserId];
 }
 
-// --- Family States ---
-
-/// Represents a family request (incoming)
 class FamilyRequest extends Equatable {
-  final String userId; // The other user's ID (who added you)
-  final String name; // Denormalized name
-  final String? profilePicUrl; // Denormalized picture
-  final String relationship; // Relationship they assigned to you
+  final String userId;
+  final String name;
+  final String? profilePicUrl;
+  final String relationship;
   final Timestamp requestedAt;
 
   const FamilyRequest(
@@ -47,29 +35,24 @@ class FamilyRequest extends Equatable {
       required this.relationship,
       required this.requestedAt});
 
-  // Factory from Firestore document in *your* familyMembers subcollection
   factory FamilyRequest.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     return FamilyRequest(
-      userId: doc.id, // The other user's UID is the document ID
-      name: data['name'] as String? ?? 'Unknown', // Their name
-      profilePicUrl: data['profilePicUrl'] as String?, // Their pic
-      relationship:
-          data['relationship'] as String? ?? 'Unknown', // Relationship they set
-      requestedAt: data['addedAt'] as Timestamp? ??
-          Timestamp.now(), // Use addedAt as request time
+      userId: doc.id,
+      name: data['name'] as String? ?? 'Unknown',
+      profilePicUrl: data['profilePicUrl'] as String?,
+      relationship: data['relationship'] as String? ?? 'Relative',
+      requestedAt: data['addedAt'] as Timestamp? ?? Timestamp.now(),
     );
   }
-
   @override
   List<Object?> get props =>
       [userId, name, profilePicUrl, relationship, requestedAt];
 }
 
-/// State holding loaded family members (accepted/external) and incoming requests
 class FamilyDataLoaded extends SocialState {
-  final List<FamilyMember> familyMembers; // Status 'accepted' or 'external'
-  final List<FamilyRequest> incomingRequests; // Status 'pending_received'
+  final List<FamilyMember> familyMembers;
+  final List<FamilyRequest> incomingRequests;
 
   const FamilyDataLoaded({
     required this.familyMembers,
@@ -80,13 +63,10 @@ class FamilyDataLoaded extends SocialState {
   List<Object?> get props => [familyMembers, incomingRequests];
 }
 
-// --- Friend States ---
-
-/// Represents a single friend entry (using denormalized data for easy display)
 class Friend extends Equatable {
   final String userId;
-  final String name; // Denormalized
-  final String? profilePicUrl; // Denormalized
+  final String name;
+  final String? profilePicUrl;
   final Timestamp? friendedAt;
 
   const Friend(
@@ -95,117 +75,105 @@ class Friend extends Equatable {
       this.profilePicUrl,
       this.friendedAt});
 
-  // Factory from Firestore (assuming denormalized data in friends subcollection doc)
   factory Friend.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     return Friend(
-      userId: doc.id, // The friend's UID is the document ID
+      userId: doc.id,
       name: data['displayName'] as String? ??
-          'Unknown', // Field name in subcollection doc
-      profilePicUrl:
-          data['profilePicUrl'] as String?, // Field name in subcollection doc
-      friendedAt:
-          data['friendedAt'] as Timestamp?, // Field name in subcollection doc
+          data['name'] as String? ??
+          'Unknown Friend',
+      profilePicUrl: data['profilePicUrl'] as String?,
+      friendedAt: data['friendedAt'] as Timestamp?,
     );
   }
-
   @override
   List<Object?> get props => [userId, name, profilePicUrl, friendedAt];
 }
 
-/// Represents a friend request (incoming or outgoing)
 class FriendRequest extends Equatable {
-  final String userId; // The other user's ID
-  final String name; // Denormalized name
-  final String? profilePicUrl; // Denormalized picture
+  final String userId;
+  final String name;
+  final String? profilePicUrl;
   final String status; // 'pending_sent' or 'pending_received'
+  final Timestamp? requestedAt;
 
-  const FriendRequest(
-      {required this.userId,
-      required this.name,
-      this.profilePicUrl,
-      required this.status});
+  const FriendRequest({
+    required this.userId,
+    required this.name,
+    this.profilePicUrl,
+    required this.status,
+    this.requestedAt,
+  });
 
-  // Factory from Firestore (assuming denormalized data in friends subcollection doc)
   factory FriendRequest.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     return FriendRequest(
-      userId: doc.id, // The other user's UID is the document ID
-      name: data['displayName'] as String? ?? 'Unknown',
+      userId: doc.id,
+      name: data['displayName'] as String? ??
+          data['name'] as String? ??
+          'Unknown User',
       profilePicUrl: data['profilePicUrl'] as String?,
       status: data['status'] as String? ?? 'unknown',
+      requestedAt:
+          data['requestedAt'] as Timestamp? ?? data['createdAt'] as Timestamp?,
     );
   }
-
   @override
-  List<Object?> get props => [userId, name, profilePicUrl, status];
+  List<Object?> get props => [userId, name, profilePicUrl, status, requestedAt];
 }
 
-/// State holding loaded friends and friend requests (incoming and outgoing)
 class FriendsAndRequestsLoaded extends SocialState {
   final List<Friend> friends;
   final List<FriendRequest> incomingRequests;
-  // *** ADDED: List for outgoing requests ***
   final List<FriendRequest> outgoingRequests;
 
   const FriendsAndRequestsLoaded({
     required this.friends,
     required this.incomingRequests,
-    required this.outgoingRequests, // Add to constructor
+    required this.outgoingRequests,
   });
 
-  // *** UPDATED: props ***
   @override
   List<Object?> get props => [friends, incomingRequests, outgoingRequests];
 }
 
-// --- User Search States ---
-
-/// Represents a user found in search, including their friendship status relative to the current user.
 class UserSearchResultWithStatus extends Equatable {
   final AuthModel user;
   final FriendshipStatus status;
 
   const UserSearchResultWithStatus({required this.user, required this.status});
-
   @override
   List<Object?> get props => [user, status];
 }
 
-/// State holding results from searching users (includes friendship status)
-class FriendSearchResultsWithStatus extends SocialState {
-  final List<UserSearchResultWithStatus> results; // List of users with status
-  final String query; // The search query used
+// State for friend search results
+class FriendSearchResultsLoaded extends SocialState {
+  final List<UserSearchResultWithStatus> results;
+  final String query;
 
-  const FriendSearchResultsWithStatus(
-      {required this.results, required this.query});
+  const FriendSearchResultsLoaded({required this.results, required this.query});
   @override
   List<Object?> get props => [results, query];
 }
 
-/// State indicating a user search result by National ID (for linking family)
-class UserSearchResult extends SocialState {
-  final AuthModel? foundUser; // Null if not found or self
-  final String searchedId; // ID/Query that was searched
+// State for national ID search result (for family linking)
+class UserNationalIdSearchResult extends SocialState {
+  final AuthModel? foundUser;
+  final String searchedNationalId; // Store the ID that was searched
 
-  const UserSearchResult({required this.foundUser, required this.searchedId});
+  const UserNationalIdSearchResult(
+      {this.foundUser, required this.searchedNationalId});
   @override
-  List<Object?> get props => [foundUser, searchedId];
+  List<Object?> get props => [foundUser, searchedNationalId];
 }
 
-// Removed old FriendSearchResults state
-
-// --- General Action States ---
-
-/// State indicating successful generic social action
 class SocialSuccess extends SocialState {
   final String message;
-  const SocialSuccess({this.message = "Success"});
+  const SocialSuccess({this.message = "Operation successful."});
   @override
   List<Object?> get props => [message];
 }
 
-/// State for errors during social operations
 class SocialError extends SocialState {
   final String message;
   const SocialError({required this.message});

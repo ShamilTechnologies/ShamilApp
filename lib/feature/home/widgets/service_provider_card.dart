@@ -26,15 +26,15 @@ class ServiceProviderCard extends StatelessWidget {
     required this.provider,
     required this.heroTagPrefix,
     this.onTap,
-    this.cardWidth = 220.0, // Increased width for better layout
+    this.cardWidth = 200.0, // Slightly narrower for modern design
   });
 
-  // Consistent styling constants
+  // Modernized styling constants
   static final BorderRadius _cardRadius = BorderRadius.circular(16.0);
   static final BorderRadius _logoRadius = BorderRadius.circular(12.0);
-  static final BorderRadius _favoriteButtonRadius = BorderRadius.circular(10.0);
-  static const double _favoriteButtonSize = 36.0;
-  static const double _logoSize = 50.0;
+  static final BorderRadius _favoriteButtonRadius = BorderRadius.circular(12.0);
+  static const double _favoriteButtonSize = 32.0;
+  static const double _logoSize = 42.0;
 
   @override
   Widget build(BuildContext context) {
@@ -51,8 +51,8 @@ class ServiceProviderCard extends StatelessWidget {
         width: cardWidth,
         child: Card(
           shape: RoundedRectangleBorder(borderRadius: _cardRadius),
-          elevation: 4.0,
-          shadowColor: Colors.black.withOpacity(0.1),
+          elevation: 2.0, // Lower elevation for a flatter, modern look
+          shadowColor: Colors.black.withOpacity(0.08),
           clipBehavior: Clip.antiAlias,
           margin: const EdgeInsets.only(bottom: 8.0, right: 4.0, left: 4.0),
           child: Stack(
@@ -81,26 +81,26 @@ class ServiceProviderCard extends StatelessWidget {
                 ),
               ),
 
-              // Gradient Overlay
+              // Modern Gradient Overlay - More subtle
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: _cardRadius,
                     gradient: LinearGradient(
                       colors: [
-                        Colors.black.withOpacity(0.9),
-                        Colors.black.withOpacity(0.6),
-                        Colors.black.withOpacity(0.0),
+                        Colors.black.withOpacity(0.7),
+                        Colors.black.withOpacity(0.2),
+                        Colors.transparent,
                       ],
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
-                      stops: const [0.0, 0.5, 0.8],
+                      stops: const [0.0, 0.6, 0.9],
                     ),
                   ),
                 ),
               ),
 
-              // Favorite Button
+              // Modern favorite button
               Positioned(
                 top: 8,
                 right: 8,
@@ -108,88 +108,70 @@ class ServiceProviderCard extends StatelessWidget {
                     _buildFavoriteButton(context, theme, provider, isFavorite),
               ),
 
-              // Content
+              // Modern Content Layout
               Positioned(
                 bottom: 0,
                 left: 0,
                 right: 0,
-                child: Container(
+                child: Padding(
                   padding: const EdgeInsets.all(12.0),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.9),
-                        Colors.black.withOpacity(0.7),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ),
-                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Logo and Business Name Row
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Business Logo
-                          if (logoUrl.isNotEmpty)
-                            Container(
-                              width: _logoSize,
-                              height: _logoSize,
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                borderRadius: _logoRadius,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: _logoRadius,
-                                child: CachedNetworkImage(
-                                  imageUrl: logoUrl,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) => Container(
-                                    color: Colors.grey[200],
-                                    child: const Center(
-                                      child: CupertinoActivityIndicator(
-                                          radius: 10),
-                                    ),
-                                  ),
-                                  errorWidget: (context, url, error) =>
-                                      Container(
-                                    color: Colors.grey[200],
-                                    child: Icon(Icons.business_outlined,
-                                        color: Colors.grey[400], size: 24),
-                                  ),
+                      // Rating chip - modern pill shape
+                      if (provider.averageRating > 0)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.star_rounded,
+                                  size: 14, color: AppColors.yellowColor),
+                              const Gap(4),
+                              Text(
+                                ratingString,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ),
-                          // Business Name
-                          Expanded(
-                            child: Text(
-                              provider.businessName,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                shadows: _textShadow,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                              if (provider.ratingCount > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 2.0),
+                                  child: Text(
+                                    "(${provider.ratingCount})",
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                        ],
-                      ),
-                      const Gap(8),
+                        ),
 
-                      // Category & City
+                      // Business Name - Modern, clean typography
+                      Text(
+                        provider.businessName,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.3,
+                          height: 1.1,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Gap(4),
+
+                      // Category & City in single row with dot separator
                       Row(
                         children: [
                           Flexible(
@@ -197,7 +179,8 @@ class ServiceProviderCard extends StatelessWidget {
                               provider.businessCategory,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: Colors.white.withOpacity(0.9),
-                                shadows: _textShadow,
+                                fontWeight: FontWeight.w300,
+                                fontSize: 11,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -210,14 +193,16 @@ class ServiceProviderCard extends StatelessWidget {
                                   const EdgeInsets.symmetric(horizontal: 4.0),
                               child: Text("•",
                                   style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7))),
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 8)),
                             ),
                             Flexible(
                               child: Text(
                                 provider.city!,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: Colors.white.withOpacity(0.9),
-                                  shadows: _textShadow,
+                                  fontWeight: FontWeight.w300,
+                                  fontSize: 11,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -226,48 +211,49 @@ class ServiceProviderCard extends StatelessWidget {
                           ]
                         ],
                       ),
-                      const Gap(6),
-
-                      // Rating Row
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.star_rounded,
-                                size: 16, color: AppColors.yellowColor),
-                            const Gap(4),
-                            Text(
-                              ratingString,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                shadows: _textShadow,
-                              ),
-                            ),
-                            if (provider.ratingCount > 0)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 4.0),
-                                child: Text(
-                                  "(${provider.ratingCount})",
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: Colors.white.withOpacity(0.8),
-                                    shadows: _textShadow,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),
               ),
+
+              // If logo exists, show as a floating element
+              if (logoUrl.isNotEmpty)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    width: _logoSize,
+                    height: _logoSize,
+                    decoration: BoxDecoration(
+                      borderRadius: _logoRadius,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: _logoRadius,
+                      child: CachedNetworkImage(
+                        imageUrl: logoUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CupertinoActivityIndicator(radius: 8),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey[200],
+                          child: Icon(Icons.business_outlined,
+                              color: Colors.grey[400], size: 20),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -275,52 +261,11 @@ class ServiceProviderCard extends StatelessWidget {
     );
   }
 
-  // Shared text shadow for better readability
-  static const List<Shadow> _textShadow = [
-    Shadow(color: Colors.black54, blurRadius: 2, offset: Offset(0, 1))
-  ];
-
-  Widget _buildImagePlaceholder(BuildContext context) {
-    return buildProfilePlaceholder(
-        double.infinity, Theme.of(context), _cardRadius);
-  }
-
-  Widget _buildImageErrorWidget(BuildContext context, String message) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: _cardRadius,
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.business_rounded, color: Colors.grey.shade400, size: 40),
-            const Gap(4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: Text(
-                message,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey.shade600,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
+  // Modernized favorite button
   Widget _buildFavoriteButton(BuildContext context, ThemeData theme,
       ServiceProviderDisplayModel provider, bool isFavorite) {
-    final Color backgroundColor = Colors.black.withOpacity(0.4);
-    final Color defaultIconColor = Colors.white.withOpacity(0.9);
-    final Color favoriteIconColor = AppColors.redColor;
-
     return Material(
-      color: backgroundColor,
+      color: Colors.black.withOpacity(0.2),
       borderRadius: _favoriteButtonRadius,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -328,30 +273,61 @@ class ServiceProviderCard extends StatelessWidget {
           context.read<HomeBloc>().add(ToggleFavoriteHome(
               providerId: provider.id, currentStatus: isFavorite));
         },
-        borderRadius: _favoriteButtonRadius,
-        splashColor: Colors.white.withOpacity(0.3),
+        splashColor: Colors.white.withOpacity(0.1),
+        highlightColor: Colors.white.withOpacity(0.05),
         child: Container(
           width: _favoriteButtonSize,
           height: _favoriteButtonSize,
           alignment: Alignment.center,
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return ScaleTransition(
-                scale: Tween<double>(begin: 0.7, end: 1.0).animate(animation),
-                child: RotationTransition(
-                  turns: Tween<double>(begin: 0.8, end: 1.0).animate(animation),
-                  child: child,
-                ),
-              );
-            },
+            duration: const Duration(milliseconds: 200),
             child: Icon(
               key: ValueKey<bool>(isFavorite),
               isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-              size: 20,
-              color: isFavorite ? favoriteIconColor : defaultIconColor,
+              size: 18,
+              color: isFavorite ? AppColors.redColor : Colors.white,
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // Simplified modern placeholder
+  Widget _buildImagePlaceholder(BuildContext context) {
+    return Container(
+      color: AppColors.secondaryColor.withOpacity(0.1),
+      child: Center(
+        child: Icon(
+          Icons.image_outlined,
+          color: AppColors.secondaryColor.withOpacity(0.3),
+          size: 40,
+        ),
+      ),
+    );
+  }
+
+  // Simplified error widget
+  Widget _buildImageErrorWidget(BuildContext context, String message) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: _cardRadius,
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.image_not_supported_outlined,
+                color: Colors.grey.shade400, size: 32),
+            const Gap(4),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey.shade500,
+                  ),
+            )
+          ],
         ),
       ),
     );

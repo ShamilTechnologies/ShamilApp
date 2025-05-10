@@ -11,7 +11,7 @@ enum ReservationType {
   recurring,
   group,
   accessBased,
-  sequenceBased, // <<< ADDED sequenceBased
+  sequenceBased,
   unknown
 }
 
@@ -32,7 +32,7 @@ extension ReservationTypeExtension on ReservationType {
         return 'group';
       case ReservationType.accessBased:
         return 'access-based';
-      case ReservationType.sequenceBased: // <<< ADDED sequenceBased
+      case ReservationType.sequenceBased:
         return 'sequence-based';
       default:
         return 'unknown';
@@ -65,7 +65,7 @@ ReservationType reservationTypeFromString(String? typeString) {
       return ReservationType.group;
     case 'accessbased':
       return ReservationType.accessBased;
-    case 'sequencebased': // <<< ADDED sequenceBased
+    case 'sequencebased':
       return ReservationType.sequenceBased;
     default:
       print(
@@ -88,36 +88,55 @@ enum ReservationStatus {
 
 ReservationStatus reservationStatusFromString(String? status) {
   switch (status?.toLowerCase()) {
-    case 'pending': return ReservationStatus.pending;
-    case 'confirmed': return ReservationStatus.confirmed;
+    case 'pending':
+      return ReservationStatus.pending;
+    case 'confirmed':
+      return ReservationStatus.confirmed;
     case 'cancelled': // Handle potential legacy 'cancelled'
-    case 'cancelled_by_user': return ReservationStatus.cancelledByUser;
-    case 'cancelled_by_provider': return ReservationStatus.cancelledByProvider;
-    case 'completed': return ReservationStatus.completed;
+    case 'cancelled_by_user':
+      return ReservationStatus.cancelledByUser;
+    case 'cancelled_by_provider':
+      return ReservationStatus.cancelledByProvider;
+    case 'completed':
+      return ReservationStatus.completed;
     case 'no_show':
-    case 'noshow': return ReservationStatus.noShow;
-    default: return ReservationStatus.unknown;
+    case 'noshow':
+      return ReservationStatus.noShow;
+    default:
+      return ReservationStatus.unknown;
   }
 }
 
 extension ReservationStatusExtension on ReservationStatus {
   String get statusString {
     switch (this) {
-      case ReservationStatus.pending: return 'pending'; // Use lowercase for consistency?
-      case ReservationStatus.confirmed: return 'confirmed';
-      case ReservationStatus.cancelledByUser: return 'cancelled_by_user';
-      case ReservationStatus.cancelledByProvider: return 'cancelled_by_provider';
-      case ReservationStatus.completed: return 'completed';
-      case ReservationStatus.noShow: return 'no_show';
-      default: return 'unknown';
+      case ReservationStatus.pending:
+        return 'pending'; // Use lowercase for consistency?
+      case ReservationStatus.confirmed:
+        return 'confirmed';
+      case ReservationStatus.cancelledByUser:
+        return 'cancelled_by_user';
+      case ReservationStatus.cancelledByProvider:
+        return 'cancelled_by_provider';
+      case ReservationStatus.completed:
+        return 'completed';
+      case ReservationStatus.noShow:
+        return 'no_show';
+      default:
+        return 'unknown';
     }
   }
 
   // Optional: User-friendly display string
-   String get displayString {
-     String capitalize(String s) => s.isEmpty ? '' : s[0].toUpperCase() + s.substring(1);
-     return statusString.replaceAll('_', ' ').split(' ').map(capitalize).join(' ');
-   }
+  String get displayString {
+    String capitalize(String s) =>
+        s.isEmpty ? '' : s[0].toUpperCase() + s.substring(1);
+    return statusString
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map(capitalize)
+        .join(' ');
+  }
 }
 // --- End Enums ---
 
@@ -144,10 +163,11 @@ class AttendeeModel extends Equatable {
     );
   }
   Map<String, dynamic> toMap() {
-    return { 'userId': userId, 'name': name, 'type': type, 'status': status };
+    return {'userId': userId, 'name': name, 'type': type, 'status': status};
   }
 
-  @override List<Object?> get props => [userId, name, type, status];
+  @override
+  List<Object?> get props => [userId, name, type, status];
 }
 
 /// Represents a reservation document stored in Firestore. (No changes needed)
@@ -174,15 +194,36 @@ class ReservationModel extends Equatable {
   final Timestamp createdAt;
   final Timestamp? updatedAt;
   final List<AttendeeModel> attendees;
+  final String? reservationCode;
+  final double? totalPrice;
+  final List<String>? selectedAddOnsList;
 
   const ReservationModel({
-    required this.id, required this.userId, required this.userName,
-    required this.providerId, required this.governorateId, required this.type,
-    this.groupSize = 1, this.serviceId, this.serviceName, this.durationMinutes,
-    this.reservationStartTime, this.endTime, required this.status, this.paymentStatus,
-    this.paymentDetails, this.notes, this.typeSpecificData, this.queuePosition,
-    this.estimatedEntryTime, required this.createdAt, this.updatedAt,
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.providerId,
+    required this.governorateId,
+    required this.type,
+    this.groupSize = 1,
+    this.serviceId,
+    this.serviceName,
+    this.durationMinutes,
+    this.reservationStartTime,
+    this.endTime,
+    required this.status,
+    this.paymentStatus,
+    this.paymentDetails,
+    this.notes,
+    this.typeSpecificData,
+    this.queuePosition,
+    this.estimatedEntryTime,
+    required this.createdAt,
+    this.updatedAt,
     this.attendees = const [],
+    this.reservationCode,
+    this.totalPrice,
+    this.selectedAddOnsList,
   });
 
   factory ReservationModel.fromFirestore(DocumentSnapshot doc) {
@@ -190,10 +231,18 @@ class ReservationModel extends Equatable {
     final List<AttendeeModel> parsedAttendees = (data['attendees'] as List?)
             ?.map((attendeeData) {
               if (attendeeData is Map<String, dynamic>) {
-                try { return AttendeeModel.fromMap(attendeeData); }
-                catch (e) { print("Error parsing attendee: $e"); return null; }
-              } return null;
-            }).whereType<AttendeeModel>().toList() ?? [];
+                try {
+                  return AttendeeModel.fromMap(attendeeData);
+                } catch (e) {
+                  print("Error parsing attendee: $e");
+                  return null;
+                }
+              }
+              return null;
+            })
+            .whereType<AttendeeModel>()
+            .toList() ??
+        [];
 
     return ReservationModel(
       id: doc.id,
@@ -201,12 +250,14 @@ class ReservationModel extends Equatable {
       userName: data['userName'] as String? ?? '',
       providerId: data['providerId'] as String? ?? '',
       governorateId: data['governorateId'] as String? ?? '',
-      type: reservationTypeFromString(data['reservationType'] ?? data['type'] as String?), // Check both 'type' and 'reservationType'
+      type: reservationTypeFromString(data['reservationType'] ??
+          data['type'] as String?), // Check both 'type' and 'reservationType'
       groupSize: (data['groupSize'] as num?)?.toInt() ?? parsedAttendees.length,
       serviceId: data['serviceId'] as String?,
       serviceName: data['serviceName'] as String?,
       durationMinutes: (data['durationMinutes'] as num?)?.toInt(),
-      reservationStartTime: data['reservationStartTime'] as Timestamp? ?? data['dateTime'] as Timestamp?, // Check both keys
+      reservationStartTime: data['reservationStartTime'] as Timestamp? ??
+          data['dateTime'] as Timestamp?, // Check both keys
       endTime: data['endTime'] as Timestamp?,
       status: reservationStatusFromString(data['status'] as String?),
       paymentStatus: data['paymentStatus'] as String?,
@@ -218,32 +269,48 @@ class ReservationModel extends Equatable {
       createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
       updatedAt: data['updatedAt'] as Timestamp?,
       attendees: parsedAttendees,
+      reservationCode: data['reservationCode'] as String?,
+      totalPrice: (data['totalPrice'] as num?)?.toDouble(),
+      selectedAddOnsList: data['selectedAddOnsList'] != null
+          ? List<String>.from(data['selectedAddOnsList'] as List<dynamic>)
+          : null,
     );
   }
 
   Map<String, dynamic> toMapForCreate() {
     return {
-      'userId': userId, 'userName': userName, 'providerId': providerId,
-      'governorateId': governorateId, 'type': type.typeString, 'groupSize': groupSize,
+      'userId': userId,
+      'userName': userName,
+      'providerId': providerId,
+      'governorateId': governorateId,
+      'type': type.typeString,
+      'groupSize': groupSize,
       if (serviceId != null) 'serviceId': serviceId,
       if (serviceName != null) 'serviceName': serviceName,
       if (durationMinutes != null) 'durationMinutes': durationMinutes,
-      if (reservationStartTime != null) 'reservationStartTime': reservationStartTime, // Use consistent key
+      if (reservationStartTime != null)
+        'reservationStartTime': reservationStartTime,
       if (endTime != null) 'endTime': endTime,
-      'status': status.statusString, // Use lowercase for consistency?
+      'status': status.statusString,
       if (paymentStatus != null) 'paymentStatus': paymentStatus,
       if (paymentDetails != null) 'paymentDetails': paymentDetails,
       if (notes != null) 'notes': notes,
       if (typeSpecificData != null) 'typeSpecificData': typeSpecificData,
       if (queuePosition != null) 'queuePosition': queuePosition,
       if (estimatedEntryTime != null) 'estimatedEntryTime': estimatedEntryTime,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
       'attendees': attendees.map((attendee) => attendee.toMap()).toList(),
+      if (reservationCode != null) 'reservationCode': reservationCode,
+      if (totalPrice != null) 'totalPrice': totalPrice,
+      if (selectedAddOnsList != null) 'selectedAddOnsList': selectedAddOnsList,
+      // Server timestamps will be added in the repository
     };
   }
 
-  Map<String, dynamic> toMapForUpdate({ ReservationStatus? newStatus, String? newPaymentStatus, /* ... */ }) {
+  Map<String, dynamic> toMapForUpdate({
+    ReservationStatus? newStatus,
+    String? newPaymentStatus,
+    /* ... */
+  }) {
     final map = <String, dynamic>{};
     if (newStatus != null) map['status'] = newStatus.statusString;
     if (newPaymentStatus != null) map['paymentStatus'] = newPaymentStatus;
@@ -251,5 +318,32 @@ class ReservationModel extends Equatable {
     return map;
   }
 
-  @override List<Object?> get props => [ id, userId, userName, providerId, governorateId, type, groupSize, serviceId, serviceName, durationMinutes, reservationStartTime, endTime, status, paymentStatus, paymentDetails, notes, typeSpecificData, queuePosition, estimatedEntryTime, createdAt, updatedAt, attendees ];
+  @override
+  List<Object?> get props => [
+        id,
+        userId,
+        userName,
+        providerId,
+        governorateId,
+        type,
+        groupSize,
+        serviceId,
+        serviceName,
+        durationMinutes,
+        reservationStartTime,
+        endTime,
+        status,
+        paymentStatus,
+        paymentDetails,
+        notes,
+        typeSpecificData,
+        queuePosition,
+        estimatedEntryTime,
+        createdAt,
+        updatedAt,
+        attendees,
+        reservationCode,
+        totalPrice,
+        selectedAddOnsList
+      ];
 }

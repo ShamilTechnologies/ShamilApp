@@ -29,8 +29,7 @@ class _ExploreSearchBarState extends State<ExploreSearchBar> {
   void initState() {
     super.initState();
     // Use external controller if provided, otherwise create an internal one
-    _internalController =
-        widget.externalController ?? TextEditingController();
+    _internalController = widget.externalController ?? TextEditingController();
 
     // Listen to the effective controller for changes to manage clear button visibility
     _internalController.addListener(_updateClearButtonVisibility);
@@ -78,8 +77,7 @@ class _ExploreSearchBarState extends State<ExploreSearchBar> {
     _internalController.clear();
     widget.onSearch
         ?.call(''); // Notify parent that search text has been cleared
-    FocusScope.of(context)
-        .unfocus(); // Optionally hide keyboard after clearing
+    FocusScope.of(context).unfocus(); // Optionally hide keyboard after clearing
   }
 
   void _handleSearchSubmitted(String value) {
@@ -99,42 +97,45 @@ class _ExploreSearchBarState extends State<ExploreSearchBar> {
           _internalController, // Always use the (potentially internal) _internalController
       keyboardType: TextInputType.text,
       textInputAction: TextInputAction.search,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        color: AppColors.primaryColor,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: AppColors.primaryText,
+        fontWeight: FontWeight.normal,
       ),
       decoration: InputDecoration(
-        hintText: 'Find places, activities...',
+        hintText: 'Search for places...',
         hintStyle: theme.textTheme.bodyMedium?.copyWith(
-          color: AppColors.secondaryColor.withOpacity(0.7),
+          color: AppColors.secondaryText.withOpacity(0.6),
+          fontWeight: FontWeight.normal,
         ),
         filled: true,
-        fillColor: AppColors.accentColor.withOpacity(0.5),
+        fillColor: Colors.white,
         prefixIcon: Icon(
           Icons.search_rounded,
-          color: AppColors.secondaryColor.withOpacity(0.8),
-          size: 22,
+          color: AppColors.secondaryText.withOpacity(0.6),
+          size: 20,
         ),
         suffixIcon: _showClearButton
             ? IconButton(
                 icon: Icon(
                   Icons.clear_rounded,
-                  color: AppColors.secondaryColor.withOpacity(0.8),
-                  size: 20,
+                  color: AppColors.secondaryText.withOpacity(0.6),
+                  size: 18,
                 ),
                 onPressed: _handleClear,
+                splashRadius: 20,
               )
             : null,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
+          borderRadius: BorderRadius.circular(16.0),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
+          borderRadius: BorderRadius.circular(16.0),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: AppColors.primaryColor, width: 1.0),
+          borderRadius: BorderRadius.circular(16.0),
+          borderSide: BorderSide.none,
         ),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),

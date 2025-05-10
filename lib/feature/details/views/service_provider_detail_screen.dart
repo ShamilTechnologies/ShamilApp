@@ -1,15 +1,17 @@
-import 'dart:async'; // For Timer in carousel
-import 'dart:typed_data'; // For Uint8List used in transparentImageData
-import 'dart:ui' as ui; // For ImageFilter and Image
+// lib/feature/details/views/service_provider_detail_screen.dart
+import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show listEquals; // For listEquals
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // For HapticFeedback
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shamil_mobile_app/core/constants/icon_constants.dart'
-    as IconConstants;
-// Ensure these paths are correct and models are defined as expected
+    as AppIcons;
+import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 import 'package:shamil_mobile_app/feature/details/repository/service_provider_detail_repository.dart';
@@ -19,43 +21,31 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:dots_indicator/dots_indicator.dart';
 
-// Core utilities and constants - Ensure these paths are correct
-import 'package:shamil_mobile_app/core/constants/image_constants.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
+import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
 import 'package:shamil_mobile_app/core/widgets/placeholders.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 
-// Models - Ensure these paths are correct
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
-// If SubscriptionPlan is a distinct model from PlanModel, ensure it's correctly defined and imported.
-// For example: import 'package:shamil_mobile_app/feature/subscription/data/subscription_plan_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart'
+    show ReservationType, ReservationTypeExtension;
 
-// Blocs - Ensure these paths are correct
 import 'package:shamil_mobile_app/feature/details/views/bloc/service_provider_detail_bloc.dart';
 import 'package:shamil_mobile_app/feature/subscription/bloc/subscription_bloc.dart';
-// import 'package:shamil_mobile_app/feature/subscription/repository/subscription_repository.dart'; // If needed by SubscriptionBloc
 import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart';
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/view/options_configuration_screen.dart';
-
-// Repository - Ensure these paths are correct
 import 'package:shamil_mobile_app/feature/reservation/repository/reservation_repository.dart';
-
-// Widgets - Ensure this path is correct
 import 'package:shamil_mobile_app/feature/details/widgets/options_bottom_sheet.dart'
     as options_sheet;
-
-import 'package:provider/provider.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
 
-/// Displays the detailed view of a service provider using a CustomScrollView and SliverAppBar.
 class ServiceProviderDetailScreen extends StatefulWidget {
   final String providerId;
-  final ServiceProviderDisplayModel?
-      initialProviderData; // For initial header display
+  final ServiceProviderDisplayModel? initialProviderData;
   final String heroTag;
 
   const ServiceProviderDetailScreen({
@@ -74,29 +64,29 @@ class _ServiceProviderDetailScreenState
     extends State<ServiceProviderDetailScreen> {
   int _carouselCurrentIndex = 0;
   final ScrollController _scrollController = ScrollController();
-  bool _showFullDescription = false;
+  // bool _showFullDescription = false; // Can be managed by ExpansionTile
 
-  // --- Helper: Launch URL ---
   Future<void> _launchUrlHelper(
       BuildContext context, String? urlString, String actionType) async {
     if (urlString == null || urlString.isEmpty) {
-      if (!mounted) return; // Check mounted before showing snackbar
+      if (!mounted) return;
       showGlobalSnackBar(context, '$actionType is not available.',
           isError: true);
       return;
     }
 
+    String schemeUrl = urlString;
     if (actionType == "Call" && !urlString.startsWith('tel:')) {
-      urlString = 'tel:$urlString';
+      schemeUrl = 'tel:$urlString';
     } else if (actionType == "Email" && !urlString.startsWith('mailto:')) {
-      urlString = 'mailto:$urlString';
-    } else if (actionType == "Website" &&
+      schemeUrl = 'mailto:$urlString';
+    } else if ((actionType == "Website" || actionType == "Map") &&
         !urlString.startsWith('http://') &&
         !urlString.startsWith('https://')) {
-      urlString = 'https://$urlString';
+      schemeUrl = 'https://$urlString';
     }
 
-    final Uri? uri = Uri.tryParse(urlString);
+    final Uri? uri = Uri.tryParse(schemeUrl);
     if (uri == null) {
       if (!mounted) return;
       showGlobalSnackBar(context, 'Invalid $actionType link.', isError: true);
@@ -104,7 +94,7 @@ class _ServiceProviderDetailScreenState
     }
     try {
       final canLaunch = await canLaunchUrl(uri);
-      if (!mounted) return; // Check after await
+      if (!mounted) return;
 
       if (!canLaunch) {
         showGlobalSnackBar(
@@ -114,62 +104,74 @@ class _ServiceProviderDetailScreenState
       }
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e) {
-      print("Error launching $actionType URL ($uri): $e");
-      if (!mounted) return; // Check after await
-      showGlobalSnackBar(context, 'Error opening $actionType link.',
+      if (!mounted) return;
+      showGlobalSnackBar(context, 'Error opening $actionType link: $e',
           isError: true);
     }
   }
 
-  // --- Helper: Show Booking/Options Sheet ---
   void _showBookingOptionsSheet(
       BuildContext parentContext, ServiceProviderModel provider) {
-    final theme = Theme.of(parentContext);
+    // final theme = Theme.of(parentContext); // Not used directly here now
     if (!provider.canBookOrSubscribeOnline) {
-      showGlobalSnackBar(
-          parentContext, "Online booking/subscription not available.",
+      showGlobalSnackBar(parentContext,
+          "Online booking/subscription not available for this provider.",
           isError: false);
       return;
     }
 
+    HapticFeedback.mediumImpact();
     showModalBottomSheet(
-      context: parentContext,
+      context:
+          parentContext, // Use parentContext which has all the necessary BLoCs
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      elevation: 0,
       builder: (sheetBuilderContext) {
+        // sheetBuilderContext is new and local
         return MultiBlocProvider(
+          // Provide BLoCs needed by OptionsBottomSheetContent
           providers: [
+            // FavoritesBloc is already available via parentContext.read or BlocProvider.of
+            // SocialBloc is already available via parentContext.read or BlocProvider.of
             if (provider.hasSubscriptionsEnabled)
               BlocProvider<SubscriptionBloc>(
-                  create: (blocContext) => SubscriptionBloc(
-                      // IMPORTANT: Provide the repository if SubscriptionBloc needs one.
-                      // Example: repository: blocContext.read<SubscriptionRepository>(),
+                  create: (_) => SubscriptionBloc(
+                      // Assuming SubscriptionRepository and AuthBloc are globally available or passed if needed
+                      // authBloc: parentContext.read<AuthBloc>(),
+                      // repository: parentContext.read<SubscriptionRepository>(),
                       )
                     ..add(ResetSubscriptionFlow())),
             if (provider.hasReservationsEnabled)
               BlocProvider<ReservationBloc>(
-                  create: (blocContext) => ReservationBloc(
-                      provider: provider,
-                      reservationRepository:
-                          blocContext.read<ReservationRepository>())
-                    ..add(ResetReservationFlow(provider: provider))),
-            BlocProvider.value(value: parentContext.read<SocialBloc>()),
+                  create: (_) => ReservationBloc(
+                        provider: provider,
+                        reservationRepository: parentContext.read<
+                            ReservationRepository>(), // Read existing repo
+                        // authBloc: parentContext.read<AuthBloc>(),
+                      )..add(ResetReservationFlow(provider: provider))),
           ],
           child: DraggableScrollableSheet(
-            initialChildSize: 0.65,
-            minChildSize: 0.4,
-            maxChildSize: 0.9,
+            initialChildSize: 0.75,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
             expand: false,
-            builder: (BuildContext scrollableSheetContext,
+            builder: (BuildContext
+                    scrollableSheetContext, // Use this distinct context
                 ScrollController scrollController) {
               return Container(
                 decoration: BoxDecoration(
-                  color:
-                      Theme.of(scrollableSheetContext).scaffoldBackgroundColor,
+                  color: Theme.of(scrollableSheetContext).colorScheme.surface,
                   borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(20.0)),
-                  boxShadow: kElevationToShadow[
-                      4], // Ensure kElevationToShadow is defined
+                      const BorderRadius.vertical(top: Radius.circular(24.0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      spreadRadius: -5,
+                      offset: const Offset(0, -5),
+                    )
+                  ],
                 ),
                 child: options_sheet.OptionsBottomSheetContent(
                   provider: provider,
@@ -183,23 +185,21 @@ class _ServiceProviderDetailScreenState
     );
   }
 
-  // --- Helper: Navigate to Options Configuration ---
   void _navigateToOptionsConfiguration(BuildContext context,
-      {ServiceProviderModel? provider,
-      SubscriptionPlan? plan,
-      BookableService? service}) {
-    // Your app's BookableService model
+      {BookableService? service,
+      SubscriptionPlan? planData,
+      required ServiceProviderModel provider}) {
+    ServiceModel? serviceModelForConfig;
+    PlanModel? planModelForConfig;
 
-    final currentState = context.read<ServiceProviderDetailBloc>().state;
-    ServiceProviderModel? currentProvider = provider;
-    if (currentProvider == null &&
-        currentState is ServiceProviderDetailLoaded) {
-      currentProvider = currentState.provider;
-    }
-
-    if (currentProvider == null) {
-      if (!mounted) return;
-      showGlobalSnackBar(context, "Provider details not fully loaded yet.",
+    if (service != null) {
+      serviceModelForConfig =
+          _convertBookableServiceToServiceModel(service, provider.id, provider);
+    } else if (planData != null) {
+      planModelForConfig =
+          _convertSubscriptionPlanToPlanModel(planData, provider.id, provider);
+    } else {
+      showGlobalSnackBar(context, "No item selected for configuration.",
           isError: true);
       return;
     }
@@ -207,14 +207,184 @@ class _ServiceProviderDetailScreenState
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OptionsConfigurationScreen(
-          providerId: currentProvider!.id,
-          // The following casts are workarounds for type mismatches.
-          // See "Important Recommendations" after the code block.
-          plan: plan as PlanModel?,
-          service: service as ServiceModel?,
-        ),
-      ),
+          builder: (_) => MultiBlocProvider(
+                providers: [
+                  // Forward BLoCs that OptionsConfigurationScreen might need
+                  // OptionsConfigurationBloc is created internally by OptionsConfigurationScreen
+                  BlocProvider.value(
+                      value: BlocProvider.of<SocialBloc>(context)),
+                  BlocProvider.value(
+                      value: BlocProvider.of<AuthBloc>(
+                          context)), // If AuthBloc is needed
+                ],
+                child: OptionsConfigurationScreen(
+                  providerId: provider.id,
+                  plan: planModelForConfig,
+                  service: serviceModelForConfig,
+                ),
+              )),
+    );
+  }
+
+  ServiceModel _convertBookableServiceToServiceModel(
+      BookableService bookableService,
+      String providerId,
+      ServiceProviderModel detailedProvider) {
+    Map<String, dynamic> optionsDef =
+        Map<String, dynamic>.from(bookableService.configData ?? {});
+    final String serviceTypeKey =
+        bookableService.type.typeString; // Ensure typeString is available
+    final generalTypeConfig =
+        detailedProvider.reservationTypeConfigs?[serviceTypeKey];
+
+    if (generalTypeConfig is Map) {
+      generalTypeConfig.forEach((key, value) {
+        optionsDef.putIfAbsent(key, () => value);
+      });
+    }
+
+    switch (bookableService.type) {
+      case ReservationType.timeBased:
+      case ReservationType.seatBased:
+      case ReservationType.recurring:
+      case ReservationType.group:
+        optionsDef.putIfAbsent('allowDateSelection', () => true);
+        optionsDef.putIfAbsent('allowTimeSelection', () => true);
+        optionsDef.putIfAbsent('timeSelectionType',
+            () => optionsDef['timeSelectionType'] ?? 'slots');
+        break;
+      case ReservationType.serviceBased:
+        optionsDef.putIfAbsent('allowDateSelection',
+            () => optionsDef['allowDateSelection'] ?? false);
+        optionsDef.putIfAbsent('allowTimeSelection',
+            () => optionsDef['allowTimeSelection'] ?? false);
+        break;
+      case ReservationType.accessBased:
+        optionsDef.putIfAbsent('allowDateSelection', () => true);
+        optionsDef.putIfAbsent('requiresAccessPassSelection', () => true);
+        if (detailedProvider.accessOptions != null &&
+            detailedProvider.accessOptions!.isNotEmpty) {
+          optionsDef.putIfAbsent(
+              'definedAccessPasses',
+              () => detailedProvider.accessOptions!
+                  .map((e) => e.toMap())
+                  .toList());
+        }
+        break;
+      case ReservationType.sequenceBased:
+        optionsDef.putIfAbsent('allowDateSelection', () => true);
+        optionsDef.putIfAbsent('allowTimeSelection', () => true);
+        optionsDef.putIfAbsent('timeSelectionType', () => 'preference');
+        break;
+      default:
+        break;
+    }
+
+    bool defaultAllowAttendeeSelection =
+        bookableService.type == ReservationType.group ||
+            (bookableService.capacity ?? 0) > 1;
+    int defaultMaxAttendees = bookableService.capacity ??
+        (bookableService.type == ReservationType.group ? 10 : 1);
+
+    if (bookableService.capacity != null && bookableService.capacity! > 0) {
+      optionsDef.putIfAbsent('allowQuantitySelection', () => true);
+      optionsDef.putIfAbsent(
+          'quantityDetails',
+          () => {
+                'min': 1,
+                'max': bookableService.capacity,
+                'label': bookableService.type == ReservationType.group
+                    ? 'Number of People'
+                    : 'Quantity'
+              });
+    } else if (bookableService.type != ReservationType.group) {
+      optionsDef.putIfAbsent('allowQuantitySelection', () => false);
+    } else if (bookableService.type == ReservationType.group &&
+        bookableService.capacity == null) {
+      // Group but no capacity -> default
+      optionsDef.putIfAbsent('allowQuantitySelection', () => true);
+      optionsDef.putIfAbsent(
+          'quantityDetails',
+          () => {
+                'min': 1,
+                'max': optionsDef['quantityDetails']?['max'] ?? 10,
+                'label': 'Number of People'
+              });
+    }
+
+    optionsDef.putIfAbsent(
+        'allowAttendeeSelection', () => defaultAllowAttendeeSelection);
+    optionsDef.putIfAbsent(
+        'attendeeDetails',
+        () => {
+              'max': defaultMaxAttendees,
+              'min': 1,
+            });
+
+    return ServiceModel(
+      id: bookableService.id,
+      providerId: providerId,
+      name: bookableService.name,
+      description: bookableService
+          .description, // Removed ?? '' as it's not nullable in BookableService
+      price: bookableService.price ?? 0.0,
+      priceType: optionsDef['priceType'] as String? ?? 'fixed',
+      currency: detailedProvider.address['country'] == 'EG' ? 'EGP' : 'USD',
+      estimatedDurationMinutes: bookableService.durationMinutes,
+      category: bookableService.type.displayString,
+      isActive: true,
+      optionsDefinition: optionsDef.isNotEmpty ? optionsDef : null,
+    );
+  }
+
+  PlanModel _convertSubscriptionPlanToPlanModel(
+      SubscriptionPlan subscriptionPlan,
+      String providerId,
+      ServiceProviderModel detailedProvider) {
+    Map<String, dynamic> optionsDef = {};
+    // If SubscriptionPlan model gets a `configData` field, parse it here:
+    // optionsDef = Map<String, dynamic>.from(subscriptionPlan.configData ?? {});
+
+    optionsDef.putIfAbsent('allowDateSelection', () => true);
+    optionsDef.putIfAbsent('customizableNotes',
+        () => "Any specific requests for your subscription?");
+
+    String billingCycleDisplay;
+    switch (subscriptionPlan.interval) {
+      case PricingInterval.day:
+        billingCycleDisplay = subscriptionPlan.intervalCount > 1
+            ? '${subscriptionPlan.intervalCount} days'
+            : 'Daily';
+        break;
+      case PricingInterval.week:
+        billingCycleDisplay = subscriptionPlan.intervalCount > 1
+            ? '${subscriptionPlan.intervalCount} weeks'
+            : 'Weekly';
+        break;
+      case PricingInterval.month:
+        billingCycleDisplay = subscriptionPlan.intervalCount > 1
+            ? '${subscriptionPlan.intervalCount} months'
+            : 'Monthly';
+        break;
+      case PricingInterval.year:
+        billingCycleDisplay = subscriptionPlan.intervalCount > 1
+            ? '${subscriptionPlan.intervalCount} years'
+            : 'Yearly';
+        break;
+      // default: billingCycleDisplay = 'Per Cycle'; // Default case not needed if all enum values covered
+    }
+
+    return PlanModel(
+      id: subscriptionPlan.id,
+      providerId: providerId,
+      name: subscriptionPlan.name,
+      description: subscriptionPlan.description,
+      price: subscriptionPlan.price,
+      currency: detailedProvider.address['country'] == 'EG' ? 'EGP' : 'USD',
+      billingCycle: billingCycleDisplay,
+      features: subscriptionPlan.features,
+      isActive: true,
+      optionsDefinition: optionsDef.isNotEmpty ? optionsDef : null,
     );
   }
 
@@ -226,148 +396,143 @@ class _ServiceProviderDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
+    final theme = Theme.of(context);
+    return MultiBlocProvider(
       providers: [
-        // Forward the existing global FavoritesBloc so it is accessible in this subtree
-        BlocProvider<FavoritesBloc>.value(
-          value: BlocProvider.of<FavoritesBloc>(context),
-        ),
-        Provider<ServiceProviderDetailRepository>(
-          create: (_) => FirebaseServiceProviderDetailRepository(),
-        ),
         BlocProvider<ServiceProviderDetailBloc>(
-          create: (context) => ServiceProviderDetailBloc(
-            detailRepository: context.read<ServiceProviderDetailRepository>(),
+          create: (bContext) => ServiceProviderDetailBloc(
+            detailRepository: FirebaseServiceProviderDetailRepository(),
           )..add(LoadServiceProviderDetails(providerId: widget.providerId)),
         ),
+        Provider<ReservationRepository>(
+          create: (_) => FirebaseReservationRepository(),
+        ),
       ],
-      child: Scaffold(
-        extendBodyBehindAppBar: true,
-        backgroundColor: Colors.white,
-        // Add haptic feedback on page load for premium feel
-        body: Builder(builder: (context) {
-          Future.delayed(const Duration(milliseconds: 200), () {
-            // Light impact feedback when screen loads
-            HapticFeedback.lightImpact();
-          });
+      child:
+          BlocConsumer<ServiceProviderDetailBloc, ServiceProviderDetailState>(
+        listener: (context, state) {
+          if (state is ServiceProviderDetailError &&
+              widget.initialProviderData != null) {
+            showGlobalSnackBar(
+                context, "Error fetching details: ${state.message}",
+                isError: true);
+          }
+        },
+        builder: (context, state) {
+          ServiceProviderModel? detailedProvider;
+          ServiceProviderDisplayModel? displayData = widget.initialProviderData;
+          bool isLoading = true;
+          bool isFavorite = widget.initialProviderData?.isFavorite ?? false;
+          List<String> headerImages = [];
 
-          return BlocConsumer<ServiceProviderDetailBloc,
-              ServiceProviderDetailState>(
-            listener: (context, state) {
-              if (state is ServiceProviderDetailError &&
-                  widget.initialProviderData != null) {
-                showGlobalSnackBar(context, "Error: ${state.message}",
-                    isError: true);
+          if (state is ServiceProviderDetailLoaded) {
+            isFavorite = state.isFavorite;
+            detailedProvider = state.provider;
+            displayData = ServiceProviderDisplayModel.fromServiceProviderModel(
+                detailedProvider, isFavorite);
+            isLoading = false;
+
+            if (detailedProvider.mainImageUrl != null &&
+                detailedProvider.mainImageUrl!.isNotEmpty) {
+              headerImages.add(detailedProvider.mainImageUrl!);
+            }
+            if (detailedProvider.galleryImageUrls != null) {
+              headerImages.addAll(detailedProvider.galleryImageUrls!
+                  .where((url) => url.isNotEmpty));
+            }
+            headerImages = headerImages.toSet().toList();
+            if (headerImages.isEmpty) {
+              if (displayData.businessLogoUrl != null &&
+                  displayData.businessLogoUrl!.isNotEmpty) {
+                headerImages.add(displayData.businessLogoUrl!);
+              } else {
+                headerImages.add('');
               }
-            },
-            builder: (context, state) {
-              ServiceProviderModel? detailedProvider;
-              ServiceProviderDisplayModel? displayData =
-                  widget.initialProviderData;
-              bool isLoading = true;
-              bool isFavorite = widget.initialProviderData?.isFavorite ?? false;
-              List<String> headerImages = [];
+            }
+          } else if (state is ServiceProviderDetailLoading &&
+              displayData != null) {
+            isLoading = true;
+            isFavorite = displayData.isFavorite;
+            if (displayData.imageUrl != null &&
+                displayData.imageUrl!.isNotEmpty)
+              headerImages.add(displayData.imageUrl!);
+            else if (displayData.businessLogoUrl != null &&
+                displayData.businessLogoUrl!.isNotEmpty)
+              headerImages.add(displayData.businessLogoUrl!);
+            else
+              headerImages.add('');
+          } else if (state is ServiceProviderDetailError &&
+              displayData != null) {
+            isLoading = false;
+            isFavorite = displayData.isFavorite;
+            if (displayData.imageUrl != null &&
+                displayData.imageUrl!.isNotEmpty)
+              headerImages.add(displayData.imageUrl!);
+            else if (displayData.businessLogoUrl != null &&
+                displayData.businessLogoUrl!.isNotEmpty)
+              headerImages.add(displayData.businessLogoUrl!);
+            else
+              headerImages.add('');
+          } else if (state is ServiceProviderDetailInitial &&
+              displayData != null) {
+            isLoading = true;
+            isFavorite = displayData.isFavorite;
+            if (displayData.imageUrl != null &&
+                displayData.imageUrl!.isNotEmpty)
+              headerImages.add(displayData.imageUrl!);
+            else if (displayData.businessLogoUrl != null &&
+                displayData.businessLogoUrl!.isNotEmpty)
+              headerImages.add(displayData.businessLogoUrl!);
+            else
+              headerImages.add('');
+          }
 
-              // Determine favorite status from global FavoritesBloc if loaded
-              final favState = BlocProvider.of<FavoritesBloc>(context).state;
-              if (favState is FavoritesLoaded) {
-                isFavorite =
-                    favState.favorites.any((p) => p.id == widget.providerId);
-              }
+          if (displayData == null &&
+              isLoading &&
+              state is! ServiceProviderDetailError) {
+            return _buildLoadingShimmer(theme, widget.heroTag);
+          }
+          if (displayData == null && state is ServiceProviderDetailError) {
+            return _buildErrorWidget(theme, state.message, () {
+              context.read<ServiceProviderDetailBloc>().add(
+                  LoadServiceProviderDetails(providerId: widget.providerId));
+            });
+          }
 
-              if (state is ServiceProviderDetailLoading) {
-                isLoading = true;
-                if (displayData?.imageUrl != null &&
-                    displayData!.imageUrl!.isNotEmpty) {
-                  headerImages.add(displayData.imageUrl!);
-                }
-              } else if (state is ServiceProviderDetailLoaded) {
-                detailedProvider = state.provider;
-                displayData = ServiceProviderDisplayModel(
-                  /* ... mapping from detailedProvider ... */
-                  id: detailedProvider.id,
-                  businessName: detailedProvider.businessName,
-                  imageUrl: detailedProvider.mainImageUrl,
-                  businessLogoUrl: detailedProvider.logoUrl,
-                  businessCategory: detailedProvider.category,
-                  subCategory: detailedProvider.subCategory,
-                  averageRating: detailedProvider.rating ?? 0.0,
-                  ratingCount: detailedProvider.ratingCount ?? 0,
-                  city: detailedProvider.city ?? '',
-                  isFavorite: state.isFavorite,
-                  shortDescription: detailedProvider.businessDescription
-                      .substring(
-                          0,
-                          (detailedProvider.businessDescription.length > 100
-                              ? 100
-                              : detailedProvider.businessDescription.length)),
-                  isFeatured: detailedProvider.isFeatured,
-                  isActive: detailedProvider.isActive,
-                  isApproved: detailedProvider.isApproved,
-                );
-                isFavorite = state.isFavorite;
-                isLoading = false;
+          if (displayData != null) {
+            return Scaffold(
+              extendBodyBehindAppBar: true,
+              backgroundColor: Colors.transparent,
+              body: Stack(
+                children: [
+                  // Background gradient similar to home screen
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppColors.primaryColor,
+                          AppColors.primaryColor.withOpacity(0.95),
+                          AppColors.lightBackground,
+                        ],
+                        stops: const [0.0, 0.25, 0.5],
+                      ),
+                    ),
+                  ),
 
-                if (detailedProvider.mainImageUrl != null &&
-                    detailedProvider.mainImageUrl!.isNotEmpty) {
-                  headerImages.add(detailedProvider.mainImageUrl!);
-                }
-                if (detailedProvider.galleryImageUrls != null) {
-                  headerImages.addAll(detailedProvider.galleryImageUrls!
-                      .where((url) => url.isNotEmpty));
-                }
-                headerImages =
-                    headerImages.toSet().toList(); // Remove duplicates
-                if (headerImages.isEmpty) {
-                  // Use a placeholder or logo if no images are available and initialProviderData has none
-                  if (displayData?.imageUrl != null &&
-                      displayData!.imageUrl!.isNotEmpty) {
-                    headerImages.add(displayData.imageUrl!);
-                  } else if (displayData?.businessLogoUrl != null &&
-                      displayData!.businessLogoUrl!.isNotEmpty) {
-                    headerImages.add(displayData.businessLogoUrl!);
-                  } else {
-                    headerImages.add(''); // True placeholder for empty image
-                  }
-                }
-              } else if (state is ServiceProviderDetailError) {
-                isLoading = false;
-                if (displayData?.imageUrl != null &&
-                    displayData!.imageUrl!.isNotEmpty) {
-                  headerImages.add(displayData.imageUrl!);
-                } else if (headerImages.isEmpty) {
-                  headerImages.add('');
-                }
-              } else if (state is ServiceProviderDetailInitial) {
-                isLoading = true;
-                if (displayData?.imageUrl != null &&
-                    displayData!.imageUrl!.isNotEmpty) {
-                  headerImages.add(displayData.imageUrl!);
-                } else if (headerImages.isEmpty) {
-                  headerImages.add('');
-                }
-              }
-
-              if (displayData == null && isLoading) {
-                return _buildLoadingShimmer(
-                    context, Theme.of(context), widget.heroTag);
-              }
-              if (displayData == null && state is ServiceProviderDetailError) {
-                return _buildErrorWidget(context, Theme.of(context),
-                    state.message, widget.providerId);
-              }
-
-              if (displayData != null) {
-                return Stack(
-                  children: [
-                    // Main content
-                    CustomScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      slivers: <Widget>[
-                        _SliverProviderHeaderDelegate.buildHeader(
-                          context: context,
+                  // Main scrollable content
+                  CustomScrollView(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(),
+                    slivers: <Widget>[
+                      // Header with image/carousel
+                      SliverPersistentHeader(
+                        pinned: true,
+                        delegate: _ModernSliverProviderHeaderDelegate(
+                          parentContext: context,
                           providerDisplayData: displayData,
-                          theme: Theme.of(context),
+                          theme: theme,
                           heroTag: widget.heroTag,
                           isFavorite: isFavorite,
                           headerImages: headerImages,
@@ -380,298 +545,461 @@ class _ServiceProviderDetailScreenState
                             }
                           },
                           onFavoriteToggle: () {
-                            final favoritesBloc =
-                                BlocProvider.of<FavoritesBloc>(context);
-                            if (isFavorite) {
-                              favoritesBloc
-                                  .add(RemoveFromFavorites(widget.providerId));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Removed from favorites'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            } else if (displayData != null) {
-                              favoritesBloc.add(AddToFavorites(displayData!));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Added to favorites'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            }
+                            HapticFeedback.mediumImpact();
+                            context
+                                .read<ServiceProviderDetailBloc>()
+                                .add(ToggleFavoriteStatus(
+                                  providerId: displayData!.id,
+                                  currentStatus: isFavorite,
+                                ));
                           },
                         ),
-                        if (isLoading && detailedProvider == null)
-                          const SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        else if (detailedProvider != null)
-                          _buildLoadedContentSlivers(context, Theme.of(context),
-                              detailedProvider, BorderRadius.circular(16.0))
-                        else if (state is ServiceProviderDetailError)
-                          SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: _buildErrorWidget(context, Theme.of(context),
-                                state.message, widget.providerId),
-                          )
-                        else
-                          const SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: Center(child: Text("Loading details...")),
+                      ),
+
+                      // Main content with rounded corners
+                      SliverToBoxAdapter(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.lightBackground,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(24),
+                              topRight: Radius.circular(24),
+                            ),
                           ),
-                        const SliverGap(30.0),
-                      ],
-                    ),
-                  ],
-                );
-              }
-              return const Center(child: Text("An unexpected error occurred."));
-            },
-          );
-        }),
-      ),
-    );
-  }
+                          child: Column(
+                            children: [
+                              // Drag handle indicator
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(top: 12, bottom: 4),
+                                child: Container(
+                                  height: 5,
+                                  width: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(2.5),
+                                  ),
+                                ),
+                              ),
 
-  Widget _buildLoadedContentSlivers(BuildContext passedContext, ThemeData theme,
-      ServiceProviderModel provider, BorderRadius cardRadius) {
-    return SliverList(
-      delegate: SliverChildListDelegate([
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTitleRatingLocation(theme, provider),
-              const Gap(24),
-              _buildActionButtons(passedContext, theme, provider),
-              const Gap(20),
-              const Divider(),
-              const Gap(20),
-              _buildSectionTitle(theme, "About"),
-              const Gap(10),
-              Text(
-                  provider.businessDescription.isEmpty
-                      ? "No description provided."
-                      : provider.businessDescription,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant, height: 1.5)),
-              const Gap(12),
-              if (provider.yearsInBusiness != null &&
-                  provider.yearsInBusiness! > 0)
-                _buildInfoRow(
-                    passedContext,
-                    theme,
-                    Icons.history_toggle_off_rounded,
-                    "In Business Since",
-                    "${DateTime.now().year - provider.yearsInBusiness!} (${provider.yearsInBusiness} Years)"),
-              const Gap(12),
-              if (provider.averageResponseTime != null)
-                _buildInfoRow(passedContext, theme, Icons.access_time_rounded,
-                    "Response Time", provider.averageResponseTime!),
-              const Gap(20),
-              if (provider.amenities.isNotEmpty) ...[
-                const Divider(),
-                const Gap(20),
-                _buildSectionTitle(theme, "Facilities"),
-                const Gap(16),
-                _buildFacilities(theme, provider.amenities),
-                const Gap(20),
-              ],
-              if (provider.bookableServices.isNotEmpty &&
-                  provider.pricingModel != PricingModel.subscription) ...[
-                const Divider(),
-                const Gap(20),
-                _buildSectionTitle(theme, "Bookable Services"),
-                const Gap(12),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: provider.bookableServices.length,
-                  separatorBuilder: (_, __) => const Divider(
-                      height: 1, thickness: 0.5, indent: 0, endIndent: 0),
-                  itemBuilder: (itemCtx, index) {
-                    final service = provider.bookableServices[index];
-                    return _buildServiceCard(
-                        itemCtx, theme, service, cardRadius, provider);
-                  },
-                ),
-                const Gap(20),
-              ],
-              if (provider.subscriptionPlans.isNotEmpty &&
-                  provider.pricingModel != PricingModel.reservation) ...[
-                const Divider(),
-                const Gap(20),
-                _buildSectionTitle(theme, "Subscription Plans"),
-                const Gap(12),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: provider.subscriptionPlans.length,
-                  separatorBuilder: (_, __) => const Divider(
-                      height: 1, thickness: 0.5, indent: 0, endIndent: 0),
-                  itemBuilder: (itemCtx, index) {
-                    final plan = provider.subscriptionPlans[index];
-                    return _buildSubscriptionPlanCard(
-                        itemCtx, theme, plan, cardRadius, provider);
-                  },
-                ),
-                const Gap(20),
-              ],
-              const Divider(),
-              const Gap(20),
-              _buildSectionTitle(theme, "Location"),
-              const Gap(12),
-              _buildInfoRow(passedContext, theme, Icons.location_pin, "Address",
-                  "${provider.street ?? ''}${provider.street != null ? ', ' : ''}${provider.city ?? ''}${provider.city != null ? ', ' : ''}${provider.governorate ?? ''}"),
-              const Gap(12),
-              _buildMapPlaceholder(passedContext, theme, provider),
-              const Gap(20),
-              if (provider.openingHours.isNotEmpty) ...[
-                const Divider(),
-                const Gap(20),
-                _buildSectionTitle(theme, "Operating Hours"),
-                const Gap(12),
-                _buildOpeningHours(passedContext, theme, provider.openingHours),
-                const Gap(20),
-              ],
-              const Divider(),
-              const Gap(20),
-              _buildSectionTitle(theme, "Contact & Information"),
-              const Gap(12),
-              if (provider.primaryPhoneNumber != null)
-                _buildInfoRow(passedContext, theme, Icons.phone_outlined,
-                    "Phone", provider.primaryPhoneNumber!),
-              if (provider.primaryEmail != null)
-                _buildInfoRow(passedContext, theme, Icons.email_outlined,
-                    "Email", provider.primaryEmail!),
-              if (provider.website != null)
-                _buildInfoRow(passedContext, theme, Icons.language_outlined,
-                    "Website", provider.website!),
-              if (provider.paymentMethodsAccepted != null &&
-                  provider.paymentMethodsAccepted!.isNotEmpty)
-                _buildInfoRow(
-                    passedContext,
-                    theme,
-                    Icons.payment_rounded,
-                    "Payment Methods",
-                    provider.paymentMethodsAccepted!.join(', ')),
-              const Gap(24),
-            ],
-          ),
-        ),
-      ]),
-    );
-  }
+                              // Loading/Error states
+                              if (isLoading && detailedProvider == null)
+                                const SizedBox(
+                                  height: 200,
+                                  child: Center(
+                                      child: CupertinoActivityIndicator(
+                                          radius: 15)),
+                                )
+                              else if (detailedProvider != null)
+                                _buildModernDetailContent(
+                                    context, theme, detailedProvider)
+                              else if (state is ServiceProviderDetailError)
+                                SizedBox(
+                                  height: 300,
+                                  child: _buildErrorWidget(theme, state.message,
+                                      () {
+                                    context
+                                        .read<ServiceProviderDetailBloc>()
+                                        .add(LoadServiceProviderDetails(
+                                            providerId: widget.providerId));
+                                  }),
+                                )
+                              else
+                                const SizedBox(
+                                  height: 200,
+                                  child: Center(
+                                      child: Text("Loading details...",
+                                          style: TextStyle(
+                                              color: AppColors.secondaryText))),
+                                ),
 
-  Widget _buildTitleRatingLocation(
-      ThemeData theme, ServiceProviderModel provider) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 12,
-            spreadRadius: 0,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Centered logo
-          if (provider.logoUrl != null && provider.logoUrl!.isNotEmpty)
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 2),
+                              // Bottom padding for floating button
+                              const SizedBox(height: 80),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+
+                  // Modern floating booking button
+                  if (detailedProvider != null &&
+                      detailedProvider.canBookOrSubscribeOnline)
+                    _buildModernFloatingButton(
+                        context, theme, detailedProvider),
                 ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CachedNetworkImage(
-                  imageUrl: provider.logoUrl!,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color: Colors.grey[100],
-                    child: const Center(
-                      child: CupertinoActivityIndicator(radius: 12),
+            );
+          }
+          return const Center(
+              child: Text("Provider data not available.",
+                  style: TextStyle(color: AppColors.secondaryText)));
+        },
+      ),
+    );
+  }
+
+  // Modern floating button with glass effect
+  Widget _buildModernFloatingButton(
+      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
+    return Positioned(
+      bottom: 20,
+      left: 24,
+      right: 24,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              spreadRadius: 0,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary.withOpacity(0.9),
+                    theme.colorScheme.primary,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              height: 60,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _showBookingOptionsSheet(context, provider),
+                  borderRadius: BorderRadius.circular(30),
+                  child: Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          provider.getBookingButtonText,
+                          style: AppTextStyle.getButtonStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Gap(8),
+                        const Icon(
+                          CupertinoIcons.arrow_right_circle_fill,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ],
                     ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    color: Colors.grey[100],
-                    child: Icon(Icons.business_outlined,
-                        color: Colors.grey[400], size: 40),
                   ),
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-          // Business name
-          const SizedBox(height: 16),
+  // Modern content layout for the details screen
+  Widget _buildModernDetailContent(
+      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Business name and rating section
+          _buildModernHeaderInfo(theme, provider),
+
+          // Quick action buttons
+          if (provider.canBookOrSubscribeOnline)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+              child: _buildModernActionButtons(context, theme, provider),
+            ),
+
+          // Modern details sections
+          _buildModernSection(
+            title: "About",
+            icon: CupertinoIcons.info_circle_fill,
+            content: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Text(
+                provider.businessDescription.isEmpty
+                    ? "No description provided."
+                    : provider.businessDescription,
+                style: AppTextStyle.getbodyStyle(
+                  color: AppColors.primaryText,
+                  height: 1.6,
+                ),
+              ),
+            ),
+          ),
+
+          // Business insights
+          if (provider.yearsInBusiness != null &&
+                  provider.yearsInBusiness! > 0 ||
+              provider.averageResponseTime != null)
+            _buildModernSection(
+              title: "Business Insights",
+              icon: CupertinoIcons.graph_circle_fill,
+              content: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (provider.yearsInBusiness != null &&
+                        provider.yearsInBusiness! > 0)
+                      _buildModernInfoRow(
+                        icon: CupertinoIcons.calendar,
+                        title: "In Business Since",
+                        value:
+                            "${DateTime.now().year - provider.yearsInBusiness!} (${provider.yearsInBusiness} Years)",
+                      ),
+                    if (provider.averageResponseTime != null)
+                      _buildModernInfoRow(
+                        icon: CupertinoIcons.clock_fill,
+                        title: "Avg. Response Time",
+                        value: provider.averageResponseTime!,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Amenities section
+          if (provider.amenities.isNotEmpty)
+            _buildModernSection(
+              title: "Facilities & Amenities",
+              icon: CupertinoIcons.star_circle_fill,
+              content: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: _buildModernFacilities(theme, provider.amenities),
+              ),
+            ),
+
+          // Services section
+          if (provider.bookableServices.isNotEmpty &&
+              provider.pricingModel != PricingModel.subscription)
+            _buildModernSection(
+              title: "Bookable Services",
+              icon: CupertinoIcons.calendar_badge_plus,
+              content: _buildModernServicesGrid(context, theme, provider),
+            ),
+
+          // Subscription section
+          if (provider.subscriptionPlans.isNotEmpty &&
+              provider.pricingModel != PricingModel.reservation)
+            _buildModernSection(
+              title: "Subscription Plans",
+              icon: CupertinoIcons.creditcard_fill,
+              content: _buildModernSubscriptionsList(context, theme, provider),
+            ),
+
+          // Location section
+          _buildModernSection(
+            title: "Location",
+            icon: CupertinoIcons.location_circle_fill,
+            content: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildModernInfoRow(
+                    icon: CupertinoIcons.location,
+                    title: "Address",
+                    value:
+                        "${provider.street ?? ''}${provider.street != null && (provider.city != null || provider.governorate != null) ? ', ' : ''}${provider.city ?? ''}${provider.city != null && provider.governorate != null ? ', ' : ''}${provider.governorate ?? ''}",
+                  ),
+                  const Gap(16),
+                  _buildModernMapCard(context, theme, provider),
+                ],
+              ),
+            ),
+          ),
+
+          // Hours section
+          if (provider.openingHours.isNotEmpty &&
+              provider.openingHours.values.any((day) => day.isOpen))
+            _buildModernSection(
+              title: "Hours",
+              icon: CupertinoIcons.clock_fill,
+              content: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: _buildModernOpeningHours(
+                    context, theme, provider.openingHours),
+              ),
+            ),
+
+          // Contact section
+          _buildModernSection(
+            title: "Contact",
+            icon: CupertinoIcons.phone_fill,
+            content: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (provider.primaryPhoneNumber != null)
+                    _buildModernContactButton(
+                      context: context,
+                      icon: CupertinoIcons.phone_fill,
+                      label: provider.primaryPhoneNumber!,
+                      action: () => _launchUrlHelper(
+                          context, provider.primaryPhoneNumber, "Call"),
+                    ),
+                  if (provider.primaryEmail != null)
+                    _buildModernContactButton(
+                      context: context,
+                      icon: CupertinoIcons.envelope_fill,
+                      label: provider.primaryEmail!,
+                      action: () => _launchUrlHelper(
+                          context, provider.primaryEmail, "Email"),
+                    ),
+                  if (provider.website != null)
+                    _buildModernContactButton(
+                      context: context,
+                      icon: CupertinoIcons.globe,
+                      label: provider.website!,
+                      action: () => _launchUrlHelper(
+                          context, provider.website, "Website"),
+                    ),
+                  if (provider.paymentMethodsAccepted != null &&
+                      provider.paymentMethodsAccepted!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: _buildModernInfoRow(
+                        icon: CupertinoIcons.money_dollar_circle_fill,
+                        title: "Payment Methods",
+                        value: provider.paymentMethodsAccepted!.join(', '),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Modern header with provider name and rating
+  Widget _buildModernHeaderInfo(
+      ThemeData theme, ServiceProviderModel provider) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Provider name
           Text(
             provider.businessName,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+            style: AppTextStyle.getHeadlineTextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
               color: AppColors.primaryText,
             ),
           ),
 
-          // Category tag
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.primaryColor.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              provider.subCategory != null && provider.subCategory!.isNotEmpty
-                  ? "${provider.category} • ${provider.subCategory}"
-                  : provider.category,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.primaryColor,
-                fontWeight: FontWeight.w500,
+          const Gap(8),
+
+          // Rating and category
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      CupertinoIcons.star_fill,
+                      color: Colors.amber,
+                      size: 14,
+                    ),
+                    const Gap(4),
+                    Text(
+                      "${provider.rating.toStringAsFixed(1)} (${provider.ratingCount})",
+                      style: AppTextStyle.getSmallStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.amber.shade800,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const Gap(10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  provider.category,
+                  style: AppTextStyle.getSmallStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryColor,
+                  ),
+                ),
+              ),
+              if (provider.subCategory != null &&
+                  provider.subCategory!.isNotEmpty) ...[
+                const Gap(10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    provider.subCategory!,
+                    style: AppTextStyle.getSmallStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.secondaryColor,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
 
-          // Rating stars
-          const SizedBox(height: 16),
-          _buildRatingStars(theme, provider),
+          const Gap(8),
 
-          // Location
-          const SizedBox(height: 16),
+          // Location row
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.location_on_outlined,
+              const Icon(
+                CupertinoIcons.location_solid,
                 size: 16,
                 color: AppColors.secondaryText,
               ),
-              const SizedBox(width: 4),
-              Text(
-                "${provider.city ?? ''}${provider.governorate != null && provider.city != null ? ', ' : ''}${provider.governorate ?? ''}",
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.secondaryText,
-                  fontWeight: FontWeight.w500,
+              const Gap(6),
+              Expanded(
+                child: Text(
+                  "${provider.city ?? ''}${provider.governorate != null && provider.city != null ? ', ' : ''}${provider.governorate ?? 'Location not specified'}",
+                  style: AppTextStyle.getSmallStyle(
+                    color: AppColors.secondaryText,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -681,350 +1009,497 @@ class _ServiceProviderDetailScreenState
     );
   }
 
-  Widget _buildRatingStars(ThemeData theme, ServiceProviderModel provider) {
-    // Generate star display based on rating
-    final List<Widget> stars = List.generate(5, (index) {
-      if (index < provider.rating.floor()) {
-        return Icon(Icons.star, color: Colors.amber, size: 22);
-      } else if (index < provider.rating.ceil() && provider.rating % 1 > 0) {
-        return Icon(Icons.star_half, color: Colors.amber, size: 22);
-      } else {
-        return Icon(Icons.star_border, color: Colors.amber, size: 22);
-      }
-    });
-
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: stars,
+  Widget _buildLoadingShimmer(ThemeData theme, String heroTag) {
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.chevron_left, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
         ),
-        const SizedBox(height: 4),
-        Text(
-          "${provider.rating.toStringAsFixed(1)} (${provider.ratingCount} ${provider.ratingCount == 1 ? 'review' : 'reviews'})",
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.secondaryText,
-            fontWeight: FontWeight.w500,
+      ),
+      body: Stack(
+        children: [
+          // Background gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.primaryColor,
+                  AppColors.primaryColor.withOpacity(0.95),
+                  AppColors.lightBackground,
+                ],
+                stops: const [0.0, 0.25, 0.5],
+              ),
+            ),
+          ),
+
+          Column(
+            children: [
+              // Header image shimmer
+              Shimmer.fromColors(
+                baseColor: Colors.grey[300]!,
+                highlightColor: Colors.grey[100]!,
+                child: Container(
+                  height: MediaQuery.of(context).size.width * (9 / 16) +
+                      MediaQuery.of(context).padding.top,
+                  width: double.infinity,
+                  color: Colors.white,
+                ),
+              ),
+
+              // Content shimmer
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.lightBackground,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Drag handle
+                        Center(
+                          child: Container(
+                            height: 5,
+                            width: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(2.5),
+                            ),
+                          ),
+                        ),
+                        const Gap(20),
+
+                        // Title shimmer
+                        Shimmer.fromColors(
+                          baseColor: Colors.grey[300]!,
+                          highlightColor: Colors.grey[100]!,
+                          child: Container(
+                            height: 28,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                        const Gap(12),
+
+                        // Rating shimmer
+                        Shimmer.fromColors(
+                          baseColor: Colors.grey[300]!,
+                          highlightColor: Colors.grey[100]!,
+                          child: Row(
+                            children: [
+                              Container(
+                                height: 24,
+                                width: 80,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              const Gap(12),
+                              Container(
+                                height: 24,
+                                width: 80,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Gap(20),
+
+                        // Content sections shimmer
+                        for (int i = 0; i < 4; i++) ...[
+                          Shimmer.fromColors(
+                            baseColor: Colors.grey[300]!,
+                            highlightColor: Colors.grey[100]!,
+                            child: Container(
+                              height: 24,
+                              width: 150,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                          const Gap(12),
+                          Shimmer.fromColors(
+                            baseColor: Colors.grey[300]!,
+                            highlightColor: Colors.grey[100]!,
+                            child: Container(
+                              height: 100,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                          const Gap(24),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(
+      ThemeData theme, String message, VoidCallback onRetry) {
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.chevron_left, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Background gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.primaryColor,
+                  AppColors.primaryColor.withOpacity(0.95),
+                  AppColors.lightBackground,
+                ],
+                stops: const [0.0, 0.25, 0.5],
+              ),
+            ),
+          ),
+
+          // Error content
+          Center(
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    spreadRadius: 0,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.redColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.exclamationmark_circle,
+                      color: AppColors.redColor,
+                      size: 32,
+                    ),
+                  ),
+                  const Gap(16),
+                  Text(
+                    "Error Loading Details",
+                    style: AppTextStyle.getTitleStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Gap(8),
+                  Text(
+                    message,
+                    style: AppTextStyle.getbodyStyle(
+                      color: AppColors.secondaryText,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const Gap(24),
+                  ElevatedButton(
+                    onPressed: onRetry,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryColor,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text("Try Again"),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Modern action buttons
+  Widget _buildModernActionButtons(
+      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
+    List<Widget> buttons = [];
+
+    if (provider.primaryPhoneNumber != null &&
+        provider.primaryPhoneNumber!.isNotEmpty) {
+      buttons.add(_buildModernActionButton(
+        icon: CupertinoIcons.phone_fill,
+        label: "Call",
+        color: AppColors.greenColor,
+        onTap: () =>
+            _launchUrlHelper(context, provider.primaryPhoneNumber, "Call"),
+      ));
+    }
+
+    if (provider.location != null) {
+      buttons.add(_buildModernActionButton(
+        icon: CupertinoIcons.map_fill,
+        label: "Directions",
+        color: AppColors.orangeColor,
+        onTap: () {
+          final lat = provider.location!.latitude;
+          final lon = provider.location!.longitude;
+          final url =
+              'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
+          _launchUrlHelper(context, url, "Map");
+        },
+      ));
+    }
+
+    if (provider.website != null && provider.website!.isNotEmpty) {
+      buttons.add(_buildModernActionButton(
+        icon: CupertinoIcons.globe,
+        label: "Website",
+        color: AppColors.cyanColor,
+        onTap: () => _launchUrlHelper(context, provider.website, "Website"),
+      ));
+    }
+
+    if (provider.primaryEmail != null && provider.primaryEmail!.isNotEmpty) {
+      buttons.add(_buildModernActionButton(
+        icon: CupertinoIcons.envelope_fill,
+        label: "Email",
+        color: AppColors.purpleColor,
+        onTap: () => _launchUrlHelper(context, provider.primaryEmail, "Email"),
+      ));
+    }
+
+    if (buttons.isEmpty) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: buttons,
+    );
+  }
+
+  // Modern action button with icon
+  Widget _buildModernActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                color: color,
+                size: 22,
+              ),
+            ),
+          ),
+          const Gap(8),
+          Text(
+            label,
+            style: AppTextStyle.getSmallStyle(
+              color: AppColors.primaryText,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Modern section with heading
+  Widget _buildModernSection({
+    required String title,
+    required IconData icon,
+    required Widget content,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Icon(
+                    icon,
+                    color: AppColors.primaryColor,
+                    size: 16,
+                  ),
+                ),
+              ),
+              const Gap(12),
+              Text(
+                title,
+                style: AppTextStyle.getTitleStyle(
+                  color: AppColors.primaryText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
+        // Optional divider
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: Color(0xFFEEEEEE),
+          ),
+        ),
+        content,
       ],
     );
   }
 
-  Widget _buildActionButtons(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    bool hasPhone = provider.primaryPhoneNumber != null &&
-        provider.primaryPhoneNumber!.isNotEmpty;
-    bool hasLocation = provider.location != null;
-    bool hasWebsite = provider.website != null && provider.website!.isNotEmpty;
-
-    if (!hasPhone && !hasLocation && !hasWebsite) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 12,
-            spreadRadius: 0,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
+  // Modern info row component
+  Widget _buildModernInfoRow({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.touch_app_outlined,
-                  size: 18,
-                  color: AppColors.primaryColor,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  "Quick Actions",
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryText,
-                  ),
-                ),
-              ],
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (hasPhone)
-                  _buildActionButton(
-                    context,
-                    theme,
-                    Icons.call_outlined,
-                    "Call",
-                    () => _launchUrlHelper(
-                        context, provider.primaryPhoneNumber, "Call"),
-                  ),
-                if (hasLocation)
-                  _buildActionButton(
-                    context,
-                    theme,
-                    Icons.directions_outlined,
-                    "Directions",
-                    () {
-                      if (provider.location != null) {
-                        final lat = provider.location!.latitude;
-                        final lon = provider.location!.longitude;
-                        final url =
-                            'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
-                        _launchUrlHelper(context, url, "Directions");
-                      }
-                    },
-                  ),
-                if (hasWebsite)
-                  _buildActionButton(
-                    context,
-                    theme,
-                    Icons.language_outlined,
-                    "Website",
-                    () =>
-                        _launchUrlHelper(context, provider.website, "Website"),
-                  ),
-                if (provider.primaryEmail != null)
-                  _buildActionButton(
-                    context,
-                    theme,
-                    Icons.email_outlined,
-                    "Email",
-                    () => _launchUrlHelper(
-                        context, provider.primaryEmail, "Email"),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton(
-    BuildContext context,
-    ThemeData theme,
-    IconData icon,
-    String label,
-    VoidCallback onPressed,
-  ) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.primaryColor.withOpacity(0.08),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: AppColors.primaryColor, size: 20),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: AppColors.primaryText,
-                fontWeight: FontWeight.w500,
+            child: Center(
+              child: Icon(
+                icon,
+                color: AppColors.primaryColor,
+                size: 16,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(BuildContext context, ThemeData theme, IconData icon,
-      String label, String value) {
-    bool isLink = label == "Phone" || label == "Email" || label == "Website";
-    String urlToLaunch =
-        value; // Prepare the URL string properly for _launchUrlHelper
-
-    if (label == "Phone" && !value.startsWith('tel:')) {
-      urlToLaunch = 'tel:$value';
-    } else if (label == "Email" && !value.startsWith('mailto:')) {
-      urlToLaunch = 'mailto:$value';
-    } else if (label == "Website" &&
-        !value.startsWith('http://') &&
-        !value.startsWith('https://')) {
-      // It's good practice to default to https if no scheme is present for websites
-      urlToLaunch = 'https://$value';
-    }
-    // For other types of labels, urlToLaunch remains the original value,
-    // and _launchUrlHelper will handle it (or fail gracefully if it's not a launchable URL type).
-
-    return InkWell(
-      onTap:
-          isLink ? () => _launchUrlHelper(context, urlToLaunch, label) : null,
-      borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 20, color: theme.colorScheme.secondary),
-            const Gap(14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.secondary)),
-                  const Gap(3),
-                  Text(value, // Display the original value
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                          color: isLink ? theme.colorScheme.primary : null,
-                          fontWeight: isLink ? FontWeight.w500 : null)),
-                ],
-              ),
-            ),
-            if (isLink) const Gap(8),
-            if (isLink)
-              Icon(Icons.open_in_new_rounded,
-                  size: 16,
-                  color: theme.colorScheme.secondary.withOpacity(0.7)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFacilities(ThemeData theme, List<String> amenities) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
           ),
-        ],
-      ),
-      child: Wrap(
-        spacing: 16.0,
-        runSpacing: 16.0,
-        children: amenities.map((amenityName) {
-          final IconData icon = IconConstants.getIconForAmenity(amenityName);
-          return Container(
-            width: 90,
+          const Gap(12),
+          Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.accentColor.withOpacity(0.1),
-                        AppColors.accentColor.withOpacity(0.05),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(icon, color: AppColors.primaryColor, size: 28),
-                ),
-                const Gap(8),
                 Text(
-                  amenityName,
-                  style: theme.textTheme.bodySmall?.copyWith(
+                  title,
+                  style: AppTextStyle.getSmallStyle(
                     color: AppColors.secondaryText,
-                    height: 1.2,
                     fontWeight: FontWeight.w500,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                ),
+                const Gap(2),
+                Text(
+                  value,
+                  style: AppTextStyle.getbodyStyle(
+                    color: AppColors.primaryText,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
-          );
-        }).toList(),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildOpeningHours(BuildContext context, ThemeData theme,
-      Map<String, OpeningHoursDay> hoursMap) {
-    final today = DateFormat('EEEE', Localizations.localeOf(context).toString())
-        .format(DateTime.now())
-        .toLowerCase(); // Use locale-aware DateFormat
-    final daysOrder = [
-      'monday',
-      'tuesday',
-      'wednesday',
-      'thursday',
-      'friday',
-      'saturday',
-      'sunday'
-    ];
-
-    return Column(
-      children: daysOrder.map((day) {
-        final hours = hoursMap[day];
-        final bool isToday = day == today;
-        // Consider localizing day names if app supports multiple languages
-        final String displayDay = day[0].toUpperCase() + day.substring(1);
-        String displayHours;
-        if (hours == null ||
-            !hours.isOpen ||
-            hours.startTime == null ||
-            hours.endTime == null) {
-          displayHours = "Closed";
-        } else {
-          final localizations = MaterialLocalizations.of(context);
-          final startFormatted = localizations.formatTimeOfDay(hours.startTime!,
-              alwaysUse24HourFormat: MediaQuery.of(context)
-                  .alwaysUse24HourFormat); // Respect user's 24hr preference
-          final endFormatted = localizations.formatTimeOfDay(hours.endTime!,
-              alwaysUse24HourFormat:
-                  MediaQuery.of(context).alwaysUse24HourFormat);
-          displayHours = "$startFormatted - $endFormatted";
-        }
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5.0),
+  // Modern facilities chips
+  Widget _buildModernFacilities(ThemeData theme, List<String> amenities) {
+    return Wrap(
+      spacing: 8.0,
+      runSpacing: 8.0,
+      children: amenities.map((amenity) {
+        final icon = AppIcons.getIconForAmenity(amenity);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.primaryColor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                displayDay,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                  color: isToday ? theme.colorScheme.primary : null,
-                ),
+              Icon(
+                icon,
+                size: 14,
+                color: AppColors.primaryColor,
               ),
+              const Gap(6),
               Text(
-                displayHours,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                  color: (hours == null || !hours.isOpen)
-                      ? Colors.grey.shade600
-                      : (isToday ? theme.colorScheme.primary : null),
+                amenity,
+                style: AppTextStyle.getSmallStyle(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -1034,93 +1509,241 @@ class _ServiceProviderDetailScreenState
     );
   }
 
-  Widget _buildSectionTitle(ThemeData theme, String title) {
+  // Modern services grid
+  Widget _buildModernServicesGrid(
+      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 3,
-            height: 18,
-            decoration: BoxDecoration(
-              color: AppColors.primaryColor,
-              borderRadius: BorderRadius.circular(1.5),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            title,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryText,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const Spacer(),
-          // Contextual icon
-          Icon(
-            _getSectionIcon(title),
-            size: 18,
-            color: AppColors.secondaryText.withOpacity(0.5),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: provider.bookableServices.length,
+        itemBuilder: (context, index) {
+          final service = provider.bookableServices[index];
+          return _buildModernServiceCard(
+            context: context,
+            service: service,
+            provider: provider,
+            index: index,
+          );
+        },
       ),
     );
   }
 
-  IconData _getSectionIcon(String title) {
-    switch (title.toLowerCase()) {
-      case "about":
-        return Icons.info_outline_rounded;
-      case "facilities":
-        return Icons.hotel_class_outlined;
-      case "bookable services":
-        return Icons.event_available_outlined;
-      case "subscription plans":
-        return Icons.card_membership_outlined;
-      case "location":
-        return Icons.place_outlined;
-      case "operating hours":
-        return Icons.access_time_outlined;
-      case "contact & information":
-        return Icons.contact_phone_outlined;
-      default:
-        return Icons.arrow_right_alt_rounded;
-    }
-  }
-
-  Widget _buildSubscriptionPlanCard(
-      BuildContext context,
-      ThemeData theme,
-      SubscriptionPlan plan,
-      BorderRadius cardRadius,
-      ServiceProviderModel provider) {
-    final intervalStr =
-        "${plan.intervalCount > 1 ? '${plan.intervalCount} ' : ''}${plan.interval.name}${plan.intervalCount > 1 ? 's' : ''}"; // Ensure plan.interval.name is correct
+  // Modern service card
+  Widget _buildModernServiceCard({
+    required BuildContext context,
+    required BookableService service,
+    required ServiceProviderModel provider,
+    required int index,
+  }) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: () => _navigateToOptionsConfiguration(context,
-              plan: plan, provider: provider),
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _navigateToOptionsConfiguration(
+            context,
+            service: service,
+            provider: provider,
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Service name and arrow
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        service.name,
+                        style: AppTextStyle.getTitleStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          CupertinoIcons.chevron_right,
+                          color: AppColors.primaryColor,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (service.description.isNotEmpty) ...[
+                  const Gap(6),
+                  Text(
+                    service.description,
+                    style: AppTextStyle.getSmallStyle(
+                      color: AppColors.secondaryText,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+
+                const Gap(12),
+
+                // Service details chips
+                Row(
+                  children: [
+                    if (service.durationMinutes != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.secondaryColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              CupertinoIcons.clock_fill,
+                              size: 12,
+                              color: AppColors.secondaryColor,
+                            ),
+                            const Gap(4),
+                            Text(
+                              "${service.durationMinutes} min",
+                              style: AppTextStyle.getSmallStyle(
+                                color: AppColors.secondaryColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const Gap(8),
+                    if (service.price != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              CupertinoIcons.money_dollar_circle_fill,
+                              size: 12,
+                              color: AppColors.primaryColor,
+                            ),
+                            const Gap(4),
+                            Text(
+                              "EGP ${service.price!.toStringAsFixed(0)}",
+                              style: AppTextStyle.getSmallStyle(
+                                color: AppColors.primaryColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Modern subscriptions list
+  Widget _buildModernSubscriptionsList(
+      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: provider.subscriptionPlans.length,
+        itemBuilder: (context, index) {
+          final plan = provider.subscriptionPlans[index];
+          return _buildModernSubscriptionCard(
+            context: context,
+            plan: plan,
+            provider: provider,
+          );
+        },
+      ),
+    );
+  }
+
+  // Modern subscription card
+  Widget _buildModernSubscriptionCard({
+    required BuildContext context,
+    required SubscriptionPlan plan,
+    required ServiceProviderModel provider,
+  }) {
+    final intervalStr =
+        "${plan.intervalCount > 1 ? '${plan.intervalCount} ' : ''}${plan.interval.name}${plan.intervalCount > 1 ? 's' : ''}";
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _navigateToOptionsConfiguration(
+            context,
+            planData: plan,
+            provider: provider,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Plan name and price
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1128,101 +1751,83 @@ class _ServiceProviderDetailScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(plan.name,
-                              style: theme.textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold)),
-                          const Gap(8),
-                          Text(plan.description,
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: Colors.grey.shade700)),
+                          Text(
+                            plan.name,
+                            style: AppTextStyle.getTitleStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (plan.description.isNotEmpty) ...[
+                            const Gap(6),
+                            Text(
+                              plan.description,
+                              style: AppTextStyle.getSmallStyle(
+                                color: AppColors.secondaryText,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                    const Gap(16),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppColors.primaryColor.withOpacity(0.9),
-                                AppColors.primaryColor,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primaryColor.withOpacity(0.2),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            "EGP ${plan.price.toStringAsFixed(0)}",
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                        Text(
+                          "EGP ${plan.price.toStringAsFixed(0)}",
+                          style: AppTextStyle.getTitleStyle(
+                            color: AppColors.primaryColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const Gap(8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.accentColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            "/ $intervalStr",
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.secondaryText,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        Text(
+                          "/ $intervalStr",
+                          style: AppTextStyle.getSmallStyle(
+                            color: AppColors.secondaryText,
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
+
                 if (plan.features.isNotEmpty) ...[
                   const Gap(16),
                   Wrap(
-                    spacing: 8.0,
-                    runSpacing: 8.0,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: plan.features.map((feature) {
                       return Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                          horizontal: 10,
+                          vertical: 5,
                         ),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppColors.accentColor.withOpacity(0.1),
-                              AppColors.accentColor.withOpacity(0.05),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
+                          color: AppColors.greenColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          feature,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.primaryColor,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              CupertinoIcons.checkmark_circle_fill,
+                              size: 12,
+                              color: AppColors.greenColor,
+                            ),
+                            const Gap(4),
+                            Text(
+                              feature,
+                              style: AppTextStyle.getSmallStyle(
+                                color: AppColors.primaryText,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     }).toList(),
@@ -1236,135 +1841,255 @@ class _ServiceProviderDetailScreenState
     );
   }
 
-  Widget _buildServiceCard(
-      BuildContext context,
-      ThemeData theme,
-      BookableService service,
-      BorderRadius cardRadius,
-      ServiceProviderModel provider) {
+  // Modern map card
+  Widget _buildModernMapCard(
+      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      width: double.infinity,
+      height: 180,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            spreadRadius: 0,
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Material(
+          color: Colors.transparent,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  color: AppColors.primaryColor.withOpacity(0.05),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          CupertinoIcons.map_fill,
+                          size: 40,
+                          color: AppColors.primaryColor.withOpacity(0.3),
+                        ),
+                        const Gap(8),
+                        Text(
+                          "Map View",
+                          style: AppTextStyle.getSmallStyle(
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (provider.location != null)
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      final lat = provider.location!.latitude;
+                      final lon = provider.location!.longitude;
+                      final url =
+                          'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
+                      _launchUrlHelper(context, url, "Map");
+                    },
+                    icon: const Icon(
+                      CupertinoIcons.arrow_up_right_square_fill,
+                      size: 14,
+                    ),
+                    label: const Text("Open Maps"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: AppTextStyle.getSmallStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Modern opening hours
+  Widget _buildModernOpeningHours(BuildContext context, ThemeData theme,
+      Map<String, OpeningHoursDay> hoursMap) {
+    final today = DateFormat('EEEE').format(DateTime.now()).toLowerCase();
+    final daysOrder = [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday'
+    ];
+
+    return Column(
+      children: daysOrder.map((day) {
+        final hours = hoursMap[day.toLowerCase()];
+        final bool isToday = day == today;
+        final String displayDay = day[0].toUpperCase() + day.substring(1);
+        String displayHours;
+
+        if (hours == null ||
+            !hours.isOpen ||
+            hours.startTime == null ||
+            hours.endTime == null) {
+          displayHours = "Closed";
+        } else {
+          final localizations = MaterialLocalizations.of(context);
+          final startFormatted = localizations.formatTimeOfDay(
+            hours.startTime!,
+            alwaysUse24HourFormat: MediaQuery.of(context).alwaysUse24HourFormat,
+          );
+          final endFormatted = localizations.formatTimeOfDay(
+            hours.endTime!,
+            alwaysUse24HourFormat: MediaQuery.of(context).alwaysUse24HourFormat,
+          );
+          displayHours = "$startFormatted - $endFormatted";
+        }
+
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: isToday
+                ? AppColors.primaryColor.withOpacity(0.08)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isToday
+                  ? AppColors.primaryColor.withOpacity(0.2)
+                  : Colors.grey.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  if (isToday) ...[
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: hours != null && hours.isOpen
+                            ? AppColors.greenColor
+                            : AppColors.redColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const Gap(8),
+                  ],
+                  Text(
+                    displayDay,
+                    style: AppTextStyle.getbodyStyle(
+                      fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
+                      color: isToday
+                          ? AppColors.primaryColor
+                          : AppColors.primaryText,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                displayHours,
+                style: AppTextStyle.getbodyStyle(
+                  fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
+                  color: (hours == null || !hours.isOpen)
+                      ? AppColors.redColor.withOpacity(0.7)
+                      : (isToday
+                          ? AppColors.primaryColor
+                          : AppColors.primaryText),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // Modern contact button
+  Widget _buildModernContactButton({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback action,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          onTap: () => _navigateToOptionsConfiguration(context,
-              service: service, provider: provider),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          onTap: action,
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                // Service header with name and service icon
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Service icon with clean style
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryColor.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _getServiceIcon(service.name),
-                        color: AppColors.primaryColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Name and duration
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            service.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                          if (service.durationMinutes != null) ...[
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.access_time_rounded,
-                                  size: 14,
-                                  color: AppColors.secondaryText,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  "${service.durationMinutes} min",
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppColors.secondaryText,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    // Price tag
-                    if (service.price != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          "EGP ${service.price!.toStringAsFixed(0)}",
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryColor,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                // Service description
-                const SizedBox(height: 12),
-                Text(
-                  service.description,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.secondaryText,
-                    height: 1.4,
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                // Book now button
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => _navigateToOptionsConfiguration(context,
-                        service: service, provider: provider),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.primaryColor,
+                  child: Center(
+                    child: Icon(
+                      icon,
+                      color: AppColors.primaryColor,
+                      size: 20,
                     ),
-                    icon: const Icon(Icons.calendar_today_outlined, size: 16),
-                    label: const Text('Book Now'),
                   ),
+                ),
+                const Gap(16),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: AppTextStyle.getbodyStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  CupertinoIcons.chevron_right,
+                  color: AppColors.secondaryText,
+                  size: 16,
                 ),
               ],
             ),
@@ -1373,226 +2098,12 @@ class _ServiceProviderDetailScreenState
       ),
     );
   }
-
-  // Helper to get contextual icons for services based on name
-  IconData _getServiceIcon(String serviceName) {
-    final name = serviceName.toLowerCase();
-
-    if (name.contains('consult') ||
-        name.contains('advice') ||
-        name.contains('session')) {
-      return Icons.people_outline_rounded;
-    } else if (name.contains('therapy') ||
-        name.contains('massage') ||
-        name.contains('spa')) {
-      return Icons.spa_rounded;
-    } else if (name.contains('class') ||
-        name.contains('lesson') ||
-        name.contains('course')) {
-      return Icons.school_rounded;
-    } else if (name.contains('cut') ||
-        name.contains('hair') ||
-        name.contains('style')) {
-      return Icons.content_cut_rounded;
-    } else if (name.contains('treatment') || name.contains('procedure')) {
-      return Icons.healing_rounded;
-    } else if (name.contains('test') ||
-        name.contains('check') ||
-        name.contains('exam')) {
-      return Icons.assignment_rounded;
-    } else {
-      return Icons.event_available_rounded; // Default
-    }
-  }
-
-  Widget _buildMapPlaceholder(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    return Column(
-      children: [
-        Container(
-          height: 150,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors
-                .grey.shade200, // Consider theme.colorScheme.surfaceVariant
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: Icon(Icons.map_outlined,
-                size: 50,
-                color: Colors.grey
-                    .shade400), // Consider theme.colorScheme.onSurfaceVariant
-          ),
-        ),
-        const Gap(8),
-        TextButton.icon(
-          icon: Icon(Icons.open_in_new_rounded,
-              size: 16, color: Theme.of(context).colorScheme.primary),
-          label: Text("Open in Maps",
-              style: TextStyle(color: Theme.of(context).colorScheme.primary)),
-          onPressed: provider.location != null
-              ? () {
-                  if (provider.location != null) {
-                    final lat = provider.location!.latitude;
-                    final lon = provider.location!.longitude;
-                    final url =
-                        'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
-                    _launchUrlHelper(context, url, "Map");
-                  }
-                }
-              : null,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLoadingShimmer(
-      BuildContext context, ThemeData theme, String heroTag) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    // Adjust shimmer aspect ratio to match _SliverProviderHeaderDelegate maxExtent
-    final double headerImageHeight =
-        screenWidth / (16 / 9); // Assuming 16:9, match with delegate
-    final shimmerBaseColor = Colors.grey.shade300;
-    final shimmerHighlightColor = Colors.grey.shade100;
-    final shimmerContentColor = Colors.white;
-    final radius = BorderRadius.circular(12.0);
-
-    return Shimmer.fromColors(
-      baseColor: shimmerBaseColor,
-      highlightColor: shimmerHighlightColor,
-      child: CustomScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            expandedHeight: headerImageHeight +
-                MediaQuery.of(context)
-                    .padding
-                    .top, // Match delegate's maxExtent
-            pinned: true,
-            automaticallyImplyLeading: false,
-            backgroundColor: shimmerBaseColor,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Hero(
-                tag: heroTag, // Ensure heroTag is consistent
-                child: Container(color: shimmerContentColor),
-              ),
-            ),
-          ),
-          SliverList(
-            delegate: SliverChildListDelegate([
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                        width: screenWidth * 0.8,
-                        height: 28,
-                        decoration: BoxDecoration(
-                            color: shimmerContentColor, borderRadius: radius)),
-                    const Gap(10),
-                    Container(
-                        width: screenWidth * 0.6,
-                        height: 18,
-                        decoration: BoxDecoration(
-                            color: shimmerContentColor, borderRadius: radius)),
-                    const Gap(10),
-                    Container(
-                        width: screenWidth * 0.7,
-                        height: 18,
-                        decoration: BoxDecoration(
-                            color: shimmerContentColor, borderRadius: radius)),
-                    const Gap(24),
-                    Row(
-                      children: [
-                        Expanded(
-                            child: Container(
-                                height: 45,
-                                decoration: BoxDecoration(
-                                    color: shimmerContentColor,
-                                    borderRadius: radius))),
-                        const Gap(12),
-                        Expanded(
-                            child: Container(
-                                height: 45,
-                                decoration: BoxDecoration(
-                                    color: shimmerContentColor,
-                                    borderRadius: radius))),
-                      ],
-                    ),
-                    const Gap(20),
-                    const Divider(),
-                    const Gap(20),
-                    Container(
-                        width: 120,
-                        height: 22,
-                        decoration: BoxDecoration(
-                            color: shimmerContentColor, borderRadius: radius)),
-                    const Gap(12),
-                    Container(
-                        height: 100,
-                        decoration: BoxDecoration(
-                            color: shimmerContentColor, borderRadius: radius)),
-                    const Gap(20),
-                    const Divider(),
-                    const Gap(20),
-                    Container(
-                        width: 120,
-                        height: 22,
-                        decoration: BoxDecoration(
-                            color: shimmerContentColor, borderRadius: radius)),
-                    const Gap(12),
-                    Container(
-                        height: 100,
-                        decoration: BoxDecoration(
-                            color: shimmerContentColor, borderRadius: radius)),
-                  ],
-                ),
-              ),
-            ]),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorWidget(BuildContext context, ThemeData theme,
-      String message, String currentProviderId) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline_rounded,
-                color: theme.colorScheme.error, size: 50),
-            const Gap(16),
-            Text("Oops!", style: theme.textTheme.headlineSmall),
-            const Gap(8),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: theme.colorScheme.secondary)),
-            const Gap(24),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0))),
-              onPressed: () => context.read<ServiceProviderDetailBloc>().add(
-                  LoadServiceProviderDetails(providerId: currentProviderId)),
-              child: const Text("Retry"),
-            )
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-class _SliverProviderHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final BuildContext
-      parentContext; // Context from _ServiceDetailsViewState's build method
+// Modern header delegate for the service provider detail screen
+class _ModernSliverProviderHeaderDelegate
+    extends SliverPersistentHeaderDelegate {
+  final BuildContext parentContext;
   final ServiceProviderDisplayModel providerDisplayData;
   final ThemeData theme;
   final String heroTag;
@@ -1603,7 +2114,7 @@ class _SliverProviderHeaderDelegate extends SliverPersistentHeaderDelegate {
   final Function(int index, CarouselPageChangedReason reason)
       onCarouselPageChanged;
 
-  _SliverProviderHeaderDelegate({
+  _ModernSliverProviderHeaderDelegate({
     required this.parentContext,
     required this.providerDisplayData,
     required this.theme,
@@ -1615,119 +2126,144 @@ class _SliverProviderHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.onCarouselPageChanged,
   });
 
-  static Widget buildHeader({
-    required BuildContext
-        context, // This is _ServiceDetailsViewState's build context
-    required ServiceProviderDisplayModel providerDisplayData,
-    required ThemeData theme,
-    required String heroTag,
-    required bool isFavorite,
-    required VoidCallback onFavoriteToggle,
-    required List<String> headerImages,
-    required int carouselIndex,
-    required Function(int index, CarouselPageChangedReason reason)
-        onCarouselPageChanged,
-  }) {
-    return SliverPersistentHeader(
-      pinned: true,
-      delegate: _SliverProviderHeaderDelegate(
-        parentContext: context, // Pass the _ServiceDetailsViewState's context
-        providerDisplayData: providerDisplayData,
-        theme: theme,
-        heroTag: heroTag,
-        isFavorite: isFavorite,
-        onFavoriteToggle: onFavoriteToggle,
-        headerImages: headerImages,
-        carouselIndex: carouselIndex,
-        onCarouselPageChanged: onCarouselPageChanged,
-      ),
-    );
-  }
-
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
     final double topSafeArea = MediaQuery.of(parentContext).padding.top;
     final double currentExtent = maxExtent - shrinkOffset;
-    final double titleOpacity =
-        (1.0 - (currentExtent - minExtent) / (maxExtent - minExtent))
-            .clamp(0.0, 1.0);
+    final double progress = (1.0 - currentExtent / maxExtent).clamp(0.0, 1.0);
 
-    bool noImagesAvailable = headerImages.isEmpty ||
+    // Opacity values for smooth transitions
+    final double imageOpacity = (1.0 - progress * 1.2).clamp(0.0, 1.0);
+    final double titleOpacity = (progress * 1.5 - 0.3).clamp(0.0, 1.0);
+
+    final bool noImagesAvailable = headerImages.isEmpty ||
         (headerImages.length == 1 && headerImages.first.isEmpty);
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Top bar with back button and actions
+        // Background image/carousel with hero animation
+        Positioned.fill(
+          child: Opacity(
+            opacity: imageOpacity,
+            child: Hero(
+              tag: heroTag,
+              child: noImagesAvailable
+                  ? Container(
+                      color: AppColors.primaryColor.withOpacity(0.8),
+                      child: Center(
+                        child: Icon(
+                          CupertinoIcons.photo_fill,
+                          color: Colors.white.withOpacity(0.3),
+                          size: 60,
+                        ),
+                      ),
+                    )
+                  : CarouselSlider.builder(
+                      itemCount: headerImages.length,
+                      itemBuilder: (carouselContext, index, realIndex) {
+                        final imageUrl = headerImages[index];
+                        if (imageUrl.isEmpty) {
+                          return Container(
+                            color: AppColors.primaryColor.withOpacity(0.8),
+                            child: Center(
+                              child: Icon(
+                                CupertinoIcons.photo_fill,
+                                color: Colors.white.withOpacity(0.3),
+                                size: 60,
+                              ),
+                            ),
+                          );
+                        }
+                        return CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          placeholder: (c, u) => Shimmer.fromColors(
+                            baseColor: Colors.grey[300]!,
+                            highlightColor: Colors.grey[100]!,
+                            child: Container(color: Colors.white),
+                          ),
+                          errorWidget: (c, u, e) => Container(
+                            color: AppColors.primaryColor.withOpacity(0.8),
+                            child: Center(
+                              child: Icon(
+                                CupertinoIcons.photo_fill,
+                                color: Colors.white.withOpacity(0.3),
+                                size: 60,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      options: CarouselOptions(
+                        height: double.infinity,
+                        viewportFraction: 1.0,
+                        enableInfiniteScroll: headerImages.length > 1,
+                        autoPlay: headerImages.length > 1,
+                        autoPlayInterval: const Duration(seconds: 5),
+                        autoPlayAnimationDuration:
+                            const Duration(milliseconds: 800),
+                        autoPlayCurve: Curves.fastOutSlowIn,
+                        onPageChanged: onCarouselPageChanged,
+                        initialPage: carouselIndex,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+
+        // Gradient overlay for better readability
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.4),
+                  Colors.black.withOpacity(imageOpacity * 0.3),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ),
+            ),
+          ),
+        ),
+
+        // Header bar with title when scrolled
         Positioned(
           top: 0,
           left: 0,
           right: 0,
-          height: minExtent,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: EdgeInsets.only(top: topSafeArea),
-            color: Colors.white.withOpacity(titleOpacity),
-            child: Stack(
-              children: [
-                // Back button
-                Positioned(
-                  left: 16,
-                  top: 8,
-                  child: _buildCleanButton(
-                    context: parentContext,
-                    icon: Icons.arrow_back_rounded,
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.pop(parentContext);
-                    },
-                  ),
-                ),
-                // Action buttons
-                Positioned(
-                  right: 16,
-                  top: 8,
-                  child: Row(
-                    children: [
-                      // Share button
-                      _buildCleanButton(
-                        context: parentContext,
-                        icon: Icons.share_outlined,
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          ScaffoldMessenger.of(parentContext).showSnackBar(
-                            const SnackBar(
-                              content: Text('Share functionality coming soon!'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      // Heart button
-                      _buildFavoriteButton(
-                        context: parentContext,
-                        isFavorite: isFavorite,
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          onFavoriteToggle();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                // Title
-                Positioned(
-                  left: 70,
-                  right: 70,
-                  top: 13,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
+          child: Container(
+            height: topSafeArea + kToolbarHeight,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.primaryColor.withOpacity(titleOpacity * 0.9),
+                  AppColors.primaryColor.withOpacity(titleOpacity * 0.7),
+                  AppColors.primaryColor.withOpacity(0),
+                ],
+                stops: const [0.0, 0.7, 1.0],
+              ),
+            ),
+            child: Padding(
+              padding: EdgeInsets.only(top: topSafeArea),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Centered title
+                  Opacity(
                     opacity: titleOpacity,
                     child: Text(
                       providerDisplayData.businessName,
-                      style: theme.textTheme.titleMedium?.copyWith(
+                      style: AppTextStyle.getTitleStyle(
+                        color: Colors.white,
+                        fontSize: 18,
                         fontWeight: FontWeight.w600,
                       ),
                       textAlign: TextAlign.center,
@@ -1735,198 +2271,120 @@ class _SliverProviderHeaderDelegate extends SliverPersistentHeaderDelegate {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ),
-              ],
+
+                  // Back button
+                  Positioned(
+                    left: 4,
+                    child: _buildHeaderButton(
+                      icon: CupertinoIcons.chevron_left,
+                      onTap: () => Navigator.pop(parentContext),
+                      color: progress > 0.3 && titleOpacity > 0
+                          ? Colors.white
+                          : Colors.white,
+                    ),
+                  ),
+
+                  // Action buttons
+                  Positioned(
+                    right: 4,
+                    child: Row(
+                      children: [
+                        _buildHeaderButton(
+                          icon: CupertinoIcons.share,
+                          onTap: () {
+                            showGlobalSnackBar(
+                                parentContext, "Share feature coming soon!");
+                          },
+                          color: progress > 0.3 && titleOpacity > 0
+                              ? Colors.white
+                              : Colors.white,
+                        ),
+                        _buildHeaderButton(
+                          icon: isFavorite
+                              ? CupertinoIcons.heart_fill
+                              : CupertinoIcons.heart,
+                          onTap: onFavoriteToggle,
+                          color: isFavorite
+                              ? Colors.redAccent
+                              : (progress > 0.3 && titleOpacity > 0
+                                  ? Colors.white
+                                  : Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        // Photo carousel
-        Positioned(
-          top: minExtent,
-          left: 0,
-          right: 0,
-          height: maxExtent - minExtent,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8.0), // Changed to 8px radius
-            child: noImagesAvailable
-                ? Container(
-                    color: Colors.grey[200],
-                    child: Center(
-                      child: Icon(Icons.image_outlined,
-                          color: Colors.grey[400], size: 60),
-                    ),
-                  )
-                : CarouselSlider.builder(
-                    itemCount: headerImages.length,
-                    itemBuilder: (context, index, realIndex) {
-                      final imageUrl = headerImages[index];
-                      if (imageUrl.isEmpty) {
-                        return Container(
-                          color: Colors.grey[200],
-                          child: Center(
-                            child: Icon(Icons.image_outlined,
-                                color: Colors.grey[400], size: 60),
-                          ),
-                        );
-                      }
-                      return Hero(
-                        tag: heroTag,
-                        child: CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[200],
-                            child: const Center(
-                              child: CupertinoActivityIndicator(radius: 15),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey[200],
-                            child: Icon(Icons.broken_image_outlined,
-                                color: Colors.grey[400], size: 60),
-                          ),
-                        ),
-                      );
-                    },
-                    options: CarouselOptions(
-                      height: double.infinity,
-                      viewportFraction: 1.0,
-                      enableInfiniteScroll: headerImages.length > 1,
-                      autoPlay: headerImages.length > 1,
-                      autoPlayInterval: const Duration(seconds: 6),
-                      autoPlayAnimationDuration:
-                          const Duration(milliseconds: 800),
-                      autoPlayCurve: Curves.fastOutSlowIn,
-                      onPageChanged: onCarouselPageChanged,
-                    ),
-                  ),
-          ),
-        ),
-        // Image counter and dots indicator
-        if (!noImagesAvailable && headerImages.length > 1)
+
+        // Carousel dots indicator
+        if (!noImagesAvailable && headerImages.length > 1 && imageOpacity > 0.5)
           Positioned(
             bottom: 16,
             left: 0,
             right: 0,
-            child: Column(
-              children: [
-                // Image counter
-                Align(
-                  alignment: Alignment.center,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${carouselIndex + 1}/${headerImages.length}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+            child: Opacity(
+              opacity: imageOpacity,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: DotsIndicator(
+                    dotsCount: headerImages.length,
+                    position: carouselIndex.toDouble(),
+                    decorator: DotsDecorator(
+                      size: const Size.square(6.0),
+                      activeSize: const Size(18.0, 6.0),
+                      activeShape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3.0),
                       ),
+                      color: Colors.white.withOpacity(0.5),
+                      activeColor: Colors.white,
+                      spacing: const EdgeInsets.symmetric(horizontal: 3.0),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                // Dots indicator
-                DotsIndicator(
-                  dotsCount: headerImages.length,
-                  position: carouselIndex
-                      .toDouble()
-                      .clamp(0.0, (headerImages.length - 1).toDouble()),
-                  decorator: DotsDecorator(
-                    size: const Size.square(6.0),
-                    activeSize: const Size(18.0, 6.0),
-                    activeShape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3.0),
-                    ),
-                    color: Colors.black.withOpacity(0.2),
-                    activeColor: AppColors.primaryColor,
-                    spacing: const EdgeInsets.symmetric(horizontal: 3),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
       ],
     );
   }
 
-  // New clean button style without gradients
-  Widget _buildCleanButton({
-    required BuildContext context,
+  // Modern header button
+  Widget _buildHeaderButton({
     required IconData icon,
     required VoidCallback onTap,
+    required Color color,
   }) {
     return Material(
-      color: Colors.white,
-      elevation: 2,
-      shadowColor: Colors.black26,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            color: AppColors.primaryText,
-            size: 20,
-          ),
+      color: Colors.transparent,
+      child: IconButton(
+        icon: Icon(
+          icon,
+          color: color,
+          size: 22,
         ),
-      ),
-    );
-  }
-
-  // New favorite button style
-  Widget _buildFavoriteButton({
-    required BuildContext context,
-    required bool isFavorite,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.white,
-      elevation: 2,
-      shadowColor: Colors.black26,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            switchInCurve: Curves.easeOutBack,
-            child: isFavorite
-                ? Icon(
-                    Icons.favorite_rounded,
-                    key: const ValueKey('fav'),
-                    color: Colors.redAccent,
-                    size: 20,
-                  )
-                : Icon(
-                    Icons.favorite_border_rounded,
-                    key: const ValueKey('unfav'),
-                    color: AppColors.primaryText,
-                    size: 20,
-                  ),
-          ),
-        ),
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        splashRadius: 20,
       ),
     );
   }
 
   @override
   double get maxExtent =>
-      MediaQuery.of(parentContext).size.width +
+      MediaQuery.of(parentContext).size.width * (9 / 16) +
       MediaQuery.of(parentContext).padding.top;
 
   @override
@@ -1934,11 +2392,11 @@ class _SliverProviderHeaderDelegate extends SliverPersistentHeaderDelegate {
       kToolbarHeight + MediaQuery.of(parentContext).padding.top;
 
   @override
-  bool shouldRebuild(_SliverProviderHeaderDelegate oldDelegate) {
+  bool shouldRebuild(
+      covariant _ModernSliverProviderHeaderDelegate oldDelegate) {
     return parentContext != oldDelegate.parentContext ||
-        providerDisplayData.id != oldDelegate.providerDisplayData.id ||
-        providerDisplayData.businessName !=
-            oldDelegate.providerDisplayData.businessName ||
+        providerDisplayData != oldDelegate.providerDisplayData ||
+        theme != oldDelegate.theme ||
         heroTag != oldDelegate.heroTag ||
         isFavorite != oldDelegate.isFavorite ||
         !listEquals(headerImages, oldDelegate.headerImages) ||
@@ -1951,29 +2409,22 @@ extension ServiceProviderModelBooking on ServiceProviderModel {
   bool get canBookOrSubscribeOnline =>
       pricingModel != PricingModel.other &&
       (hasReservationsEnabled || hasSubscriptionsEnabled);
+
   bool get hasReservationsEnabled =>
       (pricingModel == PricingModel.reservation ||
           pricingModel == PricingModel.hybrid) &&
-      supportedReservationTypes.isNotEmpty;
+      (bookableServices.isNotEmpty || supportedReservationTypes.isNotEmpty);
+
   bool get hasSubscriptionsEnabled =>
       (pricingModel == PricingModel.subscription ||
           pricingModel == PricingModel.hybrid) &&
       subscriptionPlans.isNotEmpty;
+
   String get getBookingButtonText {
     if (pricingModel == PricingModel.reservation) return "Book / View Options";
     if (pricingModel == PricingModel.subscription)
       return "View Subscription Plans";
-    if (pricingModel == PricingModel.hybrid) return "View Booking & Plans";
+    if (pricingModel == PricingModel.hybrid) return "Book or Subscribe";
     return "Contact Provider";
   }
-}
-
-// Helper to compare lists, import from flutter/foundation.dart
-bool listEquals<T>(List<T>? a, List<T>? b) {
-  if (a == null) return b == null;
-  if (b == null || a.length != b.length) return false;
-  for (int i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
 }

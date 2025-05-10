@@ -6,130 +6,106 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
+import 'package:shamil_mobile_app/feature/details/repository/service_provider_detail_repository.dart';
+import 'package:shamil_mobile_app/feature/details/views/bloc/service_provider_detail_bloc.dart';
+import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart'; // Re-use from home for provider details
 
 part 'service_details_event.dart';
 part 'service_details_state.dart';
 
-class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+class ServiceProviderDetailBloc
+    extends Bloc<ServiceProviderDetailEvent, ServiceProviderDetailState> {
+  final ServiceProviderDetailRepository detailRepository;
+  final FavoritesBloc _favoritesBloc;
+  StreamSubscription? _favoriteStatusSubscription;
 
-  static const String _serviceProvidersCollection = 'serviceProviders';
-  static const String _plansSubCollection = 'plans'; // Assuming plans are a sub-collection
-  static const String _servicesSubCollection = 'services'; // Assuming services are a sub-collection
+  ServiceProviderDetailBloc({
+    required this.detailRepository,
+    required FavoritesBloc favoritesBloc,
+  })  : _favoritesBloc = favoritesBloc,
+        super(ServiceProviderDetailInitial()) {
+    on<LoadServiceProviderDetails>(_onLoadServiceProviderDetails);
+    on<ToggleFavoriteStatus>(_onToggleFavoriteStatus);
 
-  ServiceDetailsBloc() : super(ServiceDetailsInitial()) {
-    on<LoadServiceDetails>(_onLoadServiceDetails);
-    on<PlanSelected>(_onPlanSelected);
-    on<ServiceSelected>(_onServiceSelected);
-    // on<ToggleFavoriteServiceDetails>(_onToggleFavoriteServiceDetails); // If needed
-  }
+    // Listen to changes in favorites state
+    _favoriteStatusSubscription = _favoritesBloc.stream.listen((favState) {
+      try {
+        if (favState is FavoritesLoaded &&
+            state is ServiceProviderDetailLoaded) {
+          final currentState = state as ServiceProviderDetailLoaded;
+          final provider = currentState.provider;
 
-  Future<void> _onLoadServiceDetails(
-    LoadServiceDetails event,
-    Emitter<ServiceDetailsState> emit,
-  ) async {
-    emit(ServiceDetailsLoading(providerId: event.providerId));
-    try {
-      // Fetch Service Provider's main details
-      // This reuses the ServiceProviderDisplayModel. If you have a more detailed model, fetch that.
-      final providerDoc = await _firestore
-          .collection(_serviceProvidersCollection)
-          .doc(event.providerId)
-          .get();
-
-      if (!providerDoc.exists) {
-        emit(ServiceDetailsError(message: 'Service provider not found.', providerId: event.providerId));
-        return;
+          if (provider != null && provider.id.isNotEmpty) {
+            // Update our state if the status of this provider has changed
+            final newFavoriteStatus =
+                favState.isProviderInFavorites(provider.id);
+            if (currentState.isFavorite != newFavoriteStatus) {
+              emit(ServiceProviderDetailLoaded(
+                provider: provider,
+                isFavorite: newFavoriteStatus,
+              ));
+            }
+          }
+        }
+      } catch (e) {
+        print('Error in favorite status subscription: $e');
+        // Don't emit error to avoid disrupting the UI
       }
-      // Assuming isFavorite status is not managed by this BLoC directly,
-      // or it's passed from the previous screen. For simplicity, setting to false.
-      // In a real app, you might need to fetch this or get it from HomeBloc's state.
-      final providerDetails = ServiceProviderDisplayModel.fromFirestore(providerDoc, isFavorite: false);
+    });
+  }
 
+  Future<void> _onLoadServiceProviderDetails(
+    LoadServiceProviderDetails event,
+    Emitter<ServiceProviderDetailState> emit,
+  ) async {
+    emit(ServiceProviderDetailLoading());
+    try {
+      final provider =
+          await detailRepository.fetchServiceProviderDetails(event.providerId);
 
-      // Fetch Plans for the provider
-      final plansSnapshot = await _firestore
-          .collection(_serviceProvidersCollection)
-          .doc(event.providerId)
-          .collection(_plansSubCollection)
-          .where('isActive', isEqualTo: true) // Only fetch active plans
-          .get();
-      final plans = plansSnapshot.docs
-          .map((doc) => PlanModel.fromFirestore(doc))
-          .toList();
+      // Check favorite status from FavoritesBloc with null safety
+      bool isFavorite = false;
+      try {
+        isFavorite = _favoritesBloc.isProviderFavorite(event.providerId);
+      } catch (e) {
+        print('Error checking favorite status: $e');
+        // Default to false on error
+      }
 
-      // Fetch Services for the provider
-      final servicesSnapshot = await _firestore
-          .collection(_serviceProvidersCollection)
-          .doc(event.providerId)
-          .collection(_servicesSubCollection)
-          .where('isActive', isEqualTo: true) // Only fetch active services
-          .get();
-      final services = servicesSnapshot.docs
-          .map((doc) => ServiceModel.fromFirestore(doc))
-          .toList();
+      emit(ServiceProviderDetailLoaded(
+          provider: provider, isFavorite: isFavorite));
 
-      emit(ServiceDetailsLoaded(
-        providerDetails: providerDetails,
-        plans: plans,
-        services: services,
-      ));
-    } catch (e, s) {
-      print("Error loading service details: $e\n$s");
-      emit(ServiceDetailsError(message: 'Failed to load service details: ${e.toString()}', providerId: event.providerId));
+      // Also request a check to ensure we have the latest status
+      _favoritesBloc.add(CheckFavoriteStatus(event.providerId));
+    } catch (e) {
+      emit(ServiceProviderDetailError(message: e.toString()));
     }
   }
 
-  void _onPlanSelected(PlanSelected event, Emitter<ServiceDetailsState> emit) {
-    if (state is ServiceDetailsLoaded) {
-      final loadedState = state as ServiceDetailsLoaded;
-      final selectedPlan = loadedState.plans.firstWhere(
-        (plan) => plan.id == event.planId,
-        orElse: () => throw Exception("Selected plan not found in state"), // Should not happen if UI is correct
-      );
-      // Emit a state to trigger navigation or pass data to the next screen
-      emit(NavigatingToOptionsConfiguration(
-        providerId: event.providerId,
-        selectedPlanId: event.planId,
-        plan: selectedPlan,
+  void _onToggleFavoriteStatus(
+    ToggleFavoriteStatus event,
+    Emitter<ServiceProviderDetailState> emit,
+  ) {
+    if (state is ServiceProviderDetailLoaded) {
+      final currentState = state as ServiceProviderDetailLoaded;
+
+      // Update UI immediately for responsiveness
+      emit(ServiceProviderDetailLoaded(
+        provider: currentState.provider,
+        isFavorite: !currentState.isFavorite,
       ));
-      // Important: Re-emit the loaded state if you don't want the UI to change
-      // just because navigation is triggered. Or, handle navigation purely in UI.
-      // For this example, NavigatingToOptionsConfiguration will be the new state.
-      // If you want to return to ServiceDetailsLoaded after navigation logic in UI:
-      // emit(loadedState);
+
+      // Use the centralized FavoritesBloc to handle the actual toggle
+      final displayModel = ServiceProviderDisplayModel.fromServiceProviderModel(
+          currentState.provider, true);
+      _favoritesBloc.add(ToggleFavorite(displayModel));
     }
   }
 
-  void _onServiceSelected(ServiceSelected event, Emitter<ServiceDetailsState> emit) {
-    if (state is ServiceDetailsLoaded) {
-      final loadedState = state as ServiceDetailsLoaded;
-       final selectedService = loadedState.services.firstWhere(
-        (service) => service.id == event.serviceId,
-         orElse: () => throw Exception("Selected service not found in state"),
-      );
-      emit(NavigatingToOptionsConfiguration(
-        providerId: event.providerId,
-        selectedServiceId: event.serviceId,
-        service: selectedService,
-      ));
-      // emit(loadedState); // Similar to _onPlanSelected
-    }
+  @override
+  Future<void> close() {
+    _favoriteStatusSubscription?.cancel();
+    return super.close();
   }
-
-  // Example if you had favorite toggling specific to this screen's context
-  // Future<void> _onToggleFavoriteServiceDetails(
-  //   ToggleFavoriteServiceDetails event,
-  //   Emitter<ServiceDetailsState> emit,
-  // ) async {
-  //   final currentState = state;
-  //   if (currentState is ServiceDetailsLoaded) {
-  //     // Logic to update favorite in Firestore
-  //     // ...
-  //     // Then update the providerDetails model and re-emit ServiceDetailsLoaded
-  //     final updatedProvider = currentState.providerDetails.copyWith(isFavorite: event.currentStatus);
-  //     emit(currentState.copyWith(providerDetails: updatedProvider));
-  //   }
-  // }
 }

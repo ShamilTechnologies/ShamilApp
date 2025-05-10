@@ -155,7 +155,7 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
             // Get profile URL (check both fields)
             String? profileUrl = state.user.profilePicUrl ?? state.user.image;
             // Ensure empty string is treated as null for image check
-            if (profileUrl.isEmpty) {
+            if (profileUrl?.isEmpty ?? true) {
               profileUrl = null;
             }
 

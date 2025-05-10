@@ -10,8 +10,9 @@ import 'package:shamil_mobile_app/feature/access/views/access_code_view.dart';
 import 'package:shamil_mobile_app/feature/favorites/views/favorites_screen.dart';
 import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
 import 'package:shamil_mobile_app/feature/passes/bloc/my_passes_bloc.dart';
-import 'package:shamil_mobile_app/feature/passes/views/my_passes_screen.dart';
+import 'package:shamil_mobile_app/feature/passes/view/passes_screen.dart';
 import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart'; // Import Notifier
+import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 
 // ... other imports (screens, etc.) ...
 
@@ -34,8 +35,9 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     // --- My Passes Screen (Index 1) ---
     BlocProvider<MyPassesBloc>(
       create: (context) =>
-          MyPassesBloc()..add(const LoadMyPasses()), // Load passes initially
-      child: const MyPassesScreen(),
+          MyPassesBloc(userRepository: context.read<UserRepository>())
+            ..add(const LoadMyPasses()),
+      child: const PassesScreen(),
     ),
     // --- Favorites Screen (Index 2) ---
     const FavoritesScreen(),
