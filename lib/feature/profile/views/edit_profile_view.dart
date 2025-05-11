@@ -834,8 +834,6 @@ class _EditProfileViewState extends State<EditProfileView> {
                         },
                   validator: (value) =>
                       (value == null || value.isEmpty) ? 'Required' : null,
-                  prefixIcon: const Icon(CupertinoIcons.person_crop_rectangle,
-                      size: 18),
                 ),
               ),
             ],
