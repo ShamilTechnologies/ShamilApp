@@ -1,3 +1,5 @@
+// lib/feature/reservation/presentation/bloc/list/reservation_list_state.dart
+
 part of 'reservation_list_bloc.dart';
 
 abstract class ReservationListState extends Equatable {

@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 
 // Assuming these imports are correct
 import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart'
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
     show ReservationType, reservationTypeFromString, ReservationTypeExtension;
 // ADDED: Import Review Model (define this class separately)
 // import 'package:shamil_mobile_app/feature/details/data/review_model.dart';

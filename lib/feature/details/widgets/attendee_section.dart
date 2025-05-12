@@ -5,7 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart';
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 
 // Helper extension from options_bottom_sheet (consider moving to a common place)
 extension StringExtension on String {

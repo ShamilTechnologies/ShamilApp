@@ -3,7 +3,7 @@ import 'package:equatable/equatable.dart';
 import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 // Ensure AttendeeModel is correctly imported. Assuming it's in reservation_model.dart
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart'
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
     show AttendeeModel;
 
 abstract class OptionsConfigurationEvent extends Equatable {

@@ -12,6 +12,7 @@ import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/core/utils/themes.dart';
 import 'package:shamil_mobile_app/feature/intro/splash_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/repositories/reservation_repository.dart';
 import 'package:shamil_mobile_app/firebase_options.dart';
 // import 'package:shamil_mobile_app/storage_service.dart'; // Keep if used elsewhere
 
@@ -30,7 +31,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 // *** Import Repositories ***
-import 'package:shamil_mobile_app/feature/reservation/repository/reservation_repository.dart';
 import 'package:shamil_mobile_app/feature/social/repository/social_repository.dart';
 // ACTION: Import SubscriptionRepository when created
 // import 'package:shamil_mobile_app/feature/subscription/repository/subscription_repository.dart';

@@ -4,7 +4,7 @@ library;
 
 import 'package:equatable/equatable.dart';
 // Import ReservationType enum from reservation_model
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart'
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
     show ReservationType, reservationTypeFromString, ReservationTypeExtension;
 
 class BookableService extends Equatable {

@@ -15,6 +15,7 @@ import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 import 'package:shamil_mobile_app/feature/details/repository/service_provider_detail_repository.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/repositories/reservation_repository.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:gap/gap.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,7 +31,7 @@ import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart'
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
     show ReservationType, ReservationTypeExtension;
 
 import 'package:shamil_mobile_app/feature/details/views/bloc/service_provider_detail_bloc.dart';
@@ -38,10 +39,8 @@ import 'package:shamil_mobile_app/feature/subscription/bloc/subscription_bloc.da
 import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart';
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/view/options_configuration_screen.dart';
-import 'package:shamil_mobile_app/feature/reservation/repository/reservation_repository.dart';
 import 'package:shamil_mobile_app/feature/details/widgets/options_bottom_sheet.dart'
     as options_sheet;
-import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
 
 class ServiceProviderDetailScreen extends StatefulWidget {
   final String providerId;

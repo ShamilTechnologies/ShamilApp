@@ -1,3 +1,5 @@
+// lib/feature/reservation/presentation/bloc/list/reservation_list_event.dart
+
 part of 'reservation_list_bloc.dart';
 
 abstract class ReservationListEvent extends Equatable {
@@ -25,4 +27,4 @@ class CancelReservation extends ReservationListEvent {
 /// Event to refresh the list of reservations
 class ReservationRefresh extends ReservationListEvent {
   const ReservationRefresh();
-} 
+}

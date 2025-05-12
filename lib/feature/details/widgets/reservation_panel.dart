@@ -15,7 +15,7 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'
 import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart';
 
 // Import Reservation Models (AttendeeModel, ReservationType etc)
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 
 // Import SocialBloc and models for dialogs
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';

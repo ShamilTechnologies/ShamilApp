@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shamil_mobile_app/core/utils/firestore_paths.dart';
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 import 'package:shamil_mobile_app/feature/subscription/data/subscription_model.dart';
 
 abstract class OptionsConfigurationRepository {

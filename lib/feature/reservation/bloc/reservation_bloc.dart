@@ -16,8 +16,8 @@ import 'package:meta/meta.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
 // Import the ReservationModel AND the extension
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
-import 'package:shamil_mobile_app/feature/reservation/repository/reservation_repository.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/repositories/reservation_repository.dart';
 
 // Define the parts for Bloc structure
 part 'reservation_event.dart';

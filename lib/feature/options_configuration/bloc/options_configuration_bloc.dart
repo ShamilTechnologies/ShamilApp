@@ -7,7 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_configuration_event.dart';
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 import 'package:shamil_mobile_app/feature/subscription/data/subscription_model.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/repository/options_configuration_repository.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'

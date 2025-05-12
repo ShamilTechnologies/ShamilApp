@@ -9,7 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'
     show OpeningHoursDay;
 import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_configuration_event.dart';
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart'
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
     show
         ReservationModel,
         AttendeeModel,

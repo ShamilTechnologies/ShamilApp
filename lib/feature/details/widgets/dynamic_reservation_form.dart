@@ -15,7 +15,7 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'
 import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart'; // Imports State and Event too
 
 // Import ReservationType enum and its extension
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 
 // Import the swipe selector widget
 import 'package:shamil_mobile_app/feature/details/widgets/time_slot_swipe_selector.dart';

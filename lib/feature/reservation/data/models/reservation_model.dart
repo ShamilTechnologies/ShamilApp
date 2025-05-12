@@ -1,4 +1,4 @@
-// lib/feature/reservation/data/reservation_model.dart
+// lib/feature/reservation/data/models/reservation_model.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
@@ -15,7 +15,7 @@ enum ReservationType {
   unknown
 }
 
-// --- ADDED: Extension directly within the same file ---
+// Extension for ReservationType
 extension ReservationTypeExtension on ReservationType {
   /// Returns the string representation used in Firestore.
   String get typeString {
@@ -75,7 +75,7 @@ ReservationType reservationTypeFromString(String? typeString) {
   }
 }
 
-// --- ReservationStatus Enum and Helpers (No changes needed here) ---
+// --- ReservationStatus Enum and Helpers ---
 enum ReservationStatus {
   pending,
   confirmed,
@@ -111,7 +111,7 @@ extension ReservationStatusExtension on ReservationStatus {
   String get statusString {
     switch (this) {
       case ReservationStatus.pending:
-        return 'pending'; // Use lowercase for consistency?
+        return 'pending';
       case ReservationStatus.confirmed:
         return 'confirmed';
       case ReservationStatus.cancelledByUser:
@@ -127,7 +127,7 @@ extension ReservationStatusExtension on ReservationStatus {
     }
   }
 
-  // Optional: User-friendly display string
+  // User-friendly display string
   String get displayString {
     String capitalize(String s) =>
         s.isEmpty ? '' : s[0].toUpperCase() + s.substring(1);
@@ -140,7 +140,7 @@ extension ReservationStatusExtension on ReservationStatus {
 }
 // --- End Enums ---
 
-/// Represents an attendee associated with a reservation. (No changes needed)
+/// Represents an attendee associated with a reservation.
 class AttendeeModel extends Equatable {
   final String userId;
   final String name;
@@ -170,7 +170,7 @@ class AttendeeModel extends Equatable {
   List<Object?> get props => [userId, name, type, status];
 }
 
-/// Represents a reservation document stored in Firestore. (No changes needed)
+/// Represents a reservation document stored in Firestore.
 class ReservationModel extends Equatable {
   final String id;
   final String userId;

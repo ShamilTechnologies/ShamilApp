@@ -1,7 +1,9 @@
+// lib/feature/reservation/presentation/bloc/list/reservation_list_bloc.dart
+
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart';
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 
 part 'reservation_list_event.dart';

@@ -4,7 +4,7 @@ library;
 
 import 'package:equatable/equatable.dart';
 // Import ReservationType enum and helpers
-import 'package:shamil_mobile_app/feature/reservation/data/reservation_model.dart'
+import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
     show ReservationType, ReservationTypeExtension, reservationTypeFromString;
 
 /// Represents a service or class that can be booked, potentially with a specific reservation type.
