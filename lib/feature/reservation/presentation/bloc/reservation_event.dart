@@ -115,45 +115,67 @@ class SelectAccessPassOption extends ReservationEvent {
   @override
   List<Object?> get props => [option];
 }
+
+// --- New Enhanced Reservation Events ---
+
+/// Event for setting venue capacity selection
+class SetVenueCapacity extends ReservationEvent {
+  final bool isFullVenue;
+  final int reservedCapacity;
+
+  const SetVenueCapacity({
+    required this.isFullVenue,
+    required this.reservedCapacity,
+  });
+
+  @override
+  List<Object?> get props => [isFullVenue, reservedCapacity];
+}
+
+/// Event for updating an attendee's payment status
 class SetAttendeePaymentStatus extends ReservationEvent {
   final String attendeeUserId;
   final PaymentStatus paymentStatus;
   final double? amount;
-  
+
   const SetAttendeePaymentStatus({
     required this.attendeeUserId,
     required this.paymentStatus,
     this.amount,
   });
-  
+
   @override
   List<Object?> get props => [attendeeUserId, paymentStatus, amount];
 }
 
-class SetVenueCapacity extends ReservationEvent {
-  final bool isFullVenue;
-  final int reservedCapacity;
-  
-  const SetVenueCapacity({
-    required this.isFullVenue,
-    required this.reservedCapacity,
-  });
-  
-  @override
-  List<Object?> get props => [isFullVenue, reservedCapacity];
-}
-
+/// Event for setting community visibility
 class SetCommunityVisibility extends ReservationEvent {
   final bool isVisible;
   final String? hostingCategory;
   final String? description;
-  
+
   const SetCommunityVisibility({
     required this.isVisible,
     this.hostingCategory,
     this.description,
   });
-  
+
   @override
   List<Object?> get props => [isVisible, hostingCategory, description];
+}
+
+/// Event for updating cost splitting settings
+class UpdateCostSplitSettings extends ReservationEvent {
+  final bool enabled;
+  final String splitMethod; // 'equal', 'custom', 'host_pays', 'self_pays'
+  final Map<String, double>? customSplitRatio; // userId -> ratio (0-1)
+
+  const UpdateCostSplitSettings({
+    required this.enabled,
+    required this.splitMethod,
+    this.customSplitRatio,
+  });
+
+  @override
+  List<Object?> get props => [enabled, splitMethod, customSplitRatio];
 }

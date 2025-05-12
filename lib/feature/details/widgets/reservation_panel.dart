@@ -425,7 +425,7 @@ class ReservationPanel extends StatelessWidget {
               onPressed: context
                           .read<ReservationBloc>()
                           .isReservationReadyToConfirm(
-                              state, currentSelectedType) &&
+                              state) &&
                       !isProcessing
                   ? () => context
                       .read<ReservationBloc>()

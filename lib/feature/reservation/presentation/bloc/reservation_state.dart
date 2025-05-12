@@ -5,25 +5,31 @@ part of 'reservation_bloc.dart'; // Link to the bloc file
 // Base class using Equatable for state comparison
 @immutable
 abstract class ReservationState extends Equatable {
+  // Existing fields from previous updates
   final ServiceProviderModel? provider;
   final ReservationType? selectedReservationType;
   final BookableService? selectedService;
   final DateTime? selectedDate;
-  final TimeOfDay?
-      selectedStartTime; // For time-based start, OR sequence-based preferred hour
-  final TimeOfDay? selectedEndTime; // For time-based end
-  final List<TimeOfDay> availableSlots; // For time-based slots
+  final TimeOfDay? selectedStartTime;
+  final TimeOfDay? selectedEndTime;
+  final List<TimeOfDay> availableSlots;
   final List<AttendeeModel> selectedAttendees;
-  // *** ADDED typeSpecificData field ***
-  final Map<String, dynamic>?
-      typeSpecificData; // For access-based pass ID, etc.
+  final Map<String, dynamic>? typeSpecificData;
   final bool isFullVenueReservation;
   final int? reservedCapacity;
   final bool isCommunityVisible;
   final String? hostingCategory;
   final String? hostingDescription;
   final Map<String, PaymentStatus> attendeePaymentStatuses;
+  final Map<String, dynamic>? costSplitDetails;
+  final double basePrice;
+  final double addOnsPrice;
+  final double totalPrice;
 
+  // NEWLY ADDED FIELDS based on the error messages
+  final String? notes;
+  final Map<String, dynamic>? paymentDetails;
+  final List<String>? selectedAddOnsList;
 
   const ReservationState({
     required this.provider,
@@ -34,27 +40,44 @@ abstract class ReservationState extends Equatable {
     this.selectedEndTime,
     this.availableSlots = const [],
     this.selectedAttendees = const [],
-    this.typeSpecificData, // Added to constructor
+    this.typeSpecificData,
     this.isFullVenueReservation = false,
     this.reservedCapacity,
     this.isCommunityVisible = false,
     this.hostingCategory,
     this.hostingDescription,
     this.attendeePaymentStatuses = const {},
+    this.costSplitDetails,
+    this.basePrice = 0.0,
+    this.addOnsPrice = 0.0,
+    this.totalPrice = 0.0,
+    // Initialize newly added fields
+    this.notes,
+    this.paymentDetails,
+    this.selectedAddOnsList,
   });
 
   @override
   List<Object?> get props => [
         provider, selectedReservationType, selectedService, selectedDate,
         selectedStartTime, selectedEndTime, availableSlots, selectedAttendees,
-        typeSpecificData, // Added to props
+        typeSpecificData,
+        isFullVenueReservation, reservedCapacity,
+        isCommunityVisible, hostingCategory, hostingDescription,
+        attendeePaymentStatuses,
+        costSplitDetails,
+        basePrice,
+        addOnsPrice,
+        totalPrice,
+        // Add new fields to props
+        notes,
+        paymentDetails,
+        selectedAddOnsList,
       ];
 
   AttendeeModel? get bookingUser =>
       selectedAttendees.firstWhereOrNull((a) => a.type == 'self');
 
-  // Base copyWith method - Subclasses MUST override this correctly
-  // Includes all possible fields from all subclasses for a consistent signature.
   ReservationState copyWith({
     ServiceProviderModel? provider,
     ReservationType? selectedReservationType,
@@ -64,14 +87,26 @@ abstract class ReservationState extends Equatable {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added to copyWith
-    // Fields from specific states
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
-    String? message, // For ReservationError and ReservationSuccess
-    int? queuePosition, // For ReservationInQueue
-    DateTime? estimatedEntryTime, // For ReservationInQueue
-    bool?
-        forceEstimatedEntryTimeNull, // Specific for ReservationInQueue.copyWith
+    String? message,
+    int? queuePosition,
+    DateTime? estimatedEntryTime,
+    bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields to copyWith signature
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     throw UnimplementedError(
         'copyWith must be implemented by concrete subclasses of ReservationState: ${this.runtimeType}');
@@ -85,7 +120,21 @@ class ReservationInitial extends ReservationState {
   const ReservationInitial({
     required super.provider,
     super.selectedAttendees = const [],
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   });
 
   @override
@@ -98,17 +147,45 @@ class ReservationInitial extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationInitial(
       provider: provider ?? this.provider!,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -124,7 +201,21 @@ class ReservationTypeSelected extends ReservationState {
     super.selectedStartTime,
     super.selectedEndTime,
     super.availableSlots = const [],
-    super.typeSpecificData, // Pass to super, reset if type changes significantly
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   });
 
   @override
@@ -137,24 +228,51 @@ class ReservationTypeSelected extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationTypeSelected(
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
       selectedService: selectedService ?? this.selectedService,
       selectedDate: selectedDate ?? this.selectedDate,
       selectedStartTime: selectedStartTime ?? this.selectedStartTime,
       selectedEndTime: selectedEndTime ?? this.selectedEndTime,
       availableSlots: availableSlots ?? this.availableSlots,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -170,7 +288,21 @@ class ReservationServiceSelected extends ReservationState {
     super.selectedStartTime,
     super.selectedEndTime,
     super.availableSlots = const [],
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   }) : super(selectedService: service);
 
   @override
@@ -183,24 +315,51 @@ class ReservationServiceSelected extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationServiceSelected(
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       service: selectedService ?? this.selectedService!,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
       selectedDate: selectedDate ?? this.selectedDate,
       selectedStartTime: selectedStartTime ?? this.selectedStartTime,
       selectedEndTime: selectedEndTime ?? this.selectedEndTime,
       availableSlots: availableSlots ?? this.availableSlots,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -219,7 +378,21 @@ class ReservationDateSelected extends ReservationState {
     this.isLoadingSlots = false,
     super.selectedStartTime,
     super.selectedEndTime,
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   }) : super(selectedDate: date);
 
   @override
@@ -232,17 +405,30 @@ class ReservationDateSelected extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationDateSelected(
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       selectedService: selectedService ?? this.selectedService,
       date: selectedDate ?? this.selectedDate!,
       availableSlots: availableSlots ?? this.availableSlots,
@@ -250,7 +436,21 @@ class ReservationDateSelected extends ReservationState {
       isLoadingSlots: isLoadingSlots ?? this.isLoadingSlots,
       selectedStartTime: selectedStartTime,
       selectedEndTime: selectedEndTime,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 
@@ -263,13 +463,27 @@ class ReservationRangeSelected extends ReservationState {
   const ReservationRangeSelected({
     required super.provider,
     required super.selectedReservationType,
-    required super.selectedService,
+    super.selectedService, // Service can be null for general time-based
     required DateTime date,
     required TimeOfDay startTime,
     required TimeOfDay endTime,
     required super.availableSlots,
     required super.selectedAttendees,
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   }) : super(
             selectedDate: date,
             selectedStartTime: startTime,
@@ -285,24 +499,51 @@ class ReservationRangeSelected extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationRangeSelected(
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       selectedService: selectedService ?? this.selectedService,
       date: selectedDate ?? this.selectedDate!,
       startTime: selectedStartTime ?? this.selectedStartTime!,
       endTime: selectedEndTime ?? this.selectedEndTime!,
       availableSlots: availableSlots ?? this.availableSlots,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -318,7 +559,21 @@ class ReservationCreating extends ReservationState {
     super.selectedEndTime,
     super.availableSlots,
     required super.selectedAttendees,
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   });
 
   @override
@@ -331,24 +586,51 @@ class ReservationCreating extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationCreating(
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       selectedService: selectedService ?? this.selectedService,
       selectedDate: selectedDate ?? this.selectedDate,
       selectedStartTime: selectedStartTime ?? this.selectedStartTime,
       selectedEndTime: selectedEndTime ?? this.selectedEndTime,
       availableSlots: availableSlots ?? this.availableSlots,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -356,8 +638,11 @@ class ReservationCreating extends ReservationState {
 /// Success state (for non-queue based reservations)
 class ReservationSuccess extends ReservationState {
   final String message;
+  final String? reservationId;
+
   const ReservationSuccess({
     required this.message,
+    this.reservationId,
     required super.provider,
     required super.selectedReservationType,
     super.selectedService,
@@ -366,11 +651,25 @@ class ReservationSuccess extends ReservationState {
     super.selectedEndTime,
     super.availableSlots,
     required super.selectedAttendees,
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   });
 
   @override
-  List<Object?> get props => super.props..add(message);
+  List<Object?> get props => super.props..addAll([message, reservationId]);
 
   @override
   ReservationSuccess copyWith({
@@ -382,27 +681,54 @@ class ReservationSuccess extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    String? reservationId, // Specific to this state
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
-    // Typically, success state isn't copied with new data, but rather a new success state is emitted.
-    // However, if needed for some edge case:
     return ReservationSuccess(
       message: message ?? this.message,
+      reservationId: reservationId ?? this.reservationId,
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       selectedService: selectedService ?? this.selectedService,
       selectedDate: selectedDate ?? this.selectedDate,
       selectedStartTime: selectedStartTime ?? this.selectedStartTime,
       selectedEndTime: selectedEndTime ?? this.selectedEndTime,
       availableSlots: availableSlots ?? this.availableSlots,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -420,7 +746,21 @@ class ReservationError extends ReservationState {
     super.selectedEndTime,
     super.availableSlots = const [],
     super.selectedAttendees = const [],
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   });
 
   @override
@@ -436,25 +776,52 @@ class ReservationError extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationError(
       message: message ?? this.message,
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       selectedService: selectedService ?? this.selectedService,
       selectedDate: selectedDate ?? this.selectedDate,
       selectedStartTime: selectedStartTime ?? this.selectedStartTime,
       selectedEndTime: selectedEndTime ?? this.selectedEndTime,
       availableSlots: availableSlots ?? this.availableSlots,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -466,11 +833,25 @@ class ReservationJoiningQueue extends ReservationState {
   const ReservationJoiningQueue({
     required super.provider,
     required super.selectedReservationType, // Should be sequenceBased
-    required super.selectedService, // Service being queued for
+    super.selectedService, // Service can be null if queue is general for provider
     required super.selectedAttendees,
     super.selectedDate, // Date of the queue
     super.selectedStartTime, // Preferred hour
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   });
 
   @override
@@ -483,22 +864,49 @@ class ReservationJoiningQueue extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationJoiningQueue(
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       selectedService: selectedService ?? this.selectedService,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
       selectedDate: selectedDate ?? this.selectedDate,
       selectedStartTime: selectedStartTime ?? this.selectedStartTime,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -511,7 +919,7 @@ class ReservationInQueue extends ReservationState {
   const ReservationInQueue({
     required super.provider,
     required super.selectedReservationType, // Should be sequenceBased
-    required super.selectedService,
+    super.selectedService,
     required super.selectedAttendees,
     super.selectedDate,
     super.selectedStartTime,
@@ -519,7 +927,21 @@ class ReservationInQueue extends ReservationState {
     required this.queuePosition,
     this.estimatedEntryTime,
     super.availableSlots = const [],
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   });
 
   @override
@@ -536,17 +958,30 @@ class ReservationInQueue extends ReservationState {
     TimeOfDay? selectedEndTime,
     List<TimeOfDay>? availableSlots,
     List<AttendeeModel>? selectedAttendees,
-    Map<String, dynamic>? typeSpecificData, // Added
+    Map<String, dynamic>? typeSpecificData,
     bool? isLoadingSlots,
     String? message,
     int? queuePosition,
     DateTime? estimatedEntryTime,
     bool? forceEstimatedEntryTimeNull,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, PaymentStatus>? attendeePaymentStatuses,
+    Map<String, dynamic>? costSplitDetails,
+    double? basePrice,
+    double? addOnsPrice,
+    double? totalPrice,
+    // Add new fields
+    String? notes,
+    Map<String, dynamic>? paymentDetails,
+    List<String>? selectedAddOnsList,
   }) {
     return ReservationInQueue(
       provider: provider ?? this.provider,
-      selectedReservationType:
-          selectedReservationType ?? this.selectedReservationType,
+      selectedReservationType: selectedReservationType ?? this.selectedReservationType,
       selectedService: selectedService ?? this.selectedService,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
       selectedDate: selectedDate ?? this.selectedDate,
@@ -557,7 +992,21 @@ class ReservationInQueue extends ReservationState {
           : (estimatedEntryTime ?? this.estimatedEntryTime),
       availableSlots: availableSlots ?? this.availableSlots,
       selectedEndTime: selectedEndTime ?? this.selectedEndTime,
-      typeSpecificData: typeSpecificData ?? this.typeSpecificData, // Added
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      isFullVenueReservation: isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendeePaymentStatuses: attendeePaymentStatuses ?? this.attendeePaymentStatuses,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      basePrice: basePrice ?? this.basePrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      // Pass through new fields
+      notes: notes ?? this.notes,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
     );
   }
 }
@@ -572,6 +1021,22 @@ class ReservationQueueError extends ReservationError {
     super.selectedDate,
     super.selectedStartTime,
     super.selectedAttendees,
-    super.typeSpecificData, // Pass to super
+    super.typeSpecificData,
+    super.isFullVenueReservation,
+    super.reservedCapacity,
+    super.isCommunityVisible,
+    super.hostingCategory,
+    super.hostingDescription,
+    super.attendeePaymentStatuses,
+    super.costSplitDetails,
+    super.basePrice,
+    super.addOnsPrice,
+    super.totalPrice,
+    // Pass new fields to super
+    super.notes,
+    super.paymentDetails,
+    super.selectedAddOnsList,
   });
+
+  // copyWith is inherited from ReservationError and should handle all fields.
 }

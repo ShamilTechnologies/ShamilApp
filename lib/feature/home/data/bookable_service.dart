@@ -13,9 +13,9 @@ class BookableService extends Equatable {
   final String name; // Name of the service or class
   final String description; // Description of the service
   final ReservationType type; // The type of reservation this service uses
-  final int?
-      durationMinutes; // Duration of the service/slot in minutes (Optional)
+  final int? durationMinutes; // Duration of the service/slot in minutes (Optional)
   final double? price; // Price per booking/slot (Optional)
+  final double? pricePerPerson; // Price per attendee (Optional) - NEW
   final int? capacity; // Max number of people per slot (Optional)
   final Map<String, dynamic>? configData; // Optional extra config
 
@@ -26,6 +26,7 @@ class BookableService extends Equatable {
     required this.type,
     this.durationMinutes,
     this.price,
+    this.pricePerPerson, // Added
     this.capacity,
     this.configData,
   });
@@ -37,9 +38,9 @@ class BookableService extends Equatable {
       name: map['name'] as String? ?? '',
       description: map['description'] as String? ?? '',
       type: reservationTypeFromString(map['type'] as String?), // Parse type
-      durationMinutes:
-          (map['durationMinutes'] as num?)?.toInt(), // Keep optional
+      durationMinutes: (map['durationMinutes'] as num?)?.toInt(), // Keep optional
       price: (map['price'] as num?)?.toDouble(), // Keep optional
+      pricePerPerson: (map['pricePerPerson'] as num?)?.toDouble(), // Added parsing
       capacity: (map['capacity'] as num?)?.toInt(), // Keep optional
       configData: map['configData'] != null
           ? Map<String, dynamic>.from(map['configData'])
@@ -56,6 +57,7 @@ class BookableService extends Equatable {
       'type': type.typeString, // Store enum string value using extension
       if (durationMinutes != null) 'durationMinutes': durationMinutes,
       if (price != null) 'price': price,
+      if (pricePerPerson != null) 'pricePerPerson': pricePerPerson, // Added
       if (capacity != null) 'capacity': capacity,
       if (configData != null) 'configData': configData,
     };
@@ -69,11 +71,13 @@ class BookableService extends Equatable {
     ReservationType? type,
     int? durationMinutes,
     double? price,
+    double? pricePerPerson, // Added
     int? capacity,
     Map<String, dynamic>? configData,
     // Flags to explicitly set fields to null if needed
     bool forceDurationNull = false,
     bool forcePriceNull = false,
+    bool forcePricePerPersonNull = false, // Added
     bool forceCapacityNull = false,
     bool forceConfigDataNull = false,
   }) {
@@ -85,6 +89,7 @@ class BookableService extends Equatable {
       durationMinutes:
           forceDurationNull ? null : (durationMinutes ?? this.durationMinutes),
       price: forcePriceNull ? null : (price ?? this.price),
+      pricePerPerson: forcePricePerPersonNull ? null : (pricePerPerson ?? this.pricePerPerson), // Added
       capacity: forceCapacityNull ? null : (capacity ?? this.capacity),
       configData: forceConfigDataNull ? null : (configData ?? this.configData),
     );
@@ -98,12 +103,13 @@ class BookableService extends Equatable {
         type,
         durationMinutes,
         price,
+        pricePerPerson, // Added
         capacity,
         configData,
       ];
 
   @override
   String toString() {
-    return 'BookableService(id: $id, name: $name, type: ${type.typeString}, duration: $durationMinutes min, price: $price, capacity: $capacity)';
+    return 'BookableService(id: $id, name: $name, type: ${type.typeString}, duration: $durationMinutes min, price: $price, pricePerPerson: $pricePerPerson, capacity: $capacity)';
   }
 }
