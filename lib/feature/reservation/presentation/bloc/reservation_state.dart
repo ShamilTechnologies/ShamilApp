@@ -17,6 +17,13 @@ abstract class ReservationState extends Equatable {
   // *** ADDED typeSpecificData field ***
   final Map<String, dynamic>?
       typeSpecificData; // For access-based pass ID, etc.
+  final bool isFullVenueReservation;
+  final int? reservedCapacity;
+  final bool isCommunityVisible;
+  final String? hostingCategory;
+  final String? hostingDescription;
+  final Map<String, PaymentStatus> attendeePaymentStatuses;
+
 
   const ReservationState({
     required this.provider,
@@ -28,6 +35,12 @@ abstract class ReservationState extends Equatable {
     this.availableSlots = const [],
     this.selectedAttendees = const [],
     this.typeSpecificData, // Added to constructor
+    this.isFullVenueReservation = false,
+    this.reservedCapacity,
+    this.isCommunityVisible = false,
+    this.hostingCategory,
+    this.hostingDescription,
+    this.attendeePaymentStatuses = const {},
   });
 
   @override

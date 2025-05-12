@@ -15,6 +15,8 @@ enum ReservationType {
   unknown
 }
 
+enum PaymentStatus { pending, partial, complete, hosted, waived }
+
 // Extension for ReservationType
 extension ReservationTypeExtension on ReservationType {
   /// Returns the string representation used in Firestore.
@@ -144,14 +146,20 @@ extension ReservationStatusExtension on ReservationStatus {
 class AttendeeModel extends Equatable {
   final String userId;
   final String name;
-  final String type; // 'self', 'family', 'friend'
-  final String status; // 'going', 'invited', 'declined'
-
+  final String type; // 'self', 'family', 'friend', 'guest'
+  final String status; // 'going', 'invited', 'confirmed', 'declined'
+  final PaymentStatus
+      paymentStatus; // 'pending', 'partial', 'complete', 'hosted'
+  final double amountToPay; // Individual's portion of the payment
+  final bool isHost; // Whether this attendee is hosting the reservation
   const AttendeeModel({
     required this.userId,
     required this.name,
     required this.type,
     required this.status,
+    this.paymentStatus = PaymentStatus.pending,
+    this.amountToPay = 0.0,
+    this.isHost = false,
   });
 
   factory AttendeeModel.fromMap(Map<String, dynamic> map) {
@@ -197,7 +205,13 @@ class ReservationModel extends Equatable {
   final String? reservationCode;
   final double? totalPrice;
   final List<String>? selectedAddOnsList;
-
+  final bool isFullVenueReservation; // Whether the entire venue is reserved
+  final int totalCapacity; // Total venue capacity
+  final int reservedCapacity; // Reserved portion of venue
+  final bool isCommunityVisible; // Whether visible to the community
+  final String? hostingCategory; // Category if it's a hosted reservation
+  final String? hostingDescription; // Description for community visibility
+  final Map<String, dynamic>? costSplitDetails; // Details about cost splitting
   const ReservationModel({
     required this.id,
     required this.userId,
@@ -224,6 +238,13 @@ class ReservationModel extends Equatable {
     this.reservationCode,
     this.totalPrice,
     this.selectedAddOnsList,
+    this.isFullVenueReservation = false,
+    this.totalCapacity = 0,
+    this.reservedCapacity = 0,
+    this.isCommunityVisible = false,
+    this.hostingCategory,
+    this.hostingDescription,
+    this.costSplitDetails,
   });
 
   factory ReservationModel.fromFirestore(DocumentSnapshot doc) {

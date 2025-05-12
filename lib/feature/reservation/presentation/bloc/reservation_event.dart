@@ -115,3 +115,45 @@ class SelectAccessPassOption extends ReservationEvent {
   @override
   List<Object?> get props => [option];
 }
+class SetAttendeePaymentStatus extends ReservationEvent {
+  final String attendeeUserId;
+  final PaymentStatus paymentStatus;
+  final double? amount;
+  
+  const SetAttendeePaymentStatus({
+    required this.attendeeUserId,
+    required this.paymentStatus,
+    this.amount,
+  });
+  
+  @override
+  List<Object?> get props => [attendeeUserId, paymentStatus, amount];
+}
+
+class SetVenueCapacity extends ReservationEvent {
+  final bool isFullVenue;
+  final int reservedCapacity;
+  
+  const SetVenueCapacity({
+    required this.isFullVenue,
+    required this.reservedCapacity,
+  });
+  
+  @override
+  List<Object?> get props => [isFullVenue, reservedCapacity];
+}
+
+class SetCommunityVisibility extends ReservationEvent {
+  final bool isVisible;
+  final String? hostingCategory;
+  final String? description;
+  
+  const SetCommunityVisibility({
+    required this.isVisible,
+    this.hostingCategory,
+    this.description,
+  });
+  
+  @override
+  List<Object?> get props => [isVisible, hostingCategory, description];
+}

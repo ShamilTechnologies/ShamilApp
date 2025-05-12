@@ -12,7 +12,7 @@ import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'; // Includes AccessPassOption, OpeningHoursDay
 
 // Import Reservation Bloc & State
-import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart'; // Imports State and Event too
+import 'package:shamil_mobile_app/feature/reservation/presentation/bloc/reservation_bloc.dart'; // Imports State and Event too
 
 // Import ReservationType enum and its extension
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';

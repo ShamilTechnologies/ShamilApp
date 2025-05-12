@@ -9,7 +9,7 @@ import 'package:shamil_mobile_app/core/utils/colors.dart'; // For AppColors if n
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 
 // Import Blocs needed within the sheet
-import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart';
+import 'package:shamil_mobile_app/feature/reservation/presentation/bloc/reservation_bloc.dart';
 import 'package:shamil_mobile_app/feature/subscription/bloc/subscription_bloc.dart';
 // Import the panel widgets
 import 'package:shamil_mobile_app/feature/details/widgets/reservation_panel.dart';

@@ -12,7 +12,7 @@ import 'package:shamil_mobile_app/feature/details/widgets/dynamic_reservation_fo
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 
 // Import Reservation Bloc & State
-import 'package:shamil_mobile_app/feature/reservation/bloc/reservation_bloc.dart';
+import 'package:shamil_mobile_app/feature/reservation/presentation/bloc/reservation_bloc.dart';
 
 // Import Reservation Models (AttendeeModel, ReservationType etc)
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';

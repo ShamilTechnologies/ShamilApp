@@ -6,7 +6,7 @@ import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
-import 'package:shamil_mobile_app/feature/reservation/bloc/list/reservation_list_bloc.dart';
+import 'package:shamil_mobile_app/feature/reservation/presentation/bloc/list/reservation_list_bloc.dart';
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shimmer/shimmer.dart';
