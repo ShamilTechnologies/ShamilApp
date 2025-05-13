@@ -579,10 +579,12 @@ class OptionsConfigurationBloc
       final minAttendees = (attendeeDetails?['min'] as num?)?.toInt() ?? 0;
       final maxAttendees = (attendeeDetails?['max'] as num?)?.toInt();
 
-      if (selectedAttendees.length < minAttendees)
+      if (selectedAttendees.length < minAttendees) {
         attendeeRequirementMet = false;
-      if (maxAttendees != null && selectedAttendees.length > maxAttendees)
+      }
+      if (maxAttendees != null && selectedAttendees.length > maxAttendees) {
         attendeeRequirementMet = false;
+      }
 
       // If groupSize represents people and attendees are also selected, ensure they are consistent
       // This logic depends on how 'groupSize' and 'attendees' are used together.

@@ -434,7 +434,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: isLoading
-                            ? SizedBox(
+                            ? const SizedBox(
                                 width: 24,
                                 height: 24,
                                 child: CircularProgressIndicator(
@@ -592,7 +592,7 @@ class _EditProfileViewState extends State<EditProfileView> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     CupertinoIcons.phone_fill,
                     size: 14,
                     color: AppColors.primaryColor,

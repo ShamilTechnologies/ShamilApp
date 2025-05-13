@@ -12,7 +12,7 @@ import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 
 class ReservationListScreen extends StatelessWidget {
-  const ReservationListScreen({Key? key}) : super(key: key);
+  const ReservationListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +26,7 @@ class ReservationListScreen extends StatelessWidget {
 }
 
 class ReservationListView extends StatefulWidget {
-  const ReservationListView({Key? key}) : super(key: key);
+  const ReservationListView({super.key});
 
   @override
   State<ReservationListView> createState() => _ReservationListViewState();
@@ -130,7 +130,7 @@ class _ReservationListViewState extends State<ReservationListView> {
               color: AppColors.primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               CupertinoIcons.calendar,
               color: AppColors.primaryColor,
               size: 48,
@@ -332,7 +332,7 @@ class _ReservationListViewState extends State<ReservationListView> {
                       label: const Text('Details'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.primaryColor,
-                        side: BorderSide(color: AppColors.primaryColor),
+                        side: const BorderSide(color: AppColors.primaryColor),
                       ),
                     ),
                     const Gap(8),

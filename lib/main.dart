@@ -3,7 +3,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart'; // For App Check
 import 'package:firebase_messaging/firebase_messaging.dart'; // Import FCM
-import 'package:flutter/foundation.dart'; // Required for kDebugMode check
+// Required for kDebugMode check
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
@@ -35,7 +35,6 @@ import 'package:shamil_mobile_app/feature/social/repository/social_repository.da
 // ACTION: Import SubscriptionRepository when created
 // import 'package:shamil_mobile_app/feature/subscription/repository/subscription_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shamil_mobile_app/feature/favorites/repository/firebase_favorites_repository.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
 import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 

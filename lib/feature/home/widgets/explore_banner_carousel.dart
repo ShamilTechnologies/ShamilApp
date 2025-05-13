@@ -226,7 +226,7 @@ class _ExploreBannerCarouselState extends State<ExploreBannerCarousel> {
   Widget _buildLoadingShimmer(double height) {
     final shimmerBaseColor = Colors.grey.shade300;
     final shimmerHighlightColor = Colors.grey.shade100;
-    final shimmerContentColor = Colors.white;
+    const shimmerContentColor = Colors.white;
     final borderRadius = BorderRadius.circular(12.0);
 
     // Calculate item width based on viewport fraction and padding

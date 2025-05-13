@@ -9,7 +9,6 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_display_mod
 // Import the reusable card widget
 import 'package:shamil_mobile_app/feature/home/widgets/service_provider_card.dart';
 // Import navigation helper
-import 'package:shamil_mobile_app/core/functions/navigation.dart';
 // Import placeholder screen for "See All" (Create this screen later)
 // import 'package:shamil_mobile_app/feature/home/views/all_recommended_screen.dart';
 

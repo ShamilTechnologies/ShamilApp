@@ -297,7 +297,9 @@ class ServiceProviderModel extends Equatable {
           parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false);
         }
       }
-    } else { days.forEach((dayKey) => parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false)); }
+    } else { for (var dayKey in days) {
+   parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false);
+ } }
 
     final List<SubscriptionPlan> subscriptionPlansList = (data['subscriptionPlans'] as List?)
         ?.map((planData) {

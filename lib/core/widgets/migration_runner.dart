@@ -4,7 +4,7 @@ import 'package:shamil_mobile_app/feature/options_configuration/repository/migra
 /// A widget that provides UI for running migration utilities.
 /// This should only be used temporarily during the transition period.
 class MigrationRunner extends StatefulWidget {
-  const MigrationRunner({Key? key}) : super(key: key);
+  const MigrationRunner({super.key});
 
   @override
   State<MigrationRunner> createState() => _MigrationRunnerState();

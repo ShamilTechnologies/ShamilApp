@@ -76,12 +76,12 @@ class ServiceModel extends Equatable {
   factory ServiceModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
-    DateTime? _toDateTime(dynamic value) {
+    DateTime? toDateTime(dynamic value) {
       if (value is Timestamp) return value.toDate();
       return null;
     }
 
-    List<String> _toListString(dynamic value) {
+    List<String> toListString(dynamic value) {
       if (value is List) {
         return value.map((e) => e.toString()).toList();
       }
@@ -99,13 +99,13 @@ class ServiceModel extends Equatable {
       currency: data['currency'] as String? ?? 'EGP',
       estimatedDurationMinutes: data['estimatedDurationMinutes'] as int?,
       category: data['category'] as String? ?? 'General',
-      imageUrls: data['imageUrls'] != null ? _toListString(data['imageUrls']) : null,
+      imageUrls: data['imageUrls'] != null ? toListString(data['imageUrls']) : null,
       isActive: data['isActive'] as bool? ?? true,
       optionsDefinition: data['optionsDefinition'] is Map<String, dynamic>
           ? data['optionsDefinition'] as Map<String, dynamic>
           : null,
-      createdAt: _toDateTime(data['createdAt']),
-      updatedAt: _toDateTime(data['updatedAt']),
+      createdAt: toDateTime(data['createdAt']),
+      updatedAt: toDateTime(data['updatedAt']),
     );
   }
 

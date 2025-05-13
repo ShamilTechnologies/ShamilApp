@@ -58,7 +58,7 @@ class DynamicReservationForm extends StatelessWidget {
     }
     // 3. Fallback: check first valid bookable service of type timeBased or group
     // Ensure there's a null check before accessing properties on the result of firstWhere
-    final BookableService? firstTimeBasedService = provider.bookableServices
+    final BookableService firstTimeBasedService = provider.bookableServices
         .firstWhere(
             (s) =>
                 (s.type == ReservationType.timeBased ||
@@ -430,7 +430,7 @@ class DynamicReservationForm extends StatelessWidget {
             state.typeSpecificData!['selectedAccessPassId'] != null) {
           selectedOption = accessOptions.firstWhere(
             (opt) => opt.id == state.typeSpecificData!['selectedAccessPassId'],
-            orElse: () => AccessPassOption(
+            orElse: () => const AccessPassOption(
                 id: '_default',
                 label: 'Default Access Pass',
                 price: 0.0,
@@ -759,7 +759,7 @@ class DynamicReservationForm extends StatelessWidget {
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  Icon(Icons.group_work_rounded,
+                  const Icon(Icons.group_work_rounded,
                       color: AppColors.primaryColor, size: 30),
                   const Gap(12),
                   Expanded(

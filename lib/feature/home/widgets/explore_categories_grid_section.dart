@@ -88,8 +88,8 @@ class ExploreCategoriesGridSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
-    final double itemSpacing = 12.0;
-    final double horizontalPadding = 16.0;
+    const double itemSpacing = 12.0;
+    const double horizontalPadding = 16.0;
     final int crossAxisCount = (screenWidth < 380) ? 2 : 2;
     final double itemWidth = (screenWidth -
             (horizontalPadding * 2) -
@@ -111,7 +111,7 @@ class ExploreCategoriesGridSection extends StatelessWidget {
             "Categories",
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryText ?? theme.colorScheme.onBackground,
+              color: AppColors.primaryText ?? theme.colorScheme.onSurface,
             ),
           ),
           const Gap(4),

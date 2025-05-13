@@ -158,7 +158,7 @@ class _FindFriendsViewState extends State<FindFriendsView> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8.0),
-                  borderSide: BorderSide(color: AppColors.primaryColor, width: 1.5),
+                  borderSide: const BorderSide(color: AppColors.primaryColor, width: 1.5),
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                 suffixIcon: _searchController.text.isNotEmpty
@@ -256,7 +256,7 @@ class _FindFriendsViewState extends State<FindFriendsView> {
           children: [
             Icon(icon, size: 70, color: theme.colorScheme.secondary.withOpacity(0.5)),
             const Gap(20),
-            Text(title, style: app_text_style.getTitleStyle(fontSize: 19, color: theme.colorScheme.onBackground.withOpacity(0.8)), textAlign: TextAlign.center),
+            Text(title, style: app_text_style.getTitleStyle(fontSize: 19, color: theme.colorScheme.onSurface.withOpacity(0.8)), textAlign: TextAlign.center),
             const Gap(10),
             Text(message, style: app_text_style.getbodyStyle(color: theme.colorScheme.secondary, height: 1.5), textAlign: TextAlign.center),
           ],

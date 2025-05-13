@@ -128,7 +128,7 @@ class OptionsConfigurationConfirmed extends OptionsConfigurationState {
 }
 
 class OptionsConfigurationInitial extends OptionsConfigurationState {
-  OptionsConfigurationInitial()
+  const OptionsConfigurationInitial()
       : super(
             providerId: '',
             isLoading: true,

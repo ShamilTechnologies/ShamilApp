@@ -342,7 +342,7 @@ class _FamilyViewState extends State<FamilyView> {
                 color: AppColors.primaryColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 CupertinoIcons.person_2,
                 color: AppColors.primaryColor,
                 size: 48,

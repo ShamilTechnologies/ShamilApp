@@ -151,7 +151,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ),
                   ),
                   const Gap(4),
-                  Icon(
+                  const Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 14,
                     color: AppColors.primaryColor,
@@ -188,8 +188,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
         _SectionEmptyState(title: title, message: emptyMessage, icon: emptyIcon)
       ];
     }
-    if (providers == null)
+    if (providers == null) {
       return [const SliverToBoxAdapter(child: SizedBox.shrink())];
+    }
 
     return [
       titleSliver,
@@ -298,7 +299,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               }
               if (isInitialError) {
                 return HomeErrorWidget(
-                  message: (state as HomeError).message,
+                  message: (state).message,
                   onRetry: () => context
                       .read<HomeBloc>()
                       .add(const LoadHomeData(isRefresh: true)),
@@ -405,9 +406,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         // Main content sections with white background
                         SliverToBoxAdapter(
                           child: Container(
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               color: AppColors.lightBackground,
-                              borderRadius: const BorderRadius.only(
+                              borderRadius: BorderRadius.only(
                                 topLeft: Radius.circular(24),
                                 topRight: Radius.circular(24),
                               ),
@@ -487,7 +488,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       Icons.location_off_outlined)
                   : ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      itemCount: homeData!.nearbyPlaces.length,
+                      itemCount: homeData.nearbyPlaces.length,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12.0, vertical: 8.0),
                       itemBuilder: (context, index) {
@@ -553,7 +554,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.search_off_rounded,
+              const Icon(Icons.search_off_rounded,
                   size: 64, color: AppColors.secondaryText),
               const Gap(16),
               Text(
@@ -762,7 +763,6 @@ class _SectionEmptyState extends StatelessWidget {
     required this.title,
     required this.message,
     required this.icon,
-    this.onSeeAll,
   });
 
   @override

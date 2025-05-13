@@ -12,7 +12,7 @@ import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shimmer/shimmer.dart';
 
 class ReservationListContent extends StatelessWidget {
-  const ReservationListContent({Key? key}) : super(key: key);
+  const ReservationListContent({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +131,7 @@ class ReservationListContent extends StatelessWidget {
               color: AppColors.primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               CupertinoIcons.calendar,
               color: AppColors.primaryColor,
               size: 48,
@@ -172,7 +172,7 @@ class ReservationListContent extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
+          const Icon(
             CupertinoIcons.exclamationmark_triangle,
             color: AppColors.redColor,
             size: 48,
@@ -250,7 +250,7 @@ class ReservationListContent extends StatelessWidget {
                     r.status == ReservationStatus.pending)
                 .map((reservation) =>
                     _buildReservationCard(context, reservation))
-                .toList(),
+                ,
             const Gap(24),
           ],
 
@@ -275,7 +275,7 @@ class ReservationListContent extends StatelessWidget {
                     r.status == ReservationStatus.cancelledByProvider)
                 .map((reservation) =>
                     _buildReservationCard(context, reservation))
-                .toList(),
+                ,
           ],
         ],
       ),
@@ -437,7 +437,7 @@ class ReservationListContent extends StatelessWidget {
                                 color: AppColors.primaryColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Icon(
+                              child: const Icon(
                                 CupertinoIcons.calendar,
                                 color: AppColors.primaryColor,
                                 size: 20,
@@ -509,7 +509,7 @@ class ReservationListContent extends StatelessWidget {
                                 color: AppColors.primaryColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(
+                              child: const Icon(
                                 CupertinoIcons.calendar,
                                 size: 16,
                                 color: AppColors.primaryColor,
@@ -548,7 +548,7 @@ class ReservationListContent extends StatelessWidget {
                                 color: AppColors.primaryColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(
+                              child: const Icon(
                                 CupertinoIcons.clock,
                                 size: 16,
                                 color: AppColors.primaryColor,
@@ -589,7 +589,7 @@ class ReservationListContent extends StatelessWidget {
                                       AppColors.primaryColor.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Icon(
+                                child: const Icon(
                                   CupertinoIcons.person_2,
                                   size: 16,
                                   color: AppColors.primaryColor,
@@ -677,7 +677,7 @@ class ReservationListContent extends StatelessWidget {
                               label: const Text('Details'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.primaryColor,
-                                side: BorderSide(color: AppColors.primaryColor),
+                                side: const BorderSide(color: AppColors.primaryColor),
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 10),
                                 shape: RoundedRectangleBorder(

@@ -12,7 +12,7 @@ import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shimmer/shimmer.dart';
 
 class SubscriptionListContent extends StatelessWidget {
-  const SubscriptionListContent({Key? key}) : super(key: key);
+  const SubscriptionListContent({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +143,7 @@ class SubscriptionListContent extends StatelessWidget {
               color: AppColors.primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               CupertinoIcons.creditcard,
               color: AppColors.primaryColor,
               size: 48,
@@ -184,7 +184,7 @@ class SubscriptionListContent extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
+          const Icon(
             CupertinoIcons.exclamationmark_triangle,
             color: AppColors.redColor,
             size: 48,
@@ -270,7 +270,7 @@ class SubscriptionListContent extends StatelessWidget {
             ...activeSubscriptions
                 .map((subscription) =>
                     _buildSubscriptionCard(context, subscription))
-                .toList(),
+                ,
             const Gap(24),
           ],
 
@@ -287,7 +287,7 @@ class SubscriptionListContent extends StatelessWidget {
             ...inactiveSubscriptions
                 .map((subscription) =>
                     _buildSubscriptionCard(context, subscription))
-                .toList(),
+                ,
           ],
         ],
       ),
@@ -471,7 +471,7 @@ class SubscriptionListContent extends StatelessWidget {
                                 color: AppColors.primaryColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Icon(
+                              child: const Icon(
                                 CupertinoIcons.creditcard,
                                 color: AppColors.primaryColor,
                                 size: 20,
@@ -689,7 +689,7 @@ class SubscriptionListContent extends StatelessWidget {
                           label: const Text('Details'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.primaryColor,
-                            side: BorderSide(color: AppColors.primaryColor),
+                            side: const BorderSide(color: AppColors.primaryColor),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 10),
                             shape: RoundedRectangleBorder(

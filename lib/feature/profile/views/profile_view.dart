@@ -374,9 +374,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // ProfileContent will access the globally provided SocialBloc via context
               return SafeArea(
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: const BorderRadius.only(
+                    borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(30),
                       bottomRight: Radius.circular(30),
                     ),
@@ -509,7 +509,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
-        child: Icon(
+        child: const Icon(
           CupertinoIcons.arrow_clockwise,
           color: AppColors.primaryColor,
           size: 20,

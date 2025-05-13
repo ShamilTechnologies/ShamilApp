@@ -32,7 +32,7 @@ class _TimeSlotSwipeSelectorState extends State<TimeSlotSwipeSelector> {
   int? _swipeStartIndex;
   int? _swipeCurrentIndex;
   final Map<int, GlobalKey> _chipKeys = {};
-  GlobalKey _wrapGestureDetectorKey = GlobalKey();
+  final GlobalKey _wrapGestureDetectorKey = GlobalKey();
   RenderBox? _wrapRenderBox;
 
   @override

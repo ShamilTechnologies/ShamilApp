@@ -55,14 +55,14 @@ Widget buildFamilyMemberTile(
                           child: Image.network(
                             member.profilePicUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Icon(
+                            errorBuilder: (context, error, stackTrace) => const Icon(
                               CupertinoIcons.person_fill,
                               color: AppColors.primaryColor,
                               size: 28,
                             ),
                           ),
                         )
-                      : Icon(
+                      : const Icon(
                           CupertinoIcons.person_fill,
                           color: AppColors.primaryColor,
                           size: 28,
@@ -108,7 +108,7 @@ Widget buildFamilyMemberTile(
                       if (member.phone != null && member.phone!.isNotEmpty)
                         Row(
                           children: [
-                            Icon(
+                            const Icon(
                               CupertinoIcons.phone,
                               size: 14,
                               color: AppColors.secondaryText,
@@ -127,7 +127,7 @@ Widget buildFamilyMemberTile(
                           padding: const EdgeInsets.only(top: 2),
                           child: Row(
                             children: [
-                              Icon(
+                              const Icon(
                                 CupertinoIcons.mail,
                                 size: 14,
                                 color: AppColors.secondaryText,
@@ -210,14 +210,14 @@ Widget buildFamilyRequestTile(
                         child: Image.network(
                           request.profilePicUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Icon(
+                          errorBuilder: (context, error, stackTrace) => const Icon(
                             CupertinoIcons.person_fill,
                             color: AppColors.accentColor,
                             size: 24,
                           ),
                         ),
                       )
-                    : Icon(
+                    : const Icon(
                         CupertinoIcons.person_fill,
                         color: AppColors.accentColor,
                         size: 24,

@@ -317,7 +317,7 @@ class FirebaseSocialRepository implements SocialRepository {
       try {
         final friendDoc = await _usersCollectionRef().doc(currentUserId).collection('friends').doc(userModel.uid).get();
         if (friendDoc.exists) {
-          final statusString = (friendDoc.data() as Map<String, dynamic>?)?['status'] as String?;
+          final statusString = (friendDoc.data())?['status'] as String?;
           switch (statusString) {
             case 'accepted': currentStatus = FriendshipStatus.friends; break;
             case 'pending_sent': currentStatus = FriendshipStatus.requestSent; break;

@@ -132,7 +132,7 @@ class ServiceProviderCard extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.star_rounded,
+                              const Icon(Icons.star_rounded,
                                   size: 14, color: AppColors.yellowColor),
                               const Gap(4),
                               Text(
@@ -186,8 +186,7 @@ class ServiceProviderCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (provider.city != null &&
-                              provider.city!.isNotEmpty) ...[
+                          if (provider.city.isNotEmpty) ...[
                             Padding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 4.0),
@@ -198,7 +197,7 @@ class ServiceProviderCard extends StatelessWidget {
                             ),
                             Flexible(
                               child: Text(
-                                provider.city!,
+                                provider.city,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: Colors.white.withOpacity(0.9),
                                   fontWeight: FontWeight.w300,

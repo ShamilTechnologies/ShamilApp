@@ -6,7 +6,6 @@ import 'package:line_icons/line_icons.dart';
 import 'package:provider/provider.dart'; // Import Provider
 import 'package:shamil_mobile_app/core/navigation/navigation_notifier.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
-import 'package:shamil_mobile_app/feature/access/views/access_code_view.dart';
 import 'package:shamil_mobile_app/feature/favorites/views/favorites_screen.dart';
 import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
 import 'package:shamil_mobile_app/feature/passes/bloc/my_passes_bloc.dart';

@@ -109,7 +109,7 @@ abstract class ReservationState extends Equatable {
     List<String>? selectedAddOnsList,
   }) {
     throw UnimplementedError(
-        'copyWith must be implemented by concrete subclasses of ReservationState: ${this.runtimeType}');
+        'copyWith must be implemented by concrete subclasses of ReservationState: ${runtimeType}');
   }
 }
 

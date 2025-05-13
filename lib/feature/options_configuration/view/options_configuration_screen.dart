@@ -1274,7 +1274,7 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
                 color: AppColors.primaryColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 CupertinoIcons.exclamationmark_circle,
                 color: AppColors.primaryColor,
                 size: 48,
@@ -1449,7 +1449,7 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
                   color: AppColors.redColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   CupertinoIcons.exclamationmark_circle,
                   color: AppColors.redColor,
                   size: 48,
@@ -1580,7 +1580,7 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
                               IconButton(
                                 icon: Container(
                                   padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
+                                  decoration: const BoxDecoration(
                                     color: AppColors.lightBackground,
                                     shape: BoxShape.circle,
                                   ),

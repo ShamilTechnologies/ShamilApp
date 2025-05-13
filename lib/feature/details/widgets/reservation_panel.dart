@@ -131,7 +131,7 @@ class ReservationPanel extends StatelessWidget {
                 actionsAlignment: MainAxisAlignment.spaceBetween,
                 actions: [
                   // Show max group size warning if applicable
-                  if (!canAddMore && maxGroupSize != null)
+                  if (!canAddMore)
                     Padding(
                       padding: const EdgeInsets.only(left: 10.0),
                       child: Text("Max group size ($maxGroupSize) reached.",
@@ -234,7 +234,7 @@ class ReservationPanel extends StatelessWidget {
                 actionsAlignment: MainAxisAlignment.spaceBetween,
                 actions: [
                   // Show max group size warning if applicable
-                  if (!canAddMore && maxGroupSize != null)
+                  if (!canAddMore)
                     Padding(
                       padding: const EdgeInsets.only(left: 10.0),
                       child: Text("Max group size ($maxGroupSize) reached.",

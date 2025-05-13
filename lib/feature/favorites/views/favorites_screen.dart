@@ -31,7 +31,7 @@ class FavoritesScreen extends StatelessWidget {
                   color: AppColors.primaryColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   CupertinoIcons.person_fill,
                   color: AppColors.primaryColor,
                   size: 48,
@@ -88,9 +88,9 @@ class _FavoritesViewState extends State<_FavoritesView> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: const BorderRadius.only(
+            borderRadius: BorderRadius.only(
               bottomLeft: Radius.circular(30),
               bottomRight: Radius.circular(30),
             ),
@@ -209,7 +209,7 @@ class _FavoritesViewState extends State<_FavoritesView> {
             ),
           ],
         ),
-        child: Icon(
+        child: const Icon(
           CupertinoIcons.arrow_clockwise,
           color: AppColors.primaryColor,
           size: 20,
@@ -333,7 +333,7 @@ class _FavoritesViewState extends State<_FavoritesView> {
               color: AppColors.primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               CupertinoIcons.heart,
               color: AppColors.primaryColor,
               size: 48,
@@ -543,7 +543,7 @@ class _FavoriteCard extends StatelessWidget {
                         const Gap(4),
                         Row(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.location_on,
                               size: 14,
                               color: AppColors.secondaryText,

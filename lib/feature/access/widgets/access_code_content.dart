@@ -327,7 +327,7 @@ class _AccessCodeContentState extends State<AccessCodeContent>
                           color: theme.colorScheme.primary,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.nfc_rounded,
                           color: Colors.white,
                           size: 20,
@@ -447,7 +447,7 @@ class _AccessCodeContentState extends State<AccessCodeContent>
                                 width: 20,
                                 height: 20,
                                 child: _nfcActive
-                                    ? Icon(
+                                    ? const Icon(
                                         Icons.check_circle,
                                         color: AppColors.accentColor,
                                         size: 20,

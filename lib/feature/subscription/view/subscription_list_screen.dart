@@ -12,7 +12,7 @@ import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 
 class SubscriptionListScreen extends StatelessWidget {
-  const SubscriptionListScreen({Key? key}) : super(key: key);
+  const SubscriptionListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +26,7 @@ class SubscriptionListScreen extends StatelessWidget {
 }
 
 class SubscriptionListView extends StatefulWidget {
-  const SubscriptionListView({Key? key}) : super(key: key);
+  const SubscriptionListView({super.key});
 
   @override
   State<SubscriptionListView> createState() => _SubscriptionListViewState();
@@ -130,7 +130,7 @@ class _SubscriptionListViewState extends State<SubscriptionListView> {
               color: AppColors.primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               CupertinoIcons.creditcard,
               color: AppColors.primaryColor,
               size: 48,
@@ -344,7 +344,7 @@ class _SubscriptionListViewState extends State<SubscriptionListView> {
                     label: const Text('Details'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primaryColor,
-                      side: BorderSide(color: AppColors.primaryColor),
+                      side: const BorderSide(color: AppColors.primaryColor),
                     ),
                   ),
                   const Gap(8),

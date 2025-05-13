@@ -453,9 +453,9 @@ class _ServiceProviderDetailScreenState
             isLoading = true;
             isFavorite = displayData.isFavorite;
             if (displayData.imageUrl != null &&
-                displayData.imageUrl!.isNotEmpty)
+                displayData.imageUrl!.isNotEmpty) {
               headerImages.add(displayData.imageUrl!);
-            else if (displayData.businessLogoUrl != null &&
+            } else if (displayData.businessLogoUrl != null &&
                 displayData.businessLogoUrl!.isNotEmpty)
               headerImages.add(displayData.businessLogoUrl!);
             else
@@ -465,9 +465,9 @@ class _ServiceProviderDetailScreenState
             isLoading = false;
             isFavorite = displayData.isFavorite;
             if (displayData.imageUrl != null &&
-                displayData.imageUrl!.isNotEmpty)
+                displayData.imageUrl!.isNotEmpty) {
               headerImages.add(displayData.imageUrl!);
-            else if (displayData.businessLogoUrl != null &&
+            } else if (displayData.businessLogoUrl != null &&
                 displayData.businessLogoUrl!.isNotEmpty)
               headerImages.add(displayData.businessLogoUrl!);
             else
@@ -477,9 +477,9 @@ class _ServiceProviderDetailScreenState
             isLoading = true;
             isFavorite = displayData.isFavorite;
             if (displayData.imageUrl != null &&
-                displayData.imageUrl!.isNotEmpty)
+                displayData.imageUrl!.isNotEmpty) {
               headerImages.add(displayData.imageUrl!);
-            else if (displayData.businessLogoUrl != null &&
+            } else if (displayData.businessLogoUrl != null &&
                 displayData.businessLogoUrl!.isNotEmpty)
               headerImages.add(displayData.businessLogoUrl!);
             else
@@ -558,9 +558,9 @@ class _ServiceProviderDetailScreenState
                       // Main content with rounded corners
                       SliverToBoxAdapter(
                         child: Container(
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: AppColors.lightBackground,
-                            borderRadius: const BorderRadius.only(
+                            borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(24),
                               topRight: Radius.circular(24),
                             ),
@@ -1055,9 +1055,9 @@ class _ServiceProviderDetailScreenState
               // Content shimmer
               Expanded(
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColors.lightBackground,
-                    borderRadius: const BorderRadius.only(
+                    borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(24),
                       topRight: Radius.circular(24),
                     ),
@@ -2421,8 +2421,9 @@ extension ServiceProviderModelBooking on ServiceProviderModel {
 
   String get getBookingButtonText {
     if (pricingModel == PricingModel.reservation) return "Book / View Options";
-    if (pricingModel == PricingModel.subscription)
+    if (pricingModel == PricingModel.subscription) {
       return "View Subscription Plans";
+    }
     if (pricingModel == PricingModel.hybrid) return "Book or Subscribe";
     return "Contact Provider";
   }

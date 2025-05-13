@@ -452,10 +452,12 @@ class ReservationModel extends Equatable {
     if (newCostSplitDetails != null) map['costSplitDetails'] = newCostSplitDetails;
     if (newCommunityVisibility != null) map['isCommunityVisible'] = newCommunityVisibility;
     // Handle category/description updates carefully based on visibility
-    if (newHostingCategory != null) map['hostingCategory'] = newHostingCategory;
-    else if (newCommunityVisibility == false) map['hostingCategory'] = FieldValue.delete(); // Remove if not visible
-    if (newHostingDescription != null) map['hostingDescription'] = newHostingDescription;
-     else if (newCommunityVisibility == false) map['hostingDescription'] = FieldValue.delete(); // Remove if not visible
+    if (newHostingCategory != null) {
+      map['hostingCategory'] = newHostingCategory;
+    } else if (newCommunityVisibility == false) map['hostingCategory'] = FieldValue.delete(); // Remove if not visible
+    if (newHostingDescription != null) {
+      map['hostingDescription'] = newHostingDescription;
+    } else if (newCommunityVisibility == false) map['hostingDescription'] = FieldValue.delete(); // Remove if not visible
 
      if (updatedAttendees != null) map['attendees'] = updatedAttendees.map((a) => a.toMap()).toList();
      if (newPaymentDetails != null) map['paymentDetails'] = newPaymentDetails;

@@ -8,12 +8,12 @@ class WirelessAnimation extends StatefulWidget {
   final double opacity;
 
   const WirelessAnimation({
-    Key? key,
+    super.key,
     this.size = 300.0,
     this.color = Colors.blue,
     this.waveCount = 3,
     this.opacity = 0.3,
-  }) : super(key: key);
+  });
 
   @override
   State<WirelessAnimation> createState() => _WirelessAnimationState();

@@ -138,7 +138,7 @@ class _RegisterViewState extends State<RegisterView>
   bool _isPrefilled = false;
 
   // Step validation state
-  List<bool> _pageValidationErrors = [false, false, false];
+  final List<bool> _pageValidationErrors = [false, false, false];
 
   // Animation controllers
   late final AnimationController _slideController;
@@ -615,7 +615,7 @@ class _RegisterViewState extends State<RegisterView>
                       },
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  side: BorderSide(color: AppColors.primaryColor),
+                  side: const BorderSide(color: AppColors.primaryColor),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -1136,7 +1136,7 @@ class _RegisterViewState extends State<RegisterView>
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
+              const Icon(
                 CupertinoIcons.checkmark_shield,
                 color: AppColors.primaryColor,
                 size: 22,

@@ -167,8 +167,9 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
         emit(const SocialError(
             message: "User not authenticated or details missing."));
         // Refresh section even on auth error to clear processing state
-        if (sectionToRefresh != null)
+        if (sectionToRefresh != null) {
           add(RefreshSocialSection(sectionToRefresh));
+        }
         return;
       }
 

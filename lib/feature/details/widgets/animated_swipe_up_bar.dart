@@ -70,7 +70,7 @@ class _AnimatedSwipeUpBarState extends State<AnimatedSwipeUpBar>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final borderRadius = Radius.circular(16.0);
+    const borderRadius = Radius.circular(16.0);
 
     return GestureDetector(
       onTap: widget.onTap,

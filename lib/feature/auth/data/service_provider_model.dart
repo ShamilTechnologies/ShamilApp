@@ -582,9 +582,7 @@ class ServiceProviderModel extends Equatable {
       'reservationTypeConfigs':
           reservationTypeConfigs, // Send map (can be empty {})
       'maxGroupSize': maxGroupSize, // Explicitly send null if null
-      'accessOptions': accessOptions != null
-          ? accessOptions!.map((option) => option.toMap()).toList()
-          : null, // Send list or null
+      'accessOptions': accessOptions?.map((option) => option.toMap()).toList(), // Send list or null
       'seatMapUrl': seatMapUrl, // Explicitly send null if null
 
       // --- Assets ---
@@ -847,8 +845,9 @@ class ServiceProviderModel extends Equatable {
 
   // Helper for isPricingValid
   bool _hasValidConfigForSupportedTypes() {
-    if (supportedReservationTypes.isEmpty)
+    if (supportedReservationTypes.isEmpty) {
       return false; // No types selected is invalid config
+    }
 
     bool hasAnyConfig = false;
     // Check if *any* configuration exists that corresponds to a selected type

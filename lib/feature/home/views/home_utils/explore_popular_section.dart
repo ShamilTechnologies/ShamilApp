@@ -8,7 +8,6 @@ import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 import 'package:shamil_mobile_app/feature/home/widgets/service_provider_card.dart';
 // Import navigation helper if needed for "See All"
-import 'package:shamil_mobile_app/core/functions/navigation.dart';
 // Import a potential screen for listing all popular items
 // import 'package:shamil_mobile_app/feature/list_views/all_popular_screen.dart'; // Example
 

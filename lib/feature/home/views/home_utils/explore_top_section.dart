@@ -69,7 +69,7 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
               child: Opacity(
                 opacity: progress * 0.3,
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColors.primaryColor,
                   ),
                 ),
@@ -100,7 +100,7 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
                               String authUserNameForPlaceholder = "G";
 
                               if (authState is LoginSuccessState) {
-                                final AuthModel? currentUser = authState.user;
+                                final AuthModel currentUser = authState.user;
                                 if (currentUser != null) {
                                   authUserNameForPlaceholder = currentUser.name;
                                   userName = authUserNameForPlaceholder
@@ -307,7 +307,7 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            const Icon(
               CupertinoIcons.location_solid,
               color: Colors.white,
               size: 14,
@@ -317,14 +317,14 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
               currentCityDisplay.isNotEmpty
                   ? currentCityDisplay
                   : "Select City",
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 13,
                 fontWeight: FontWeight.normal,
               ),
             ),
             const Gap(6),
-            Icon(
+            const Icon(
               CupertinoIcons.chevron_down,
               color: Colors.white,
               size: 12,
@@ -346,7 +346,7 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
+        child: SizedBox(
           height: 40,
           width: 40,
           child: Center(

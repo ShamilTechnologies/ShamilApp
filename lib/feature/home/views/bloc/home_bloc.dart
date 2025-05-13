@@ -250,7 +250,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       emit(HomeLoading(isInitialLoading: false, previousState: currentState));
     } else {
       // Should ideally not happen if LoadHomeData is called first, but handle defensively
-      emit(HomeLoading(isInitialLoading: true, previousState: null));
+      emit(const HomeLoading(isInitialLoading: true, previousState: null));
       city = await _getInitialCity(); // Determine city if not already loaded
     }
 
@@ -321,7 +321,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       print(
           "HomeBloc: Cannot filter by sub-category, initial data not loaded.");
       // Optionally emit an error or just return if state is not HomeDataLoaded
-      emit(HomeError(
+      emit(const HomeError(
           message: "Please load initial data before filtering.",
           isInitialError: false,
           previousState: null));
@@ -390,7 +390,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       previousStateData = currentState;
       emit(HomeLoading(isInitialLoading: false, previousState: currentState));
     } else {
-      emit(HomeLoading(isInitialLoading: true, previousState: null));
+      emit(const HomeLoading(isInitialLoading: true, previousState: null));
       city = await _getInitialCity();
     }
     print("HomeBloc: Searching for '${event.query}' in city '$city'.");

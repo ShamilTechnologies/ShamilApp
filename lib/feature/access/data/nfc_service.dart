@@ -249,7 +249,7 @@ class NFCService {
             if (record['payload'] != null) {
               // Extract and decode payload
               final payload = record['payload'] as List<int>;
-              if (payload.length > 0) {
+              if (payload.isNotEmpty) {
                 // Skip first byte if it's a text record type
                 final startIndex = payload[0] == 0x54 ? 3 : 0;
                 if (payload.length > startIndex) {

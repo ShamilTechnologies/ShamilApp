@@ -117,8 +117,8 @@ class _ExploreCategoryListState extends State<ExploreCategoryList> {
           }
 
           // Define colors based on selection state.
-          final selectedBgColor = AppColors.primaryColor;
-          final selectedFgColor = AppColors.white;
+          const selectedBgColor = AppColors.primaryColor;
+          const selectedFgColor = AppColors.white;
           final unselectedBgColor = AppColors.primaryColor.withOpacity(0.1);
           final unselectedFgColor = AppColors.primaryColor.withOpacity(0.8);
 

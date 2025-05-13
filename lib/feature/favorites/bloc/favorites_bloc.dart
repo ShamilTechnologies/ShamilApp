@@ -372,7 +372,7 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
         } else {
           // Create a new loaded state with just this info
           emit(FavoritesLoaded(
-            favorites: [],
+            favorites: const [],
             checkedProviderId: event.providerId,
             isProviderFavorite: isFavorite,
           ));
@@ -380,7 +380,7 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
       } else {
         // Always emit a valid state even when user isn't logged in
         emit(FavoritesLoaded(
-          favorites: [],
+          favorites: const [],
           checkedProviderId: event.providerId,
           isProviderFavorite: false,
         ));
@@ -396,7 +396,7 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
         ));
       } else {
         emit(FavoritesLoaded(
-          favorites: [],
+          favorites: const [],
           checkedProviderId: event.providerId,
           isProviderFavorite: false,
         ));

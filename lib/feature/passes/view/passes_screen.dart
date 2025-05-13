@@ -12,7 +12,7 @@ import 'package:gap/gap.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class PassesScreen extends StatefulWidget {
-  const PassesScreen({Key? key}) : super(key: key);
+  const PassesScreen({super.key});
 
   @override
   State<PassesScreen> createState() => _PassesScreenState();
@@ -63,9 +63,9 @@ class _PassesScreenState extends State<PassesScreen>
         backgroundColor: theme.scaffoldBackgroundColor,
         body: SafeArea(
           child: Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius: const BorderRadius.only(
+              borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(30),
                 bottomRight: Radius.circular(30),
               ),
@@ -187,7 +187,7 @@ class _PassesScreenState extends State<PassesScreen>
             ),
           ],
         ),
-        child: Icon(
+        child: const Icon(
           CupertinoIcons.arrow_clockwise,
           color: AppColors.primaryColor,
           size: 20,
@@ -243,7 +243,7 @@ class _PassesScreenState extends State<PassesScreen>
                         : Colors.grey.shade500,
                   ),
                   const Gap(8),
-                  Text('Reservations'),
+                  const Text('Reservations'),
                 ],
               ),
             ),
@@ -259,7 +259,7 @@ class _PassesScreenState extends State<PassesScreen>
                         : Colors.grey.shade500,
                   ),
                   const Gap(8),
-                  Text('Subscriptions'),
+                  const Text('Subscriptions'),
                 ],
               ),
             ),

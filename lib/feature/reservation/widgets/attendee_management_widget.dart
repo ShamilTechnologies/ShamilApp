@@ -18,7 +18,7 @@ class AttendeeManagementWidget extends StatelessWidget {
   final String? venueCategory;
   
   const AttendeeManagementWidget({
-    Key? key,
+    super.key,
     required this.attendees,
     required this.onRemoveAttendee,
     required this.onAddFamilyMember,
@@ -26,7 +26,7 @@ class AttendeeManagementWidget extends StatelessWidget {
     required this.maxCapacity,
     this.isHostingEnabled = false,
     this.venueCategory,
-  }) : super(key: key);
+  });
   
   @override
   Widget build(BuildContext context) {
@@ -80,7 +80,7 @@ class AttendeeManagementWidget extends StatelessWidget {
                     Text(
                       attendee.type == 'self' 
                           ? 'You' 
-                          : '${_capitalizeFirstLetter(attendee.type)}',
+                          : _capitalizeFirstLetter(attendee.type),
                       style: theme.textTheme.bodySmall,
                     ),
                     const Gap(8),
@@ -213,18 +213,18 @@ class AttendeeManagementWidget extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Host This Reservation"),
-        content: Column(
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: "Description (visible to others)",
                 hintText: "E.g., Join me for a friendly tennis match!"
               ),
               maxLines: 3,
             ),
-            const Gap(16),
-            const Text(
+            Gap(16),
+            Text(
               "This will make your reservation visible to the community. Others can request to join and you can approve or deny requests.",
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),

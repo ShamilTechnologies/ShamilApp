@@ -102,7 +102,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                   } else if (!isLoading) {
                     // If state doesn't match current filters but isn't loading, show empty/message
                     // This handles cases where the state is lagging the UI selection
-                    print("State filters (${loadedState.filteredByCategory}/${loadedState.selectedSubCategory}) don't match UI (${widget.categoryName}/${_selectedSubCategory}). Showing potentially empty list.");
+                    print("State filters (${loadedState.filteredByCategory}/${loadedState.selectedSubCategory}) don't match UI (${widget.categoryName}/$_selectedSubCategory). Showing potentially empty list.");
                   }
 
                 } else if (state is HomeLoading && state.previousState != null) {

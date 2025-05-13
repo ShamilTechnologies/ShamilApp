@@ -62,10 +62,12 @@ class _OptionsBottomSheetContentState extends State<OptionsBottomSheetContent>
     // Initialize TabController only if needed (hybrid and supports at least two distinct options)
     final List<Widget> tabsForController = [];
     if (_isHybrid) {
-      if (_supportsSubscription)
+      if (_supportsSubscription) {
         tabsForController.add(const Tab(text: "Subscriptions"));
-      if (_supportsReservation)
+      }
+      if (_supportsReservation) {
         tabsForController.add(const Tab(text: "Reservations"));
+      }
     }
 
     if (tabsForController.length > 1) {

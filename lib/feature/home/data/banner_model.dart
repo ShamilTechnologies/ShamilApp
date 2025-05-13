@@ -69,7 +69,7 @@ class BannerModel extends Equatable {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
     // Helper function to safely get a value and cast it to a specific type.
-    T? _safeGet<T>(String key) {
+    T? safeGet<T>(String key) {
       final value = data[key];
       if (value is T) {
         return value;
@@ -82,16 +82,16 @@ class BannerModel extends Equatable {
 
     return BannerModel(
       id: doc.id, // Use the Firestore document ID as the banner ID
-      imageUrl: _safeGet<String>('imageUrl') ?? '', // Default to empty string if missing
-      targetType: _safeGet<String>('targetType'),
-      targetId: _safeGet<String>('targetId'),
-      targetUrl: _safeGet<String>('targetUrl'),
-      title: _safeGet<String>('title'),
-      description: _safeGet<String>('description'),
+      imageUrl: safeGet<String>('imageUrl') ?? '', // Default to empty string if missing
+      targetType: safeGet<String>('targetType'),
+      targetId: safeGet<String>('targetId'),
+      targetUrl: safeGet<String>('targetUrl'),
+      title: safeGet<String>('title'),
+      description: safeGet<String>('description'),
       priority: (data['priority'] as num?)?.toInt() ?? 0, // Safe parsing for priority
-      isActive: _safeGet<bool>('isActive') ?? true, // Default to true if missing
-      createdAt: _safeGet<Timestamp>('createdAt'),
-      updatedAt: _safeGet<Timestamp>('updatedAt'),
+      isActive: safeGet<bool>('isActive') ?? true, // Default to true if missing
+      createdAt: safeGet<Timestamp>('createdAt'),
+      updatedAt: safeGet<Timestamp>('updatedAt'),
     );
   }
 

@@ -80,7 +80,7 @@ Future<String?> showGovernoratesBottomSheet(
                           hintStyle: app_text_style.getbodyStyle(color: AppColors.secondaryText.withOpacity(0.7)),
                           prefixIcon: Icon(Icons.search_rounded, color: AppColors.secondaryText.withOpacity(0.7)),
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12.0),
                             borderSide: BorderSide.none,
@@ -119,7 +119,7 @@ Future<String?> showGovernoratesBottomSheet(
                               ),
                             ),
                             trailing: isSelected
-                                ? Icon(Icons.check_circle_rounded, color: AppColors.primaryColor, size: 20)
+                                ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryColor, size: 20)
                                 : null,
                             tileColor: isSelected ? AppColors.primaryColor.withOpacity(0.05) : null,
                             onTap: () {

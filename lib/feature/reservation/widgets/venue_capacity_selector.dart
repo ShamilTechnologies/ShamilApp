@@ -33,7 +33,7 @@ class VenueCapacitySelector extends StatefulWidget {
   final String? capacityDescription;
 
   const VenueCapacitySelector({
-    Key? key,
+    super.key,
     required this.totalCapacity,
     this.selectedCapacity,
     required this.isFullVenue,
@@ -42,8 +42,7 @@ class VenueCapacitySelector extends StatefulWidget {
     this.currencySymbol = 'EGP ',
     required this.onCapacityChanged,
     this.capacityDescription,
-  }) : assert(totalCapacity >= minCapacity),
-       super(key: key);
+  }) : assert(totalCapacity >= minCapacity);
 
   @override
   State<VenueCapacitySelector> createState() => _VenueCapacitySelectorState();
@@ -143,7 +142,7 @@ class _VenueCapacitySelectorState extends State<VenueCapacitySelector> {
                     color: AppColors.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     CupertinoIcons.person_3_fill,
                     color: AppColors.primaryColor,
                     size: 20,
@@ -260,7 +259,7 @@ class _VenueCapacitySelectorState extends State<VenueCapacitySelector> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.primaryColor),
+              borderSide: const BorderSide(color: AppColors.primaryColor),
             ),
           ),
           style: AppTextStyle.getTitleStyle(

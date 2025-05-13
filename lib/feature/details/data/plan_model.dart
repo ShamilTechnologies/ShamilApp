@@ -69,12 +69,12 @@ class PlanModel extends Equatable {
   factory PlanModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
-    DateTime? _toDateTime(dynamic value) {
+    DateTime? toDateTime(dynamic value) {
       if (value is Timestamp) return value.toDate();
       return null;
     }
 
-    List<String> _toListString(dynamic value) {
+    List<String> toListString(dynamic value) {
       if (value is List) {
         return value.map((e) => e.toString()).toList();
       }
@@ -89,15 +89,15 @@ class PlanModel extends Equatable {
       price: (data['price'] as num?)?.toDouble() ?? 0.0,
       currency: data['currency'] as String? ?? 'EGP',
       billingCycle: data['billingCycle'] as String? ?? 'one-time',
-      features: _toListString(data['features']),
-      imageUrls: data['imageUrls'] != null ? _toListString(data['imageUrls']) : null,
+      features: toListString(data['features']),
+      imageUrls: data['imageUrls'] != null ? toListString(data['imageUrls']) : null,
       isActive: data['isActive'] as bool? ?? true,
       termsAndConditions: data['termsAndConditions'] as String?,
       optionsDefinition: data['optionsDefinition'] is Map<String, dynamic>
           ? data['optionsDefinition'] as Map<String, dynamic>
           : null,
-      createdAt: _toDateTime(data['createdAt']),
-      updatedAt: _toDateTime(data['updatedAt']),
+      createdAt: toDateTime(data['createdAt']),
+      updatedAt: toDateTime(data['updatedAt']),
     );
   }
 

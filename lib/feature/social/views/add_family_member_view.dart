@@ -93,8 +93,7 @@ class _AddFamilyMemberViewState extends State<AddFamilyMemberView> {
                   surface: Colors.white,
                   onSurface: AppColors.primaryText,
                 ),
-            dialogBackgroundColor: Colors.white,
-            buttonTheme: const ButtonThemeData(textTheme: ButtonTextTheme.primary),
+            buttonTheme: const ButtonThemeData(textTheme: ButtonTextTheme.primary), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );

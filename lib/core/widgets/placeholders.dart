@@ -49,7 +49,7 @@ Widget buildProfilePlaceholder({
 
   if (isValidImageUrl) {
     placeholderContent = CachedNetworkImage(
-      imageUrl: imageUrl!,
+      imageUrl: imageUrl,
       width: safeSize,
       height: safeSize,
       fit: fit,
@@ -146,7 +146,7 @@ Widget buildImagePlaceholder(BuildContext context, {double? width, double? heigh
     width: width ?? double.infinity,
     height: height ?? 150,
     decoration: BoxDecoration(
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
       borderRadius: borderRadius ?? BorderRadius.circular(8.0),
     ),
     child: Center(

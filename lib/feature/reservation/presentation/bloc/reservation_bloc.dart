@@ -255,7 +255,7 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     final currentProvider = currentState.provider;
 
     if (currentProvider == null) {
-      emit(ReservationError(message: "Provider context missing.", provider: null));
+      emit(const ReservationError(message: "Provider context missing.", provider: null));
       return;
     }
     if (!currentProvider.supportedReservationTypes.contains(event.reservationType.typeString)) {
@@ -374,7 +374,7 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     int? durationMinutes;
     if (requiresFineGrainedSlots) {
       durationMinutes = currentService?.durationMinutes ?? _getTimeBasedDefaultDuration(currentProvider);
-      if (durationMinutes == null || durationMinutes <= 0) {
+      if (durationMinutes <= 0) {
          emit(_emitError("Invalid or missing service duration for fetching slots.", currentState.copyWith(selectedDate: event.selectedDate)));
          return;
       }
@@ -806,7 +806,7 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     debugPrint("Resetting reservation flow.");
     final provider = event.provider ?? state.provider; // Use provided or existing provider
     if (provider == null) {
-      emit(ReservationInitial(provider: null)); // Cannot reset without provider context
+      emit(const ReservationInitial(provider: null)); // Cannot reset without provider context
       return;
     }
 

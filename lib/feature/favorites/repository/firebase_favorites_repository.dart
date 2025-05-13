@@ -55,13 +55,13 @@ class FirebaseFavoritesRepository implements FavoritesRepository {
                 print(
                     'Added provider to favorites list: ${provider.businessName}');
               } catch (e) {
-                print('Error processing provider document ${providerId}: $e');
+                print('Error processing provider document $providerId: $e');
               }
             } else {
               print('Provider document not found: $providerId');
             }
           }).catchError((error) {
-            print('Error fetching provider document ${providerId}: $error');
+            print('Error fetching provider document $providerId: $error');
           });
 
           fetchFutures.add(future);
@@ -218,13 +218,13 @@ class FirebaseFavoritesRepository implements FavoritesRepository {
               print(
                   'Added provider to favorites list: ${provider.businessName}');
             } catch (e) {
-              print('Error processing provider document ${providerId}: $e');
+              print('Error processing provider document $providerId: $e');
             }
           } else {
             print('Provider document not found: $providerId');
           }
         }).catchError((error) {
-          print('Error fetching provider document ${providerId}: $error');
+          print('Error fetching provider document $providerId: $error');
         });
 
         fetchFutures.add(future);

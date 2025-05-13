@@ -36,7 +36,7 @@ class ServiceProviderDetailBloc
           final currentState = state as ServiceProviderDetailLoaded;
           final provider = currentState.provider;
 
-          if (provider != null && provider.id.isNotEmpty) {
+          if (provider.id.isNotEmpty) {
             // Update our state if the status of this provider has changed
             final newFavoriteStatus =
                 favState.isProviderInFavorites(provider.id);
