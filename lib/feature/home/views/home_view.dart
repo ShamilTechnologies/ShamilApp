@@ -757,8 +757,6 @@ class _SectionEmptyState extends StatelessWidget {
   final String title;
   final String message;
   final IconData icon;
-  final VoidCallback? onSeeAll;
-
   const _SectionEmptyState({
     required this.title,
     required this.message,

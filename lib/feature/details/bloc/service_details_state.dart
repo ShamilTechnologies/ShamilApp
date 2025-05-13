@@ -1,10 +1,84 @@
-// lib/feature/service_details/bloc/service_details_state.dart
+// lib/feature/details/bloc/service_details_state.dart
 
 part of 'service_details_bloc.dart';
 
+/// Represents the reservation-specific details for an in-progress reservation
+class ReservationDetails extends Equatable {
+  final double basePrice;
+  final double totalPrice;
+  final double? addOnsPrice;
+  final bool isFullVenue;
+  final int reservedCapacity;
+  final bool isCommunityVisible;
+  final String? hostingCategory;
+  final String? hostingDescription;
+  final List<AttendeeModel>? attendees;
+  final Map<String, dynamic>? costSplitDetails;
+  final String? notes;
+  
+  const ReservationDetails({
+    required this.basePrice,
+    required this.totalPrice,
+    this.addOnsPrice,
+    required this.isFullVenue,
+    required this.reservedCapacity,
+    required this.isCommunityVisible,
+    this.hostingCategory,
+    this.hostingDescription,
+    this.attendees,
+    this.costSplitDetails,
+    this.notes,
+  });
+  
+  ReservationDetails copyWith({
+    double? basePrice,
+    double? totalPrice,
+    double? addOnsPrice,
+    bool? isFullVenue,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    List<AttendeeModel>? attendees,
+    Map<String, dynamic>? costSplitDetails,
+    String? notes,
+    bool clearCostSplitDetails = false,
+  }) {
+    return ReservationDetails(
+      basePrice: basePrice ?? this.basePrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      addOnsPrice: addOnsPrice ?? this.addOnsPrice,
+      isFullVenue: isFullVenue ?? this.isFullVenue,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      attendees: attendees ?? this.attendees,
+      costSplitDetails: clearCostSplitDetails ? null : (costSplitDetails ?? this.costSplitDetails),
+      notes: notes ?? this.notes,
+    );
+  }
+  
+  @override
+  List<Object?> get props => [
+    basePrice,
+    totalPrice,
+    addOnsPrice,
+    isFullVenue,
+    reservedCapacity,
+    isCommunityVisible,
+    hostingCategory,
+    hostingDescription,
+    attendees,
+    costSplitDetails,
+    notes,
+  ];
+}
+
+/// Base state class for service details states
 abstract class ServiceDetailsState extends Equatable {
   const ServiceDetailsState();
-
+  
   @override
   List<Object?> get props => [];
 }
@@ -12,83 +86,138 @@ abstract class ServiceDetailsState extends Equatable {
 /// Initial state before any data is loaded.
 class ServiceDetailsInitial extends ServiceDetailsState {}
 
-/// State indicating that service provider details, plans, and services are being loaded.
-class ServiceDetailsLoading extends ServiceDetailsState {
-  final String providerId; // Keep track of which provider is being loaded
+/// State indicating that service provider details are being loaded.
+class ServiceDetailsLoading extends ServiceDetailsState {}
 
-  const ServiceDetailsLoading({required this.providerId});
-
-  @override
-  List<Object?> get props => [providerId];
-}
-
-/// State representing successfully loaded service provider details, plans, and services.
+/// State when details have been successfully loaded.
 class ServiceDetailsLoaded extends ServiceDetailsState {
   /// The full details of the service provider.
-  /// This could be your existing ServiceProviderDisplayModel if it's comprehensive enough,
-  /// or a more detailed model specific to this screen.
-  /// For now, let's assume it's the ServiceProviderDisplayModel from the home feature,
-  /// but you might need to fetch more data or have a dedicated model.
-  final ServiceProviderDisplayModel providerDetails;
-
+  final ServiceProviderModel providerDetails;
+  
+  /// Available subscription plans
   final List<PlanModel> plans;
+  
+  /// Available services
   final List<ServiceModel> services;
+  
+  /// Whether the provider is favorited by the user
+  final bool isFavorite;
+  
+  /// Currently selected plan (if any)
+  final PlanModel? selectedPlan;
+  
+  /// Currently selected service (if any)
+  final ServiceModel? selectedService;
+  
+  /// Reservation configuration details (if a service is selected)
+  final ReservationDetails? reservationDetails;
 
   const ServiceDetailsLoaded({
     required this.providerDetails,
     required this.plans,
     required this.services,
+    required this.isFavorite,
+    this.selectedPlan,
+    this.selectedService,
+    this.reservationDetails,
   });
 
   @override
-  List<Object?> get props => [providerDetails, plans, services];
+  List<Object?> get props => [
+    providerDetails, 
+    plans, 
+    services, 
+    isFavorite,
+    selectedPlan,
+    selectedService,
+    reservationDetails,
+  ];
 
   ServiceDetailsLoaded copyWith({
-    ServiceProviderDisplayModel? providerDetails,
+    ServiceProviderModel? providerDetails,
     List<PlanModel>? plans,
     List<ServiceModel>? services,
+    bool? isFavorite,
+    PlanModel? selectedPlan,
+    ServiceModel? selectedService,
+    ReservationDetails? reservationDetails,
+    bool clearSelectedPlan = false,
+    bool clearSelectedService = false,
+    bool clearReservationDetails = false,
   }) {
     return ServiceDetailsLoaded(
       providerDetails: providerDetails ?? this.providerDetails,
       plans: plans ?? this.plans,
       services: services ?? this.services,
+      isFavorite: isFavorite ?? this.isFavorite,
+      selectedPlan: clearSelectedPlan ? null : (selectedPlan ?? this.selectedPlan),
+      selectedService: clearSelectedService ? null : (selectedService ?? this.selectedService),
+      reservationDetails: clearReservationDetails ? null : (reservationDetails ?? this.reservationDetails),
     );
   }
 }
 
-/// State indicating an error occurred while loading service details.
-class ServiceDetailsError extends ServiceDetailsState {
-  final String message;
-  final String providerId; // ID of the provider for which loading failed
-
-  const ServiceDetailsError({required this.message, required this.providerId});
-
-  @override
-  List<Object?> get props => [message, providerId];
+/// State when a processing operation is in progress
+class ServiceDetailsProcessing extends ServiceDetailsLoaded {
+  const ServiceDetailsProcessing({
+    required super.providerDetails,
+    required super.plans,
+    required super.services,
+    required super.isFavorite,
+    super.selectedPlan,
+    super.selectedService,
+    super.reservationDetails,
+  });
 }
 
-/// Optional: State to indicate navigation to the Options Configuration Screen.
-/// This can be useful if the BLoC needs to manage navigation triggers or pass complex data.
-/// Alternatively, the UI can handle navigation directly upon user interaction.
-class NavigatingToOptionsConfiguration extends ServiceDetailsState {
-  final String providerId;
-  final String? selectedPlanId;
-  final String? selectedServiceId;
-  // You can add the actual PlanModel or ServiceModel here if needed for the next screen
-  final PlanModel? plan;
-  final ServiceModel? service;
+/// State when an operation has been confirmed
+class ServiceDetailsConfirmed extends ServiceDetailsLoaded {
+  final String message;
+  final String? confirmationId;
+  
+  const ServiceDetailsConfirmed({
+    required super.providerDetails,
+    required super.plans,
+    required super.services,
+    required super.isFavorite,
+    super.selectedPlan,
+    super.selectedService,
+    super.reservationDetails,
+    required this.message,
+    this.confirmationId,
+  });
+  
+  @override
+  List<Object?> get props => [
+    ...super.props,
+    message,
+    confirmationId,
+  ];
+}
 
+/// State indicating an error occurred while loading service details.
+class ServiceDetailsError extends ServiceDetailsLoaded {
+  final String message;
 
-  const NavigatingToOptionsConfiguration({
-    required this.providerId,
-    this.selectedPlanId,
-    this.selectedServiceId,
-    this.plan,
-    this.service,
-  }) : assert(selectedPlanId != null || selectedServiceId != null,
-            'Either selectedPlanId or selectedServiceId must be provided');
-
+  const ServiceDetailsError({
+    required this.message,
+    ServiceProviderModel? providerDetails,
+    List<PlanModel> plans = const [],
+    List<ServiceModel> services = const [],
+    bool isFavorite = false,
+    PlanModel? selectedPlan,
+    ServiceModel? selectedService,
+    ReservationDetails? reservationDetails,
+  }) : super(
+          providerDetails: providerDetails ?? const ServiceProviderModel.empty(),
+          plans: plans,
+          services: services,
+          isFavorite: isFavorite,
+          selectedPlan: selectedPlan,
+          selectedService: selectedService,
+          reservationDetails: reservationDetails,
+        );
 
   @override
-  List<Object?> get props => [providerId, selectedPlanId, selectedServiceId, plan, service];
+  List<Object?> get props => [...super.props, message];
 }
