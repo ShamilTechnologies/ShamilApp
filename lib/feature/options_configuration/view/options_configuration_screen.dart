@@ -29,6 +29,13 @@ import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart'; // To
 import 'package:flutter/services.dart';
 import 'package:animations/animations.dart';
 import 'dart:ui' as ui;
+import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/attendee_selection_section.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/venue_booking_section.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/cost_split_section.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/calendar_integration_section.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/payment_method_section.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/reminder_settings_section.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/sharing_settings_section.dart';
 
 class OptionsConfigurationScreen extends StatelessWidget {
   final String providerId;
@@ -653,119 +660,70 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
   ) {
     final List<Widget> optionsWidgets = [];
 
-    // Date selection
+    // Date & Time Selection
     if (options['allowDateSelection'] == true) {
-      final List<DateTime> availableDates = _getAvailableDates(
-        options,
-        operatingHours,
-      );
-
-      optionsWidgets.add(
-        _buildOptionCard(
-          theme,
-          title: "Date",
-          icon: CupertinoIcons.calendar,
-          content: isLoadingOperatingHours
-              ? _buildLoadingIndicator("Loading available dates...")
-              : availableDates.isEmpty
-                  ? _buildNoOptionsAvailable(
-                      "No dates available in the next 30 days")
-                  : _buildDateSelector(theme, state, availableDates),
-        ),
-      );
+      optionsWidgets.add(_buildDateSelection(
+          theme, state, operatingHours, isLoadingOperatingHours));
     }
 
-    // Time selection
-    if (options['allowTimeSelection'] == true && state.selectedDate != null) {
-      final List<Map<String, dynamic>> timeSlots = _generateTimeSlots(
-        state.selectedDate!,
-        options,
-        state.originalService,
+    if (options['allowTimeSelection'] == true) {
+      optionsWidgets.add(_buildTimeSelection(
+        theme,
+        state,
         operatingHours,
         existingReservations,
-      );
-
-      optionsWidgets.add(
-        _buildOptionCard(
-          theme,
-          title: "Time",
-          icon: CupertinoIcons.clock,
-          content: isLoadingReservations || isLoadingOperatingHours
-              ? _buildLoadingIndicator("Loading available times...")
-              : timeSlots.isEmpty
-                  ? _buildNoOptionsAvailable(
-                      "No time slots available for the selected date")
-                  : _buildTimeSelector(theme, state, timeSlots),
-        ),
-      );
+        isLoadingOperatingHours,
+        isLoadingReservations,
+      ));
     }
 
-    // Quantity selection
-    if (options['allowQuantitySelection'] == true) {
-      final qtyDetails = options['quantityDetails'] as Map<String, dynamic>?;
-      final String qtyLabel = qtyDetails?['label'] as String? ?? 'Quantity';
-      final int minQty = (qtyDetails?['min'] as num?)?.toInt() ?? 1;
-      final int maxQty = (qtyDetails?['max'] as num?)?.toInt() ?? 100;
-
-      optionsWidgets.add(
-        _buildOptionCard(
-          theme,
-          title: qtyLabel,
-          icon: CupertinoIcons.number,
-          content: _buildQuantitySelector(theme, state, minQty, maxQty),
-        ),
-      );
-    }
-
-    // Attendee selection
+    // Attendee Selection
     if (options['allowAttendeeSelection'] == true) {
-      final attendeeDetails =
-          options['attendeeDetails'] as Map<String, dynamic>?;
-      final int minAttendees = (attendeeDetails?['min'] as num?)?.toInt() ?? 0;
-      final int? maxAttendees = (attendeeDetails?['max'] as num?)?.toInt();
-
-      optionsWidgets.add(
-        _buildOptionCard(
-          theme,
-          title: "Attendees",
-          icon: CupertinoIcons.person_2,
-          content:
-              _buildAttendeeSelector(theme, state, minAttendees, maxAttendees),
-        ),
-      );
+      // Use the new AttendeeSelectionSection widget
+      optionsWidgets.add(AttendeeSelectionSection(state: state));
     }
 
-    // Add-ons
+    // Venue Booking
+    if (options['allowVenueBooking'] == true ||
+        (options['venueDetails'] != null && options['venueDetails'] is Map)) {
+      // Use the new VenueBookingSection widget
+      optionsWidgets.add(VenueBookingSection(state: state));
+    }
+
+    // Cost Splitting
+    if (options['allowCostSplitting'] == true ||
+        state.selectedAttendees.length > 1 ||
+        (state.venueBookingConfig?.attendees.length ?? 0) > 1) {
+      // Use the new CostSplitSection widget
+      optionsWidgets.add(CostSplitSection(state: state));
+    }
+
+    // Calendar Integration - add when date selection is enabled
+    if (options['allowDateSelection'] == true) {
+      optionsWidgets.add(CalendarIntegrationSection(state: state));
+
+      // Reminder Settings - add when date selection is enabled
+      optionsWidgets.add(ReminderSettingsSection(state: state));
+    }
+
+    // Sharing settings - add when attendees are selected
+    if (state.selectedAttendees.isNotEmpty ||
+        options['allowAttendeeSelection'] == true) {
+      optionsWidgets.add(SharingSettingsSection(state: state));
+    }
+
+    // Payment Method Section - add always
+    optionsWidgets.add(PaymentMethodSection(state: state));
+
+    // Add-Ons Selection
     if (options['availableAddOns'] is List &&
         (options['availableAddOns'] as List).isNotEmpty) {
-      optionsWidgets.add(
-        _buildOptionCard(
-          theme,
-          title: "Add-ons",
-          icon: CupertinoIcons.cart_badge_plus,
-          content: _buildAddOnsSelector(
-              theme, state, options['availableAddOns'] as List),
-        ),
-      );
+      optionsWidgets.add(_buildAddOnsSection(theme, state, options));
     }
 
-    // Notes
-    final notesPrompt = options['customizableNotes'];
-    if (notesPrompt != null &&
-        (notesPrompt is bool && notesPrompt == true || notesPrompt is String)) {
-      optionsWidgets.add(
-        _buildOptionCard(
-          theme,
-          title: "Additional Notes",
-          icon: CupertinoIcons.doc_text,
-          content: _buildNotesField(
-            theme,
-            notesPrompt is String
-                ? notesPrompt
-                : "Any specific requests or instructions?",
-          ),
-        ),
-      );
+    // Special Requests / Notes
+    if (options['allowSpecialRequests'] == true) {
+      optionsWidgets.add(_buildSpecialRequestsSection(theme, state));
     }
 
     return optionsWidgets;
@@ -903,8 +861,9 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
@@ -999,179 +958,6 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
           ),
         );
       }).toList(),
-    );
-  }
-
-  Widget _buildQuantitySelector(
-    ThemeData theme,
-    OptionsConfigurationState state,
-    int minQty,
-    int maxQty,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.dividerColor.withOpacity(0.3),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: state.groupSize > minQty
-                    ? AppColors.primaryColor.withOpacity(0.1)
-                    : AppColors.lightBackground,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                CupertinoIcons.minus,
-                color: state.groupSize > minQty
-                    ? AppColors.primaryColor
-                    : AppColors.secondaryText.withOpacity(0.3),
-                size: 16,
-              ),
-            ),
-            onPressed: state.groupSize > minQty
-                ? () => context
-                    .read<OptionsConfigurationBloc>()
-                    .add(QuantityChanged(quantity: state.groupSize - 1))
-                : null,
-          ),
-          Text(
-            state.groupSize.toString(),
-            style: AppTextStyle.getHeadlineTextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: state.groupSize < maxQty
-                    ? AppColors.primaryColor.withOpacity(0.1)
-                    : AppColors.lightBackground,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                CupertinoIcons.plus,
-                color: state.groupSize < maxQty
-                    ? AppColors.primaryColor
-                    : AppColors.secondaryText.withOpacity(0.3),
-                size: 16,
-              ),
-            ),
-            onPressed: state.groupSize < maxQty
-                ? () => context
-                    .read<OptionsConfigurationBloc>()
-                    .add(QuantityChanged(quantity: state.groupSize + 1))
-                : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAttendeeSelector(
-    ThemeData theme,
-    OptionsConfigurationState state,
-    int minAttendees,
-    int? maxAttendees,
-  ) {
-    String attendeeHint = "Select attendees";
-    if (minAttendees > 0) attendeeHint += " (min $minAttendees)";
-    if (maxAttendees != null) attendeeHint += " (max $maxAttendees)";
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          attendeeHint,
-          style: AppTextStyle.getSmallStyle(
-            color: AppColors.secondaryText,
-          ),
-        ),
-        const Gap(12),
-        if (state.selectedAttendees.isNotEmpty)
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: state.selectedAttendees.map((att) {
-              return Chip(
-                avatar: CircleAvatar(
-                  backgroundColor: AppColors.primaryColor.withOpacity(0.2),
-                  child: Text(
-                    att.name.isNotEmpty
-                        ? att.name.substring(0, 1).toUpperCase()
-                        : "?",
-                    style: AppTextStyle.getSmallStyle(
-                      color: AppColors.primaryColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                label: Text(
-                  att.name,
-                  style: AppTextStyle.getSmallStyle(),
-                ),
-                deleteIcon: const Icon(
-                  CupertinoIcons.xmark_circle_fill,
-                  size: 18,
-                ),
-                onDeleted: () {
-                  context.read<OptionsConfigurationBloc>().add(
-                        RemoveOptionAttendee(attendeeUserId: att.userId),
-                      );
-                },
-                backgroundColor: Colors.white,
-                side: BorderSide(
-                  color: theme.dividerColor.withOpacity(0.3),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              );
-            }).toList(),
-          ),
-        const Gap(12),
-        ElevatedButton.icon(
-          icon: const Icon(CupertinoIcons.person_badge_plus_fill, size: 20),
-          label: Text(
-            state.selectedAttendees.isEmpty
-                ? "Add Attendees"
-                : "Manage Attendees",
-          ),
-          onPressed: (maxAttendees != null &&
-                  state.selectedAttendees.length >= maxAttendees)
-              ? null
-              : () => _showAttendeeSelectionModal(theme, state),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 0,
-          ),
-        ),
-        if (maxAttendees != null &&
-            state.selectedAttendees.length >= maxAttendees)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              "Maximum $maxAttendees attendees reached",
-              style: AppTextStyle.getSmallStyle(
-                color: AppColors.redColor,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-      ],
     );
   }
 
@@ -1932,6 +1718,108 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
     }
 
     return slots;
+  }
+
+  // Helper methods for building UI sections
+  Widget _buildDateSelection(
+    ThemeData theme,
+    OptionsConfigurationState state,
+    Map<String, OpeningHoursDay> operatingHours,
+    bool isLoading,
+  ) {
+    final List<DateTime> availableDates = _getAvailableDates(
+      state.optionsDefinition ?? {},
+      operatingHours,
+    );
+
+    return _buildOptionCard(
+      theme,
+      title: "Date",
+      icon: CupertinoIcons.calendar,
+      content: isLoading
+          ? _buildLoadingIndicator("Loading available dates...")
+          : availableDates.isEmpty
+              ? _buildNoOptionsAvailable(
+                  "No dates available in the next 30 days")
+              : _buildDateSelector(theme, state, availableDates),
+    );
+  }
+
+  Widget _buildTimeSelection(
+    ThemeData theme,
+    OptionsConfigurationState state,
+    Map<String, OpeningHoursDay> operatingHours,
+    List<ReservationModel> existingReservations,
+    bool isLoadingOperatingHours,
+    bool isLoadingReservations,
+  ) {
+    if (state.selectedDate == null) {
+      return _buildOptionCard(
+        theme,
+        title: "Time",
+        icon: CupertinoIcons.clock,
+        content: _buildNoOptionsAvailable("Please select a date first"),
+      );
+    }
+
+    final List<Map<String, dynamic>> timeSlots = _generateTimeSlots(
+      state.selectedDate!,
+      state.optionsDefinition ?? {},
+      state.originalService,
+      operatingHours,
+      existingReservations,
+    );
+
+    return _buildOptionCard(
+      theme,
+      title: "Time",
+      icon: CupertinoIcons.clock,
+      content: isLoadingReservations || isLoadingOperatingHours
+          ? _buildLoadingIndicator("Loading available times...")
+          : timeSlots.isEmpty
+              ? _buildNoOptionsAvailable(
+                  "No time slots available for the selected date")
+              : _buildTimeSelector(theme, state, timeSlots),
+    );
+  }
+
+  Widget _buildAddOnsSection(
+    ThemeData theme,
+    OptionsConfigurationState state,
+    Map<String, dynamic> options,
+  ) {
+    return _buildOptionCard(
+      theme,
+      title: "Add-ons",
+      icon: CupertinoIcons.cart_badge_plus,
+      content: _buildAddOnsSelector(
+        theme,
+        state,
+        options['availableAddOns'] as List,
+      ),
+    );
+  }
+
+  Widget _buildSpecialRequestsSection(
+    ThemeData theme,
+    OptionsConfigurationState state,
+  ) {
+    final notesPrompt = state.optionsDefinition?['customizableNotes'];
+    if (notesPrompt == null) {
+      return const SizedBox.shrink();
+    }
+
+    return _buildOptionCard(
+      theme,
+      title: "Additional Notes",
+      icon: CupertinoIcons.doc_text,
+      content: _buildNotesField(
+        theme,
+        notesPrompt is String
+            ? notesPrompt
+            : "Any specific requests or instructions?",
+      ),
+    );
   }
 }
 

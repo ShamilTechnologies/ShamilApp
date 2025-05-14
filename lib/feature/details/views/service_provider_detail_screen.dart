@@ -1891,32 +1891,35 @@ class _ServiceProviderDetailScreenState
                 Positioned(
                   bottom: 16,
                   right: 16,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      final lat = provider.location!.latitude;
-                      final lon = provider.location!.longitude;
-                      final url =
-                          'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
-                      _launchUrlHelper(context, url, "Map");
-                    },
-                    icon: const Icon(
-                      CupertinoIcons.arrow_up_right_square_fill,
-                      size: 14,
-                    ),
-                    label: const Text("Open Maps"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryColor,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                  child: SizedBox(
+                    width: 120,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final lat = provider.location!.latitude;
+                        final lon = provider.location!.longitude;
+                        final url =
+                            'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
+                        _launchUrlHelper(context, url, "Map");
+                      },
+                      icon: const Icon(
+                        CupertinoIcons.arrow_up_right_square_fill,
+                        size: 14,
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      textStyle: AppTextStyle.getSmallStyle(
-                        fontWeight: FontWeight.w600,
+                      label: const Text("Open Maps"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        textStyle: AppTextStyle.getSmallStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),

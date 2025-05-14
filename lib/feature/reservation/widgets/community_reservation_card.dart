@@ -8,13 +8,13 @@ import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 
-/// A card widget that displays a community-visible reservation 
+/// A card widget that displays a community-visible reservation
 /// with options to view details and request to join
 class CommunityReservationCard extends StatelessWidget {
   final ReservationModel reservation;
   final VoidCallback onViewDetails;
   final VoidCallback onRequestJoin;
-  
+
   const CommunityReservationCard({
     super.key,
     required this.reservation,
@@ -28,20 +28,27 @@ class CommunityReservationCard extends StatelessWidget {
     final hostName = reservation.userName;
     final serviceName = reservation.serviceName ?? 'Community Event';
     final dateTime = reservation.reservationStartTime?.toDate();
-    final formattedDate = dateTime != null 
-        ? DateFormat('EEE, MMM d').format(dateTime) 
+    final formattedDate = dateTime != null
+        ? DateFormat('EEE, MMM d').format(dateTime)
         : 'Date not specified';
-    final formattedTime = dateTime != null 
-        ? DateFormat('h:mm a').format(dateTime) 
+    final formattedTime = dateTime != null
+        ? DateFormat('h:mm a').format(dateTime)
         : 'Time not specified';
     final category = reservation.hostingCategory ?? 'Social';
-    final description = reservation.hostingDescription ?? 'Join this community event!';
-    
+    final description =
+        reservation.hostingDescription ?? 'Join this community event!';
+
     // Calculate spaces remaining (if any)
     final totalCapacity = reservation.reservedCapacity ?? 0;
     final currentAttendees = reservation.attendees.length;
     final spacesRemaining = totalCapacity - currentAttendees;
-    
+
+    // Calculate price per person if cost splitting is enabled
+    final totalPrice = reservation.totalPrice ?? 0.0;
+    final pricePerPerson = reservation.costSplitDetails != null
+        ? totalPrice / totalCapacity
+        : null;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
@@ -80,7 +87,8 @@ class CommunityReservationCard extends StatelessWidget {
                 const Spacer(),
                 if (spacesRemaining > 0) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -97,7 +105,7 @@ class CommunityReservationCard extends StatelessWidget {
               ],
             ),
           ),
-          
+
           // Main content
           Padding(
             padding: const EdgeInsets.all(16),
@@ -114,9 +122,9 @@ class CommunityReservationCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                
+
                 const Gap(8),
-                
+
                 // Host info
                 Row(
                   children: [
@@ -134,9 +142,9 @@ class CommunityReservationCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 const Gap(4),
-                
+
                 // Date and time
                 Row(
                   children: [
@@ -167,9 +175,9 @@ class CommunityReservationCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 const Gap(12),
-                
+
                 // Description
                 Text(
                   description,
@@ -179,9 +187,44 @@ class CommunityReservationCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                
+
                 const Gap(16),
-                
+
+                // Price and capacity info
+                Row(
+                  children: [
+                    if (pricePerPerson != null) ...[
+                      const Icon(
+                        CupertinoIcons.money_dollar_circle,
+                        color: AppColors.secondaryText,
+                        size: 16,
+                      ),
+                      const Gap(4),
+                      Text(
+                        '${pricePerPerson.toStringAsFixed(2)} per person',
+                        style: AppTextStyle.getSmallStyle(
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                      const Gap(16),
+                    ],
+                    const Icon(
+                      CupertinoIcons.group,
+                      color: AppColors.secondaryText,
+                      size: 16,
+                    ),
+                    const Gap(4),
+                    Text(
+                      '$currentAttendees/$totalCapacity attendees',
+                      style: AppTextStyle.getSmallStyle(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Gap(16),
+
                 // Action buttons
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -202,14 +245,13 @@ class CommunityReservationCard extends StatelessWidget {
                     ElevatedButton.icon(
                       onPressed: spacesRemaining > 0 ? onRequestJoin : null,
                       icon: const Icon(CupertinoIcons.person_add),
-                      label: const Text('Request to Join'),
+                      label: const Text('Join'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryColor,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        disabledBackgroundColor: Colors.grey.shade400,
                       ),
                     ),
                   ],
@@ -221,7 +263,7 @@ class CommunityReservationCard extends StatelessWidget {
       ),
     );
   }
-  
+
   /// Get color based on event category
   Color _getCategoryColor(String category) {
     switch (category.toLowerCase()) {
@@ -241,7 +283,7 @@ class CommunityReservationCard extends StatelessWidget {
         return AppColors.primaryColor;
     }
   }
-  
+
   /// Get icon based on event category
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {

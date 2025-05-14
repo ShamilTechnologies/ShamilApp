@@ -18,11 +18,12 @@ part 'service_details_event.dart';
 part 'service_details_state.dart';
 
 /// BLoC to manage service details, plans, and services, integrated with reservations.
-/// 
+///
 /// Provides state management for the service provider detail screen, including
 /// loading provider details, handling favorites, and now managing reservations,
 /// with enhanced features like venue capacity, cost splitting, and community hosting.
-class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> {
+class ServiceDetailsBloc
+    extends Bloc<ServiceDetailsEvent, ServiceDetailsState> {
   final ServiceProviderDetailRepository _detailRepository;
   final FavoritesBloc _favoritesBloc;
   final ReservationRepository _reservationRepository;
@@ -48,25 +49,22 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
     on<UpdateCostSplitting>(_onUpdateCostSplitting);
     on<InitiateReservation>(_onInitiateReservation);
     on<CancelReservation>(_onCancelReservation);
+    on<AddAttendee>(_onAddAttendee);
+    on<RemoveAttendee>(_onRemoveAttendee);
+    on<UpdateAttendeePayment>(_onUpdateAttendeePayment);
 
     // Listen to changes in favorites state
     _favoriteStatusSubscription = _favoritesBloc.stream.listen((favState) {
-      try {
-        if (favState is FavoritesLoaded && state is ServiceDetailsLoaded) {
-          final currentState = state as ServiceDetailsLoaded;
-          final provider = currentState.providerDetails;
+      if (favState is FavoritesLoaded && state is ServiceDetailsLoaded) {
+        final currentState = state as ServiceDetailsLoaded;
+        final provider = currentState.providerDetails;
 
-          if (provider.id.isNotEmpty) {
-            // Update our state if the status of this provider has changed
-            final newFavoriteStatus = favState.isProviderInFavorites(provider.id);
-            if (currentState.isFavorite != newFavoriteStatus) {
-              emit(currentState.copyWith(isFavorite: newFavoriteStatus));
-            }
+        if (provider.id.isNotEmpty) {
+          final newFavoriteStatus = favState.isProviderInFavorites(provider.id);
+          if (currentState.isFavorite != newFavoriteStatus) {
+            emit(currentState.copyWith(isFavorite: newFavoriteStatus));
           }
         }
-      } catch (e) {
-        print('Error in favorite status subscription: $e');
-        // Don't emit error to avoid disrupting the UI
       }
     });
 
@@ -83,7 +81,8 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
     emit(ServiceDetailsLoading());
     try {
       // Fetch provider details from repository
-      final provider = await _detailRepository.fetchServiceProviderDetails(event.providerId);
+      final provider =
+          await _detailRepository.fetchServiceProviderDetails(event.providerId);
 
       // Check favorite status
       bool isFavorite = false;
@@ -96,14 +95,15 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
       // Fetch plans and services if available
       List<PlanModel> plans = [];
       List<ServiceModel> services = [];
-      
+
       try {
         if (provider.hasSubscriptionsEnabled) {
           plans = await _detailRepository.fetchProviderPlans(event.providerId);
         }
-        
+
         if (provider.hasReservationsEnabled) {
-          services = await _detailRepository.fetchProviderServices(event.providerId);
+          services =
+              await _detailRepository.fetchProviderServices(event.providerId);
         }
       } catch (e) {
         print('Error fetching plans or services: $e');
@@ -114,13 +114,12 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
       emit(ServiceDetailsLoaded(
         providerDetails: provider,
         plans: plans,
-        services: services, 
+        services: services,
         isFavorite: isFavorite,
       ));
 
       // Also request a check to ensure we have the latest favorite status
       _favoritesBloc.add(CheckFavoriteStatus(event.providerId));
-      
     } catch (e) {
       emit(ServiceDetailsError(message: e.toString()));
     }
@@ -146,7 +145,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
 
   /// Handles plan selection for subscriptions
   void _onPlanSelected(
-    PlanSelected event, 
+    PlanSelected event,
     Emitter<ServiceDetailsState> emit,
   ) {
     if (state is ServiceDetailsLoaded) {
@@ -155,7 +154,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
         (plan) => plan.id == event.planId,
         orElse: () => throw Exception('Plan not found'),
       );
-      
+
       emit(currentState.copyWith(
         selectedPlan: selectedPlan,
         selectedService: null, // Clear service selection
@@ -165,7 +164,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
 
   /// Handles service selection for reservations
   void _onServiceSelected(
-    ServiceSelected event, 
+    ServiceSelected event,
     Emitter<ServiceDetailsState> emit,
   ) {
     if (state is ServiceDetailsLoaded) {
@@ -174,9 +173,9 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
         (service) => service.id == event.serviceId,
         orElse: () => throw Exception('Service not found'),
       );
-      
+
       emit(currentState.copyWith(
-        selectedService: selectedService, 
+        selectedService: selectedService,
         selectedPlan: null, // Clear plan selection
         reservationDetails: ReservationDetails(
           reservedCapacity: currentState.providerDetails.minGroupSize ?? 1,
@@ -189,46 +188,38 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
     }
   }
 
-  /// Sets venue capacity for reservations (full venue vs. partial)
+  /// Handles setting venue capacity and full venue status
   void _onSetReservationCapacity(
     SetReservationCapacity event,
     Emitter<ServiceDetailsState> emit,
   ) {
     if (state is ServiceDetailsLoaded) {
       final currentState = state as ServiceDetailsLoaded;
-      final provider = currentState.providerDetails;
-      
-      if (currentState.reservationDetails == null || currentState.selectedService == null) {
-        // Cannot set capacity without a reservation and selected service
+
+      if (currentState.reservationDetails == null) {
         return;
       }
-      
-      // Calculate new price based on capacity
-      final totalCapacity = provider.totalCapacity ?? provider.maxGroupSize ?? 20;
-      final int newCapacity = event.isFullVenue 
-          ? totalCapacity 
-          : event.capacity.clamp(provider.minGroupSize ?? 1, totalCapacity);
-          
-      // Calculate new base price
-      double newBasePrice;
-      if (event.isFullVenue) {
-        newBasePrice = provider.fullVenuePrice ?? 
-            (provider.pricePerPerson ?? currentState.selectedService!.price) * totalCapacity;
-      } else {
-        newBasePrice = (provider.pricePerPerson ?? 
-            (currentState.selectedService!.price / (provider.minGroupSize ?? 1))) * newCapacity;
-      }
-      
-      // Update reservationDetails with new capacity and price
+
+      // Calculate new total price based on capacity
+      final basePrice = currentState.reservationDetails!.basePrice;
+      final newTotalPrice = event.isFullVenue
+          ? basePrice * 1.5
+          : // Full venue premium
+          basePrice *
+              (event.capacity / currentState.providerDetails.maxCapacity);
+
+      // Update reservation details
       final newDetails = currentState.reservationDetails!.copyWith(
         isFullVenue: event.isFullVenue,
-        reservedCapacity: newCapacity,
-        basePrice: newBasePrice,
-        totalPrice: newBasePrice + (currentState.reservationDetails!.addOnsPrice ?? 0),
-        // Disable cost splitting for full venue (everyone pays full price)
-        costSplitDetails: event.isFullVenue ? {'enabled': false} : null,
+        reservedCapacity: event.capacity,
+        totalPrice: newTotalPrice,
       );
-      
+
+      // Recalculate attendee payments if cost splitting is enabled
+      if (newDetails.costSplitDetails != null) {
+        _recalculateAttendeePayments(newDetails);
+      }
+
       emit(currentState.copyWith(reservationDetails: newDetails));
     }
   }
@@ -240,24 +231,25 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
   ) {
     if (state is ServiceDetailsLoaded) {
       final currentState = state as ServiceDetailsLoaded;
-      
+
       if (currentState.reservationDetails == null) {
         return;
       }
-      
+
       // Update attendee list with new payment status
       final currentAttendees = currentState.reservationDetails!.attendees ?? [];
       List<AttendeeModel> updatedAttendees = [];
-      
+
       bool found = false;
       for (var attendee in currentAttendees) {
         if (attendee.userId == event.attendeeId) {
           found = true;
-          
+
           // Calculate amount if needed
           double? finalAmount = event.amount;
-          if ((event.status == PaymentStatus.complete || event.status == PaymentStatus.partial) 
-              && finalAmount == null) {
+          if ((event.status == PaymentStatus.complete ||
+                  event.status == PaymentStatus.partial) &&
+              finalAmount == null) {
             // Calculate based on split settings or default
             finalAmount = _calculateAttendeeAmount(
               attendee,
@@ -266,7 +258,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
               currentState.reservationDetails!.costSplitDetails,
             );
           }
-          
+
           updatedAttendees.add(attendee.copyWith(
             paymentStatus: event.status,
             amountToPay: finalAmount,
@@ -275,17 +267,17 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
           updatedAttendees.add(attendee);
         }
       }
-      
+
       // If attendee not found, might need to add them
       if (!found && event.attendee != null) {
         updatedAttendees.add(event.attendee!);
       }
-      
+
       // Update reservation details with new attendee list
       final newDetails = currentState.reservationDetails!.copyWith(
         attendees: updatedAttendees,
       );
-      
+
       emit(currentState.copyWith(reservationDetails: newDetails));
     }
   }
@@ -297,18 +289,18 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
   ) {
     if (state is ServiceDetailsLoaded) {
       final currentState = state as ServiceDetailsLoaded;
-      
+
       if (currentState.reservationDetails == null) {
         return;
       }
-      
+
       // Update community visibility settings
       final newDetails = currentState.reservationDetails!.copyWith(
         isCommunityVisible: event.isVisible,
         hostingCategory: event.isVisible ? event.category : null,
         hostingDescription: event.isVisible ? event.description : null,
       );
-      
+
       emit(currentState.copyWith(reservationDetails: newDetails));
     }
   }
@@ -320,16 +312,16 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
   ) {
     if (state is ServiceDetailsLoaded) {
       final currentState = state as ServiceDetailsLoaded;
-      
+
       if (currentState.reservationDetails == null) {
         return;
       }
-      
+
       // Don't allow cost splitting for full venue
       if (currentState.reservationDetails!.isFullVenue && event.enabled) {
         return;
       }
-      
+
       // Create cost split details
       final costSplitDetails = {
         'enabled': event.enabled,
@@ -337,7 +329,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
         if (event.method == 'custom' && event.customRatios != null)
           'customSplitRatio': event.customRatios,
       };
-      
+
       // Update attendee amounts based on new split settings
       final attendees = currentState.reservationDetails!.attendees ?? [];
       final updatedAttendees = attendees.map((attendee) {
@@ -347,16 +339,16 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
           attendees.length,
           costSplitDetails,
         );
-        
+
         return attendee.copyWith(amountToPay: amount);
       }).toList();
-      
+
       // Update reservation details
       final newDetails = currentState.reservationDetails!.copyWith(
         costSplitDetails: costSplitDetails,
         attendees: updatedAttendees,
       );
-      
+
       emit(currentState.copyWith(reservationDetails: newDetails));
     }
   }
@@ -368,9 +360,10 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
   ) async {
     if (state is ServiceDetailsLoaded) {
       final currentState = state as ServiceDetailsLoaded;
-      
+
       // Validate we have either a service or plan selected
-      if (currentState.selectedService == null && currentState.selectedPlan == null) {
+      if (currentState.selectedService == null &&
+          currentState.selectedPlan == null) {
         emit(ServiceDetailsError(
           message: "Please select a service or plan first",
           providerDetails: currentState.providerDetails,
@@ -380,7 +373,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
         ));
         return;
       }
-      
+
       // Update state to show loading
       emit(ServiceDetailsProcessing(
         providerDetails: currentState.providerDetails,
@@ -391,7 +384,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
         selectedService: currentState.selectedService,
         reservationDetails: currentState.reservationDetails,
       ));
-      
+
       try {
         // Determine if this is for a service or plan
         if (currentState.selectedService != null) {
@@ -401,7 +394,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
           // Handle subscription creation
           await _createSubscription(currentState, event.date);
         }
-        
+
         // Success - emit confirmation state
         emit(ServiceDetailsConfirmed(
           providerDetails: currentState.providerDetails,
@@ -411,14 +404,15 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
           selectedPlan: currentState.selectedPlan,
           selectedService: currentState.selectedService,
           reservationDetails: currentState.reservationDetails,
-          message: "Your ${currentState.selectedService != null ? 'reservation' : 'subscription'} has been confirmed!",
+          message:
+              "Your ${currentState.selectedService != null ? 'reservation' : 'subscription'} has been confirmed!",
         ));
-        
       } catch (e) {
         print('Error creating reservation: $e');
         // Revert to loaded state with error
         emit(ServiceDetailsError(
-          message: "Failed to ${currentState.selectedService != null ? 'make reservation' : 'create subscription'}: ${e.toString()}",
+          message:
+              "Failed to ${currentState.selectedService != null ? 'make reservation' : 'create subscription'}: ${e.toString()}",
           providerDetails: currentState.providerDetails,
           plans: currentState.plans,
           services: currentState.services,
@@ -438,7 +432,7 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
   ) async {
     if (state is ServiceDetailsLoaded) {
       final currentState = state as ServiceDetailsLoaded;
-      
+
       // Update state to show loading
       emit(ServiceDetailsProcessing(
         providerDetails: currentState.providerDetails,
@@ -449,11 +443,11 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
         selectedService: currentState.selectedService,
         reservationDetails: currentState.reservationDetails,
       ));
-      
+
       try {
         // Call repository to cancel reservation
         await _reservationRepository.cancelReservation(event.reservationId);
-        
+
         // Success - emit confirmed state
         emit(ServiceDetailsConfirmed(
           providerDetails: currentState.providerDetails,
@@ -462,7 +456,6 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
           isFavorite: currentState.isFavorite,
           message: "Your reservation has been cancelled",
         ));
-        
       } catch (e) {
         // Revert to loaded state with error
         emit(ServiceDetailsError(
@@ -478,47 +471,47 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
 
   /// Helper method to create a reservation through the repository
   Future<String> _createReservation(
-    ServiceDetailsLoaded state, 
-    DateTime date, 
+    ServiceDetailsLoaded state,
+    DateTime date,
     String timeSlot,
   ) async {
     if (state.selectedService == null || state.reservationDetails == null) {
       throw Exception("Missing service or reservation details");
     }
-    
+
     // Parse time slot into start/end times
     final timeParts = timeSlot.split('-');
     if (timeParts.length != 2) {
       throw Exception("Invalid time slot format");
     }
-    
+
     // Parse start and end times
     final startTimeParts = timeParts[0].trim().split(':');
     final endTimeParts = timeParts[1].trim().split(':');
-    
+
     final startHour = int.parse(startTimeParts[0]);
     final startMinute = int.parse(startTimeParts[1]);
     final endHour = int.parse(endTimeParts[0]);
     final endMinute = int.parse(endTimeParts[1]);
-    
+
     // Create start and end timestamps
-    final startDateTime = DateTime(
-      date.year, date.month, date.day, startHour, startMinute);
-    final endDateTime = DateTime(
-      date.year, date.month, date.day, endHour, endMinute);
-      
+    final startDateTime =
+        DateTime(date.year, date.month, date.day, startHour, startMinute);
+    final endDateTime =
+        DateTime(date.year, date.month, date.day, endHour, endMinute);
+
     // Convert to timestamps
     final startTimestamp = Timestamp.fromDate(startDateTime);
     final endTimestamp = Timestamp.fromDate(endDateTime);
-    
+
     // Build reservation payload
     final payload = {
       'providerId': state.providerDetails.id,
       'governorateId': state.providerDetails.governorateId,
       'serviceId': state.selectedService!.id,
       'serviceName': state.selectedService!.name,
-      'type': state.selectedService!.category.contains('Time') 
-          ? 'time-based' 
+      'type': state.selectedService!.category.contains('Time')
+          ? 'time-based'
           : state.selectedService!.category.toLowerCase().replaceAll(' ', '-'),
       'reservationStartTime': startTimestamp,
       'endTime': endTimestamp,
@@ -534,17 +527,20 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
       },
       if (state.reservationDetails!.costSplitDetails != null)
         'costSplitDetails': state.reservationDetails!.costSplitDetails,
-      if (state.reservationDetails!.attendees != null && state.reservationDetails!.attendees!.isNotEmpty)
-        'attendees': state.reservationDetails!.attendees!.map((a) => a.toMap()).toList(),
+      if (state.reservationDetails!.attendees != null &&
+          state.reservationDetails!.attendees!.isNotEmpty)
+        'attendees':
+            state.reservationDetails!.attendees!.map((a) => a.toMap()).toList(),
     };
-    
+
     // Call the repository to create the reservation
-    final result = await _reservationRepository.createReservationOnBackend(payload);
-    
+    final result =
+        await _reservationRepository.createReservationOnBackend(payload);
+
     if (result['success'] != true) {
       throw Exception(result['error'] ?? "Unknown error creating reservation");
     }
-    
+
     return result['reservationId'] as String? ?? '';
   }
 
@@ -556,33 +552,34 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
     if (state.selectedPlan == null) {
       throw Exception("Missing subscription plan");
     }
-    
+
     // Build subscription payload
     final payload = {
       'providerId': state.providerDetails.id,
       'planId': state.selectedPlan!.id,
       'planName': state.selectedPlan!.name,
       'startDate': Timestamp.fromDate(startDate),
-      'expiryDate': Timestamp.fromDate(_calculateExpiryDate(startDate, state.selectedPlan!)),
+      'expiryDate': Timestamp.fromDate(
+          _calculateExpiryDate(startDate, state.selectedPlan!)),
       'pricePaid': state.selectedPlan!.price,
       'billingCycle': state.selectedPlan!.billingCycle,
       // Add other subscription-specific fields here
     };
-    
+
     // Call repository to create subscription
     final result = await _reservationRepository.createSubscription(payload);
-    
+
     if (result['success'] != true) {
       throw Exception(result['error'] ?? "Unknown error creating subscription");
     }
-    
+
     return result['subscriptionId'] as String? ?? '';
   }
 
   /// Calculates the expiry date based on billing cycle
   DateTime _calculateExpiryDate(DateTime startDate, PlanModel plan) {
     final cycle = plan.billingCycle.toLowerCase();
-    
+
     if (cycle.contains('day')) {
       return startDate.add(const Duration(days: 1));
     } else if (cycle.contains('week')) {
@@ -633,17 +630,164 @@ class ServiceDetailsBloc extends Bloc<ServiceDetailsEvent, ServiceDetailsState> 
         // Equal split among all attendees
         return totalPrice / totalAttendees;
       case 'custom':
-        Map<String, double>? customRatios = 
-            (costSplitDetails?['customSplitRatio'] as Map?)?.cast<String, double>();
+        Map<String, double>? customRatios =
+            (costSplitDetails?['customSplitRatio'] as Map?)
+                ?.cast<String, double>();
         // Default to equal share if custom ratio is missing for the user
         double ratio = customRatios?[attendee.userId] ?? (1.0 / totalAttendees);
         return totalPrice * ratio;
-      case 'self_pays': 
+      case 'self_pays':
         // Each person pays an equal share (same as 'equal')
         return totalPrice / totalAttendees;
-      default: 
+      default:
         // Default to equal split
         return totalPrice / totalAttendees;
+    }
+  }
+
+  /// Handles adding a new attendee
+  void _onAddAttendee(
+    AddAttendee event,
+    Emitter<ServiceDetailsState> emit,
+  ) {
+    if (state is ServiceDetailsLoaded) {
+      final currentState = state as ServiceDetailsLoaded;
+
+      if (currentState.reservationDetails == null) {
+        return;
+      }
+
+      // Check capacity limit
+      final currentAttendees = currentState.reservationDetails!.attendees ?? [];
+      if (currentAttendees.length >=
+          currentState.reservationDetails!.reservedCapacity) {
+        emit(ServiceDetailsError(
+          message: "Maximum capacity reached",
+          providerDetails: currentState.providerDetails,
+          plans: currentState.plans,
+          services: currentState.services,
+          isFavorite: currentState.isFavorite,
+        ));
+        return;
+      }
+
+      // Add new attendee
+      final updatedAttendees = [...currentAttendees, event.attendee];
+
+      // Update reservation details
+      final newDetails = currentState.reservationDetails!.copyWith(
+        attendees: updatedAttendees,
+      );
+
+      // Recalculate payments if cost splitting is enabled
+      if (newDetails.costSplitDetails != null) {
+        _recalculateAttendeePayments(newDetails);
+      }
+
+      emit(currentState.copyWith(reservationDetails: newDetails));
+    }
+  }
+
+  /// Handles removing an attendee
+  void _onRemoveAttendee(
+    RemoveAttendee event,
+    Emitter<ServiceDetailsState> emit,
+  ) {
+    if (state is ServiceDetailsLoaded) {
+      final currentState = state as ServiceDetailsLoaded;
+
+      if (currentState.reservationDetails == null) {
+        return;
+      }
+
+      // Remove attendee
+      final currentAttendees = currentState.reservationDetails!.attendees ?? [];
+      final updatedAttendees =
+          currentAttendees.where((a) => a.userId != event.attendeeId).toList();
+
+      // Update reservation details
+      final newDetails = currentState.reservationDetails!.copyWith(
+        attendees: updatedAttendees,
+      );
+
+      // Recalculate payments if cost splitting is enabled
+      if (newDetails.costSplitDetails != null) {
+        _recalculateAttendeePayments(newDetails);
+      }
+
+      emit(currentState.copyWith(reservationDetails: newDetails));
+    }
+  }
+
+  /// Handles updating an attendee's payment status
+  void _onUpdateAttendeePayment(
+    UpdateAttendeePayment event,
+    Emitter<ServiceDetailsState> emit,
+  ) {
+    if (state is ServiceDetailsLoaded) {
+      final currentState = state as ServiceDetailsLoaded;
+
+      if (currentState.reservationDetails == null) {
+        return;
+      }
+
+      // Update attendee payment
+      final currentAttendees = currentState.reservationDetails!.attendees ?? [];
+      final updatedAttendees = currentAttendees.map((attendee) {
+        if (attendee.userId == event.attendeeId) {
+          return attendee.copyWith(
+            paymentStatus: event.status,
+            amountPaid: event.amountPaid,
+          );
+        }
+        return attendee;
+      }).toList();
+
+      // Update reservation details
+      final newDetails = currentState.reservationDetails!.copyWith(
+        attendees: updatedAttendees,
+      );
+
+      emit(currentState.copyWith(reservationDetails: newDetails));
+    }
+  }
+
+  /// Helper method to recalculate attendee payments based on cost splitting settings
+  void _recalculateAttendeePayments(ReservationDetails details) {
+    if (details.costSplitDetails == null || details.attendees == null) {
+      return;
+    }
+
+    final splitType = details.costSplitDetails!['type'] as String;
+    final attendees = details.attendees!;
+
+    switch (splitType) {
+      case 'equal':
+        final perPersonAmount = details.totalPrice / attendees.length;
+        for (var i = 0; i < attendees.length; i++) {
+          attendees[i] = attendees[i].copyWith(amountToPay: perPersonAmount);
+        }
+        break;
+
+      case 'host_pays':
+        // Host (first attendee) pays all
+        if (attendees.isNotEmpty) {
+          attendees[0] = attendees[0].copyWith(amountToPay: details.totalPrice);
+          for (var i = 1; i < attendees.length; i++) {
+            attendees[i] = attendees[i].copyWith(amountToPay: 0.0);
+          }
+        }
+        break;
+
+      case 'custom':
+        final ratios =
+            details.costSplitDetails!['ratios'] as Map<String, double>;
+        for (var i = 0; i < attendees.length; i++) {
+          final ratio = ratios[attendees[i].userId] ?? 1.0;
+          attendees[i] =
+              attendees[i].copyWith(amountToPay: details.totalPrice * ratio);
+        }
+        break;
     }
   }
 

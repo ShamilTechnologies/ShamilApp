@@ -13,6 +13,33 @@ class OptionsConfigurationState extends Equatable {
   final String? notes;
   final List<AttendeeModel> selectedAttendees;
 
+  // New properties for social integration
+  final List<dynamic> availableFriends;
+  final List<FamilyMember> availableFamilyMembers;
+  final bool loadingFriends;
+  final bool loadingFamilyMembers;
+
+  // Venue booking configuration
+  final VenueBookingConfig? venueBookingConfig;
+
+  // Cost splitting configuration
+  final CostSplitConfig? costSplitConfig;
+
+  // Calendar integration
+  final bool addToCalendar;
+
+  // Payment method
+  final String paymentMethod;
+
+  // Reminder settings
+  final bool enableReminders;
+  final List<int> reminderTimes;
+
+  // Sharing settings
+  final bool enableSharing;
+  final bool shareWithAttendees;
+  final List<String>? additionalEmails;
+
   final double basePrice;
   final double addOnsPrice;
   final double totalPrice;
@@ -31,6 +58,19 @@ class OptionsConfigurationState extends Equatable {
     this.selectedAddOns = const {},
     this.notes,
     this.selectedAttendees = const [],
+    this.availableFriends = const [],
+    this.availableFamilyMembers = const [],
+    this.loadingFriends = false,
+    this.loadingFamilyMembers = false,
+    this.venueBookingConfig,
+    this.costSplitConfig,
+    this.addToCalendar = false,
+    this.paymentMethod = 'creditCard', // Default payment method
+    this.enableReminders = true, // Default to enabled
+    this.reminderTimes = const [60, 1440], // Default to 1h and 24h before
+    this.enableSharing = true, // Default to enabled
+    this.shareWithAttendees = true, // Default to share with attendees
+    this.additionalEmails,
     this.basePrice = 0.0,
     this.addOnsPrice = 0.0,
     this.totalPrice = 0.0,
@@ -55,6 +95,19 @@ class OptionsConfigurationState extends Equatable {
     Map<String, bool>? selectedAddOns,
     String? notes,
     List<AttendeeModel>? selectedAttendees,
+    List<dynamic>? availableFriends,
+    List<FamilyMember>? availableFamilyMembers,
+    bool? loadingFriends,
+    bool? loadingFamilyMembers,
+    VenueBookingConfig? venueBookingConfig,
+    CostSplitConfig? costSplitConfig,
+    bool? addToCalendar,
+    String? paymentMethod,
+    bool? enableReminders,
+    List<int>? reminderTimes,
+    bool? enableSharing,
+    bool? shareWithAttendees,
+    List<String>? additionalEmails,
     double? basePrice,
     double? addOnsPrice,
     double? totalPrice,
@@ -73,6 +126,20 @@ class OptionsConfigurationState extends Equatable {
       selectedAddOns: selectedAddOns ?? this.selectedAddOns,
       notes: notes ?? this.notes,
       selectedAttendees: selectedAttendees ?? this.selectedAttendees,
+      availableFriends: availableFriends ?? this.availableFriends,
+      availableFamilyMembers:
+          availableFamilyMembers ?? this.availableFamilyMembers,
+      loadingFriends: loadingFriends ?? this.loadingFriends,
+      loadingFamilyMembers: loadingFamilyMembers ?? this.loadingFamilyMembers,
+      venueBookingConfig: venueBookingConfig ?? this.venueBookingConfig,
+      costSplitConfig: costSplitConfig ?? this.costSplitConfig,
+      addToCalendar: addToCalendar ?? this.addToCalendar,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      enableReminders: enableReminders ?? this.enableReminders,
+      reminderTimes: reminderTimes ?? this.reminderTimes,
+      enableSharing: enableSharing ?? this.enableSharing,
+      shareWithAttendees: shareWithAttendees ?? this.shareWithAttendees,
+      additionalEmails: additionalEmails ?? this.additionalEmails,
       basePrice: basePrice ?? this.basePrice,
       addOnsPrice: addOnsPrice ?? this.addOnsPrice,
       totalPrice: totalPrice ?? this.totalPrice,
@@ -95,6 +162,19 @@ class OptionsConfigurationState extends Equatable {
         selectedAddOns,
         notes,
         selectedAttendees,
+        availableFriends,
+        availableFamilyMembers,
+        loadingFriends,
+        loadingFamilyMembers,
+        venueBookingConfig,
+        costSplitConfig,
+        addToCalendar,
+        paymentMethod,
+        enableReminders,
+        reminderTimes,
+        enableSharing,
+        shareWithAttendees,
+        additionalEmails,
         basePrice,
         addOnsPrice,
         totalPrice,

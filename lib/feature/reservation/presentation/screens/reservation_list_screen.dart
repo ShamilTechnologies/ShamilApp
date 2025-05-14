@@ -191,30 +191,47 @@ class _ReservationListViewState extends State<ReservationListView> {
 
     Color statusColor;
     String statusText;
+    IconData statusIcon;
 
     if (isPending) {
       statusColor = Colors.orange;
       statusText = 'Pending';
+      statusIcon = CupertinoIcons.clock;
     } else if (isConfirmed) {
       statusColor = AppColors.greenColor;
       statusText = 'Confirmed';
+      statusIcon = CupertinoIcons.checkmark_circle;
     } else if (isCancelled) {
       statusColor = AppColors.redColor;
       statusText = 'Cancelled';
+      statusIcon = CupertinoIcons.xmark_circle;
     } else if (isCompleted) {
-      statusColor = Colors.blue;
+      statusColor = AppColors.primaryColor;
       statusText = 'Completed';
+      statusIcon = CupertinoIcons.checkmark_shield;
     } else {
       statusColor = Colors.grey;
       statusText = 'Unknown';
+      statusIcon = CupertinoIcons.question_circle;
     }
 
     final dateTime = reservation.reservationStartTime?.toDate();
     final formattedDate = dateTime != null
-        ? DateFormat('EEE, MMM d, yyyy').format(dateTime)
-        : 'No date';
-    final formattedTime =
-        dateTime != null ? DateFormat('h:mm a').format(dateTime) : 'No time';
+        ? DateFormat('EEE, MMM d').format(dateTime)
+        : 'Date not specified';
+    final formattedTime = dateTime != null
+        ? DateFormat('h:mm a').format(dateTime)
+        : 'Time not specified';
+
+    // Calculate payment status
+    final totalPrice = reservation.totalPrice ?? 0.0;
+    final amountPaid =
+        (reservation.paymentDetails?['amountPaid'] as num?)?.toDouble() ?? 0.0;
+    final paymentStatus = amountPaid >= totalPrice
+        ? 'Paid'
+        : amountPaid > 0
+            ? 'Partial'
+            : 'Pending';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -222,139 +239,228 @@ class _ReservationListViewState extends State<ReservationListView> {
         borderRadius: BorderRadius.circular(16),
       ),
       elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    reservation.serviceName ?? 'Service Reservation',
-                    style: AppTextStyle.getTitleStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: AppTextStyle.getSmallStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Status banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
             ),
-            const Gap(12),
-            Row(
+            child: Row(
               children: [
-                const Icon(
-                  CupertinoIcons.calendar,
+                Icon(
+                  statusIcon,
+                  color: statusColor,
                   size: 16,
-                  color: AppColors.secondaryText,
                 ),
-                const Gap(4),
+                const Gap(8),
                 Text(
-                  formattedDate,
+                  statusText,
                   style: AppTextStyle.getSmallStyle(
-                    color: AppColors.secondaryText,
+                    color: statusColor,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const Gap(16),
-                const Icon(
-                  CupertinoIcons.clock,
-                  size: 16,
-                  color: AppColors.secondaryText,
-                ),
-                const Gap(4),
-                Text(
-                  formattedTime,
-                  style: AppTextStyle.getSmallStyle(
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-              ],
-            ),
-            const Gap(8),
-            if (reservation.groupSize > 1) ...[
-              Row(
-                children: [
-                  const Icon(
-                    CupertinoIcons.person_2,
-                    size: 16,
-                    color: AppColors.secondaryText,
-                  ),
-                  const Gap(4),
-                  Text(
-                    'Group Size: ${reservation.groupSize}',
-                    style: AppTextStyle.getSmallStyle(
-                      color: AppColors.secondaryText,
+                const Spacer(),
+                if (reservation.isCommunityVisible) ...[
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          CupertinoIcons.person_2,
+                          color: AppColors.primaryColor,
+                          size: 12,
+                        ),
+                        const Gap(4),
+                        Text(
+                          'Community',
+                          style: AppTextStyle.getSmallStyle(
+                            color: AppColors.primaryColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
-              const Gap(8),
-            ],
-            if (reservation.totalPrice != null) ...[
-              Text(
-                'Total: ${reservation.totalPrice!.toStringAsFixed(2)} EGP',
-                style: AppTextStyle.getTitleStyle(
-                  fontSize: 16,
-                  color: AppColors.primaryColor,
-                  fontWeight: FontWeight.w600,
+              ],
+            ),
+          ),
+
+          // Main content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Service name
+                Text(
+                  reservation.serviceName ?? 'Reservation',
+                  style: AppTextStyle.getTitleStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const Gap(12),
-            ],
-            if (isPending || isConfirmed) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (isConfirmed) ...[
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        // Handle view details - could navigate to a detail page
-                      },
-                      icon: const Icon(CupertinoIcons.doc_text),
-                      label: const Text('Details'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryColor,
-                        side: const BorderSide(color: AppColors.primaryColor),
+
+                const Gap(8),
+
+                // Provider info
+                Row(
+                  children: [
+                    const Icon(
+                      CupertinoIcons.building_2_fill,
+                      color: AppColors.secondaryColor,
+                      size: 16,
+                    ),
+                    const Gap(4),
+                    Text(
+                      reservation.providerId,
+                      style: AppTextStyle.getSmallStyle(
+                        color: AppColors.secondaryText,
                       ),
                     ),
-                    const Gap(8),
                   ],
-                  if (isPending || isConfirmed) ...[
+                ),
+
+                const Gap(4),
+
+                // Date and time
+                Row(
+                  children: [
+                    const Icon(
+                      CupertinoIcons.calendar,
+                      color: AppColors.secondaryText,
+                      size: 16,
+                    ),
+                    const Gap(4),
+                    Text(
+                      formattedDate,
+                      style: AppTextStyle.getSmallStyle(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                    const Gap(16),
+                    const Icon(
+                      CupertinoIcons.clock,
+                      color: AppColors.secondaryText,
+                      size: 16,
+                    ),
+                    const Gap(4),
+                    Text(
+                      formattedTime,
+                      style: AppTextStyle.getSmallStyle(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Gap(12),
+
+                // Payment info
+                Row(
+                  children: [
+                    const Icon(
+                      CupertinoIcons.money_dollar_circle,
+                      color: AppColors.secondaryText,
+                      size: 16,
+                    ),
+                    const Gap(4),
+                    Text(
+                      'Total: ${totalPrice.toStringAsFixed(2)}',
+                      style: AppTextStyle.getSmallStyle(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                    const Gap(16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: paymentStatus == 'Paid'
+                            ? AppColors.greenColor.withOpacity(0.1)
+                            : paymentStatus == 'Partial'
+                                ? Colors.orange.withOpacity(0.1)
+                                : Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        paymentStatus,
+                        style: AppTextStyle.getSmallStyle(
+                          color: paymentStatus == 'Paid'
+                              ? AppColors.greenColor
+                              : paymentStatus == 'Partial'
+                                  ? Colors.orange
+                                  : Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Gap(16),
+
+                // Action buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (isPending || isConfirmed) ...[
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          context.read<ReservationListBloc>().add(
+                                CancelReservation(
+                                    reservationId: reservation.id),
+                              );
+                        },
+                        icon: const Icon(CupertinoIcons.xmark),
+                        label: const Text('Cancel'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.redColor,
+                          side: const BorderSide(color: AppColors.redColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      const Gap(8),
+                    ],
                     ElevatedButton.icon(
                       onPressed: () {
-                        _showCancellationDialog(reservation.id);
+                        // View reservation details
                       },
-                      icon: const Icon(CupertinoIcons.xmark_circle),
-                      label: const Text('Cancel'),
+                      icon: const Icon(CupertinoIcons.chevron_right),
+                      label: const Text('View Details'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                        backgroundColor: AppColors.primaryColor,
                         foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ],
-                ],
-              ),
-            ],
-          ],
-        ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -44,4 +44,14 @@ class RefreshMyPasses extends MyPassesEvent {
   List<Object> get props => [showSuccessMessage];
 }
 
+/// Event to change the pass filter
+class ChangePassFilter extends MyPassesEvent {
+  final PassFilter filter;
+
+  const ChangePassFilter(this.filter);
+
+  @override
+  List<Object> get props => [filter];
+}
+
 // Add other events later if needed (e.g., CancelReservation, ViewDetails)

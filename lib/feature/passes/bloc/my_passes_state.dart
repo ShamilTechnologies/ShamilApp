@@ -15,39 +15,105 @@ class MyPassesInitial extends MyPassesState {}
 /// State indicating data is being loaded.
 class MyPassesLoading extends MyPassesState {}
 
+enum PassFilter { all, upcoming, active, completed, expired, cancelled }
+
 /// State indicating data has been successfully loaded.
 class MyPassesLoaded extends MyPassesState {
   final List<ReservationModel> reservations;
   final List<SubscriptionModel> subscriptions;
   final String? errorMessage;
   final String? successMessage;
+  final PassFilter currentFilter;
 
   const MyPassesLoaded({
     required this.reservations,
     required this.subscriptions,
     this.errorMessage,
     this.successMessage,
-  });
+    PassFilter? currentFilter,
+  }) : currentFilter = currentFilter ?? PassFilter.all;
 
-  @override
-  List<Object?> get props =>
-      [reservations, subscriptions, errorMessage, successMessage];
+  // Get filtered reservations based on the current filter
+  List<ReservationModel> get filteredReservations {
+    switch (currentFilter) {
+      case PassFilter.all:
+        return reservations;
+      case PassFilter.upcoming:
+        return reservations
+            .where((r) =>
+                r.status == ReservationStatus.confirmed ||
+                r.status == ReservationStatus.pending)
+            .toList();
+      case PassFilter.completed:
+        return reservations
+            .where((r) => r.status == ReservationStatus.completed)
+            .toList();
+      case PassFilter.cancelled:
+        return reservations
+            .where((r) =>
+                r.status == ReservationStatus.cancelledByUser ||
+                r.status == ReservationStatus.cancelledByProvider)
+            .toList();
+      default:
+        return reservations;
+    }
+  }
+
+  // Get filtered subscriptions based on the current filter
+  List<SubscriptionModel> get filteredSubscriptions {
+    if (subscriptions.isEmpty) {
+      return [];
+    }
+
+    switch (currentFilter) {
+      case PassFilter.all:
+        return subscriptions;
+      case PassFilter.active:
+        return subscriptions
+            .where((s) =>
+                s.status.toLowerCase() == 'active' ||
+                s.status.toLowerCase() == 'pending')
+            .toList();
+      case PassFilter.expired:
+        return subscriptions
+            .where((s) => s.status.toLowerCase() == 'expired')
+            .toList();
+      case PassFilter.cancelled:
+        return subscriptions
+            .where((s) => s.status.toLowerCase() == 'cancelled')
+            .toList();
+      default:
+        return subscriptions;
+    }
+  }
 
   MyPassesLoaded copyWith({
     List<ReservationModel>? reservations,
     List<SubscriptionModel>? subscriptions,
     String? errorMessage,
     String? successMessage,
-    bool clearMessages = false,
+    PassFilter? currentFilter,
+    bool clearCurrentFilter = false,
   }) {
     return MyPassesLoaded(
       reservations: reservations ?? this.reservations,
       subscriptions: subscriptions ?? this.subscriptions,
-      errorMessage: clearMessages ? null : (errorMessage ?? this.errorMessage),
-      successMessage:
-          clearMessages ? null : (successMessage ?? this.successMessage),
+      errorMessage: errorMessage,
+      successMessage: successMessage,
+      currentFilter: clearCurrentFilter
+          ? PassFilter.all
+          : (currentFilter ?? this.currentFilter),
     );
   }
+
+  @override
+  List<Object?> get props => [
+        reservations,
+        subscriptions,
+        errorMessage,
+        successMessage,
+        currentFilter,
+      ];
 }
 
 /// State indicating an error occurred while loading data.

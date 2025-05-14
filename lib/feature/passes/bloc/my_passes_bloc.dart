@@ -19,6 +19,7 @@ class MyPassesBloc extends Bloc<MyPassesEvent, MyPassesState> {
     on<CancelReservationPass>(_onCancelReservationPass);
     on<CancelSubscriptionPass>(_onCancelSubscriptionPass);
     on<RefreshMyPasses>(_onRefreshMyPasses);
+    on<ChangePassFilter>(_onChangePassFilter);
   }
 
   Future<void> _onLoadMyPasses(
@@ -77,6 +78,11 @@ class MyPassesBloc extends Bloc<MyPassesEvent, MyPassesState> {
     Emitter<MyPassesState> emit,
   ) async {
     final currentState = state;
+    // Preserve the current filter if it exists
+    PassFilter? currentFilter;
+    if (currentState is MyPassesLoaded) {
+      currentFilter = currentState.currentFilter;
+    }
 
     try {
       final reservations = await _userRepository.fetchUserReservations();
@@ -87,6 +93,8 @@ class MyPassesBloc extends Bloc<MyPassesEvent, MyPassesState> {
         subscriptions: subscriptions,
         successMessage:
             event.showSuccessMessage ? 'Passes refreshed successfully' : null,
+        // Use the preserved filter or default to All
+        currentFilter: currentFilter ?? PassFilter.all,
       ));
     } catch (e) {
       if (currentState is MyPassesLoaded) {
@@ -95,6 +103,18 @@ class MyPassesBloc extends Bloc<MyPassesEvent, MyPassesState> {
       } else {
         emit(MyPassesError(message: e.toString()));
       }
+    }
+  }
+
+  void _onChangePassFilter(
+    ChangePassFilter event,
+    Emitter<MyPassesState> emit,
+  ) {
+    if (state is MyPassesLoaded) {
+      final currentState = state as MyPassesLoaded;
+      // Ensure we're not passing null to copyWith
+      final PassFilter filter = event.filter ?? PassFilter.all;
+      emit(currentState.copyWith(currentFilter: filter));
     }
   }
 }

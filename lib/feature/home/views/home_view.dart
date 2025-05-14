@@ -203,6 +203,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
             itemCount: providers.length,
             padding:
                 const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
             itemBuilder: (context, index) {
               final provider = providers[index];
               return Padding(
@@ -571,6 +574,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: AppColors.secondaryText,
+                ),
+              ),
+              const Gap(24),
+              SizedBox(
+                width: 180,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Clear search
+                    FocusScope.of(context).unfocus();
+                    _onSearchSubmitted('');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Clear Search'),
                 ),
               ),
             ],

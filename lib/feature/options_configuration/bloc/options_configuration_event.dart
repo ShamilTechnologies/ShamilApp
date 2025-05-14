@@ -5,6 +5,8 @@ import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 // Ensure AttendeeModel is correctly imported. Assuming it's in reservation_model.dart
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
     show AttendeeModel;
+import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/models/options_configuration_models.dart';
 
 abstract class OptionsConfigurationEvent extends Equatable {
   const OptionsConfigurationEvent();
@@ -107,8 +109,154 @@ class RemoveOptionAttendee extends OptionsConfigurationEvent {
   List<Object?> get props => [attendeeUserId];
 }
 
+// New events for handling friends and family members
+
+class LoadCurrentUserFriends extends OptionsConfigurationEvent {
+  const LoadCurrentUserFriends();
+}
+
+class LoadCurrentUserFamilyMembers extends OptionsConfigurationEvent {
+  const LoadCurrentUserFamilyMembers();
+}
+
+class AddFriendAsAttendee extends OptionsConfigurationEvent {
+  final dynamic friend; // Friend type from social module
+  const AddFriendAsAttendee({required this.friend});
+  @override
+  List<Object?> get props => [friend];
+}
+
+class AddFamilyMemberAsAttendee extends OptionsConfigurationEvent {
+  final FamilyMember familyMember;
+  const AddFamilyMemberAsAttendee({required this.familyMember});
+  @override
+  List<Object?> get props => [familyMember];
+}
+
+class AddExternalAttendee extends OptionsConfigurationEvent {
+  final String name;
+  final String? email;
+  final String? phone;
+  final String? relationship;
+
+  const AddExternalAttendee({
+    required this.name,
+    this.email,
+    this.phone,
+    this.relationship,
+  });
+
+  @override
+  List<Object?> get props => [name, email, phone, relationship];
+}
+
+// Venue booking events
+class ChangeVenueBookingType extends OptionsConfigurationEvent {
+  final VenueBookingType bookingType;
+  const ChangeVenueBookingType({required this.bookingType});
+  @override
+  List<Object?> get props => [bookingType];
+}
+
+class UpdateSelectedCapacity extends OptionsConfigurationEvent {
+  final int capacity;
+  const UpdateSelectedCapacity({required this.capacity});
+  @override
+  List<Object?> get props => [capacity];
+}
+
+class UpdateVenueIsPrivate extends OptionsConfigurationEvent {
+  final bool isPrivate;
+  const UpdateVenueIsPrivate({required this.isPrivate});
+  @override
+  List<Object?> get props => [isPrivate];
+}
+
+// Cost splitting events
+class ChangeCostSplitType extends OptionsConfigurationEvent {
+  final CostSplitType splitType;
+  const ChangeCostSplitType({required this.splitType});
+  @override
+  List<Object?> get props => [splitType];
+}
+
+class UpdateHostPaying extends OptionsConfigurationEvent {
+  final bool isHostPaying;
+  const UpdateHostPaying({required this.isHostPaying});
+  @override
+  List<Object?> get props => [isHostPaying];
+}
+
+class UpdateCustomCostSplit extends OptionsConfigurationEvent {
+  final String attendeeId;
+  final double amount;
+
+  const UpdateCustomCostSplit({
+    required this.attendeeId,
+    required this.amount,
+  });
+
+  @override
+  List<Object?> get props => [attendeeId, amount];
+}
+
+// New event for calendar integration
+class ToggleAddToCalendar extends OptionsConfigurationEvent {
+  final bool addToCalendar;
+
+  const ToggleAddToCalendar({required this.addToCalendar});
+
+  @override
+  List<Object?> get props => [addToCalendar];
+}
+
+// New event for payment method selection
+class UpdatePaymentMethod extends OptionsConfigurationEvent {
+  final String paymentMethod;
+
+  const UpdatePaymentMethod({required this.paymentMethod});
+
+  @override
+  List<Object?> get props => [paymentMethod];
+}
+
+// New event for reminder settings
+class UpdateReminderSettings extends OptionsConfigurationEvent {
+  final bool enableReminders;
+  final List<int>
+      reminderTimes; // Minutes before the event [60, 1440] = 1h, 24h
+
+  const UpdateReminderSettings({
+    required this.enableReminders,
+    required this.reminderTimes,
+  });
+
+  @override
+  List<Object?> get props => [enableReminders, reminderTimes];
+}
+
+// New event for sharing settings
+class UpdateSharingSettings extends OptionsConfigurationEvent {
+  final bool enableSharing;
+  final bool shareWithAttendees;
+  final List<String>? additionalEmails;
+
+  const UpdateSharingSettings({
+    required this.enableSharing,
+    this.shareWithAttendees = true,
+    this.additionalEmails,
+  });
+
+  @override
+  List<Object?> get props =>
+      [enableSharing, shareWithAttendees, additionalEmails];
+}
+
 class ConfirmConfiguration extends OptionsConfigurationEvent {
   const ConfirmConfiguration();
+
+  @override
+  List<Object?> get props => [];
 }
 
 class ClearErrorMessage extends OptionsConfigurationEvent {

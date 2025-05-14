@@ -46,7 +46,8 @@ class ServiceSelected extends ServiceDetailsEvent {
 /// Event triggered when the user toggles the favorite status.
 class ToggleFavoriteStatus extends ServiceDetailsEvent {
   final String providerId; // ID of the provider being favorited/unfavorited
-  final bool currentStatus; // The current favorite status (true if favorited, false if not)
+  final bool
+      currentStatus; // The current favorite status (true if favorited, false if not)
 
   const ToggleFavoriteStatus({
     required this.providerId,
@@ -145,4 +146,40 @@ class CancelReservation extends ServiceDetailsEvent {
 
   @override
   List<Object?> get props => [reservationId];
+}
+
+/// Event for adding a new attendee to the reservation
+class AddAttendee extends ServiceDetailsEvent {
+  final AttendeeModel attendee;
+
+  const AddAttendee({required this.attendee});
+
+  @override
+  List<Object?> get props => [attendee];
+}
+
+/// Event for removing an attendee from the reservation
+class RemoveAttendee extends ServiceDetailsEvent {
+  final String attendeeId;
+
+  const RemoveAttendee({required this.attendeeId});
+
+  @override
+  List<Object?> get props => [attendeeId];
+}
+
+/// Event for updating an attendee's payment status
+class UpdateAttendeePayment extends ServiceDetailsEvent {
+  final String attendeeId;
+  final PaymentStatus status;
+  final double? amountPaid;
+
+  const UpdateAttendeePayment({
+    required this.attendeeId,
+    required this.status,
+    this.amountPaid,
+  });
+
+  @override
+  List<Object?> get props => [attendeeId, status, amountPaid];
 }

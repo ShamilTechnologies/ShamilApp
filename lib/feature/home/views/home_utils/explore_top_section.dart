@@ -50,11 +50,13 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
         ((maxExtent - currentExtent) / (maxExtent - minExtent)).clamp(0.0, 1.0);
 
     final double contentOpacity = (1.0 - progress * 1.5).clamp(0.0, 1.0);
-    final double appBarTitleOpacity = (progress * 1.5 - 0.5).clamp(0.0, 1.0);
 
     // Transform values for animated elements
     final double greetingScale = (1.0 - 0.05 * progress).clamp(0.95, 1.0);
     final double searchBarScale = (1.0 - 0.05 * progress).clamp(0.95, 1.0);
+
+    // Scroll indicator
+    final double scrollIndicatorOpacity = progress * 0.8;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light
@@ -100,7 +102,7 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
                               String authUserNameForPlaceholder = "G";
 
                               if (authState is LoginSuccessState) {
-                                final AuthModel currentUser = authState.user;
+                                final AuthModel? currentUser = authState.user;
                                 if (currentUser != null) {
                                   authUserNameForPlaceholder = currentUser.name;
                                   userName = authUserNameForPlaceholder
@@ -225,57 +227,60 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
                       left: 20,
                       right: 20,
                       bottom: 16 + (progress * 8),
-                      child: Transform.scale(
-                        scale: searchBarScale,
-                        child: _buildSearchBar(),
-                      ),
-                    ),
-
-                    // App title (shown when scrolled)
-                    Positioned(
-                      top: topSafeArea,
-                      left: 0,
-                      right: 0,
-                      height: _kToolbarHeightStandard,
                       child: Opacity(
-                        opacity: appBarTitleOpacity,
-                        child: Container(
-                          color: progress > 0.9
-                              ? AppColors.primaryColor
-                              : Colors.transparent,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Back button if needed
-                              if (progress > 0.85)
-                                Positioned(
-                                  left: 4,
-                                  child: IconButton(
-                                    icon: const Icon(
-                                        CupertinoIcons.chevron_left,
-                                        color: Colors.white,
-                                        size: 20),
-                                    onPressed: () =>
-                                        Navigator.maybePop(context),
-                                  ),
-                                ),
-
-                              // Title text
-                              Text(
-                                currentCityDisplay.isNotEmpty
-                                    ? "Explore $currentCityDisplay"
-                                    : "Explore",
-                                style: app_text_style.getTitleStyle(
-                                  color: Colors.white,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
+                        opacity: contentOpacity,
+                        child: Transform.scale(
+                          scale: searchBarScale,
+                          child: _buildSearchBar(),
                         ),
                       ),
                     ),
+
+                    // Modern scroll indicator (replaces app bar)
+                    if (progress > 0.05)
+                      Positioned(
+                        top: topSafeArea + 6,
+                        left: 0,
+                        right: 0,
+                        child: Opacity(
+                          opacity: scrollIndicatorOpacity,
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.1),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    CupertinoIcons.location_solid,
+                                    color: Colors.white,
+                                    size: 12,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    currentCityDisplay.isNotEmpty
+                                        ? currentCityDisplay
+                                        : "Explore",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -408,7 +413,7 @@ class _WavePatternPainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+      ..strokeWidth = 0.8;
 
     // Draw flowing wave pattern
     final path = Path();
@@ -438,13 +443,6 @@ class _WavePatternPainter extends CustomPainter {
         size.height * 0.6,
       );
     }
-
-    // Add a few simple lines for extra texture
-    path.moveTo(size.width * 0.8, 0);
-    path.lineTo(size.width * 0.7, size.height * 0.1);
-
-    path.moveTo(size.width * 0.1, size.height * 0.8);
-    path.lineTo(size.width * 0.2, size.height * 0.9);
 
     canvas.drawPath(path, paint);
   }

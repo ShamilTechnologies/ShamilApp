@@ -101,6 +101,12 @@ abstract class ReservationRepository {
     required String requestUserId, // User whose request is being responded to
     required bool isApproved,
   });
+
+  /// Cancels an existing reservation
+  Future<void> cancelReservation(String reservationId);
+
+  /// Creates a new subscription
+  Future<Map<String, dynamic>> createSubscription(Map<String, dynamic> payload);
 }
 
 /// Firebase implementation of the [ReservationRepository].
@@ -186,23 +192,30 @@ class FirebaseReservationRepository implements ReservationRepository {
         // Assuming subcollection structure for now:
         query = _firestore
             .collection(_reservationsCollection) // Top-level 'reservations'
-            .doc(governorateId)                  // Document for governorate
-            .collection(providerId)              // Subcollection for provider
-            .where('reservationStartTime', isGreaterThanOrEqualTo: startTimestamp)
+            .doc(governorateId) // Document for governorate
+            .collection(providerId) // Subcollection for provider
+            .where('reservationStartTime',
+                isGreaterThanOrEqualTo: startTimestamp)
             .where('reservationStartTime', isLessThanOrEqualTo: endTimestamp)
-            .where('status', whereIn: [ReservationStatus.confirmed.statusString]); // Only confirmed
+            .where('status', whereIn: [
+          ReservationStatus.confirmed.statusString
+        ]); // Only confirmed
       } else {
-         // If governorateId is missing, query the entire collection group
-         // Requires a composite index on providerId, reservationStartTime, status
+        // If governorateId is missing, query the entire collection group
+        // Requires a composite index on providerId, reservationStartTime, status
         debugPrint(
             "Querying collection group '$providerId' (governorateId missing - Check Index Requirements!)");
         // IMPORTANT: Collection group name MUST match the subcollection name (providerId here).
         query = _firestore
-            .collectionGroup(providerId) // Query across all subcollections named providerId
-            .where('providerId', isEqualTo: providerId) // Ensure it's the correct provider
-            .where('reservationStartTime', isGreaterThanOrEqualTo: startTimestamp)
+            .collectionGroup(
+                providerId) // Query across all subcollections named providerId
+            .where('providerId',
+                isEqualTo: providerId) // Ensure it's the correct provider
+            .where('reservationStartTime',
+                isGreaterThanOrEqualTo: startTimestamp)
             .where('reservationStartTime', isLessThanOrEqualTo: endTimestamp)
-            .where('status', whereIn: [ReservationStatus.confirmed.statusString]);
+            .where('status',
+                whereIn: [ReservationStatus.confirmed.statusString]);
       }
 
       final querySnapshot = await query.get();
@@ -221,7 +234,8 @@ class FirebaseReservationRepository implements ReservationRepository {
           "FirebaseReservationRepository: Found ${reservations.length} relevant existing reservations.");
       return reservations;
     } catch (e) {
-      print("FirebaseReservationRepository: Error fetching existing reservations from Firestore: $e");
+      print(
+          "FirebaseReservationRepository: Error fetching existing reservations from Firestore: $e");
       if (e is FirebaseException && e.code == 'failed-precondition') {
         throw Exception(
             "Database index missing for fetching reservations. Check Firestore console configuration.");
@@ -253,23 +267,25 @@ class FirebaseReservationRepository implements ReservationRepository {
       });
 
       if (result['success'] == false) {
-         throw Exception(result['error'] ?? 'Failed to get slots from backend.');
+        throw Exception(result['error'] ?? 'Failed to get slots from backend.');
       }
 
-      final List<dynamic> slotStrings = List<dynamic>.from(result['slots'] ?? []);
+      final List<dynamic> slotStrings =
+          List<dynamic>.from(result['slots'] ?? []);
       final List<TimeOfDay> availableSlots = slotStrings
           .map((slotStr) {
             try {
-               final parts = slotStr.toString().split(':');
-               if (parts.length == 2) {
-                 final hour = int.parse(parts[0]);
-                 final minute = int.parse(parts[1]);
-                 if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-                   return TimeOfDay(hour: hour, minute: minute);
-                 }
-               }
+              final parts = slotStr.toString().split(':');
+              if (parts.length == 2) {
+                final hour = int.parse(parts[0]);
+                final minute = int.parse(parts[1]);
+                if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                  return TimeOfDay(hour: hour, minute: minute);
+                }
+              }
             } catch (e) {
-               print("Warning: Invalid time slot format received from backend: '$slotStr' - $e");
+              print(
+                  "Warning: Invalid time slot format received from backend: '$slotStr' - $e");
             }
             return null;
           })
@@ -283,21 +299,24 @@ class FirebaseReservationRepository implements ReservationRepository {
         return aMinutes.compareTo(bMinutes);
       });
 
-      debugPrint("Cloud Function 'getAvailableSlots' returned ${availableSlots.length} valid and sorted slots.");
+      debugPrint(
+          "Cloud Function 'getAvailableSlots' returned ${availableSlots.length} valid and sorted slots.");
       return availableSlots;
-
     } on FirebaseFunctionsException catch (e) {
-       debugPrint(
+      debugPrint(
           "FirebaseReservationRepository: FirebaseFunctionsException calling getAvailableSlots - Code: ${e.code}, Message: ${e.message}, Details: ${e.details}");
       if (e.code == 'not-found') {
         throw Exception("Availability check function not found on the server.");
       } else if (e.code == 'invalid-argument') {
-        throw Exception("Invalid data sent for availability check: ${e.message}");
+        throw Exception(
+            "Invalid data sent for availability check: ${e.message}");
       }
-      throw Exception("Server Error (${e.code}): ${e.message ?? 'Failed to get available slots.'}");
+      throw Exception(
+          "Server Error (${e.code}): ${e.message ?? 'Failed to get available slots.'}");
     } catch (e) {
-       print("FirebaseReservationRepository: Error calling 'getAvailableSlots' Cloud Function or processing slots: $e");
-       throw Exception("Failed to get available slots: ${e.toString()}");
+      print(
+          "FirebaseReservationRepository: Error calling 'getAvailableSlots' Cloud Function or processing slots: $e");
+      throw Exception("Failed to get available slots: ${e.toString()}");
     }
   }
 
@@ -385,7 +404,6 @@ class FirebaseReservationRepository implements ReservationRepository {
     return await _callFunction('leaveQueue', payload);
   }
 
-
   // --- New Methods Implementation ---
 
   @override
@@ -395,63 +413,69 @@ class FirebaseReservationRepository implements ReservationRepository {
     required PaymentStatus paymentStatus,
     double? amount,
   }) async {
-     // *** IMPORTANT: Need to know the correct path to the reservation document ***
-     // This assumes reservations are directly under _reservationsCollection.
-     // If they are nested (e.g., under governorate/provider), this path needs adjustment.
+    // *** IMPORTANT: Need to know the correct path to the reservation document ***
+    // This assumes reservations are directly under _reservationsCollection.
+    // If they are nested (e.g., under governorate/provider), this path needs adjustment.
     // Example: _firestore.collection(_reservationsCollection).doc(govId).collection(providerId).doc(reservationId);
 
     DocumentReference reservationRef;
     try {
-        // Attempt direct access first (assuming top-level collection)
-        reservationRef = _firestore.collection(_reservationsCollection).doc(reservationId);
-        final reservationSnapshot = await reservationRef.get();
+      // Attempt direct access first (assuming top-level collection)
+      reservationRef =
+          _firestore.collection(_reservationsCollection).doc(reservationId);
+      final reservationSnapshot = await reservationRef.get();
 
-        if (!reservationSnapshot.exists) {
-            // If not found directly, potentially search across collection groups
-            // This requires knowing the subcollection structure or having a way to find the doc.
-            // For now, we'll assume direct access or throw.
-            print("Reservation $reservationId not found directly in $_reservationsCollection.");
-             // Example: Search using collection group (requires providerId or common subcollection name)
-             // Need governorateId and providerId to construct path if nested. Without them, direct access is the only reliable way unless indexed differently.
-             // query = _firestore.collectionGroup(...).where(FieldPath.documentId, isEqualTo: reservationId) ...
-            throw Exception('Reservation $reservationId not found.');
-        }
+      if (!reservationSnapshot.exists) {
+        // If not found directly, potentially search across collection groups
+        // This requires knowing the subcollection structure or having a way to find the doc.
+        // For now, we'll assume direct access or throw.
+        print(
+            "Reservation $reservationId not found directly in $_reservationsCollection.");
+        // Example: Search using collection group (requires providerId or common subcollection name)
+        // Need governorateId and providerId to construct path if nested. Without them, direct access is the only reliable way unless indexed differently.
+        // query = _firestore.collectionGroup(...).where(FieldPath.documentId, isEqualTo: reservationId) ...
+        throw Exception('Reservation $reservationId not found.');
+      }
 
-        final data = reservationSnapshot.data() as Map<String, dynamic>? ?? {};
-        final attendees = List<Map<String, dynamic>>.from(data['attendees'] ?? []);
+      final data = reservationSnapshot.data() as Map<String, dynamic>? ?? {};
+      final attendees =
+          List<Map<String, dynamic>>.from(data['attendees'] ?? []);
 
-        // Find and update the specific attendee
-        bool found = false;
-        final updatedAttendees = attendees.map((attendee) {
-          if (attendee['userId'] == attendeeUserId) {
-            found = true;
-            // Create a mutable copy before modifying
-            final mutableAttendee = Map<String, dynamic>.from(attendee);
-            mutableAttendee['paymentStatus'] = paymentStatus.name; // Store enum name as string
-             if (amount != null) {
-                mutableAttendee['amountToPay'] = amount;
-             } else {
-                // Optionally remove amount if setting to pending/hosted/waived and no amount provided?
-                // mutableAttendee.remove('amountToPay');
-             }
-            return mutableAttendee;
+      // Find and update the specific attendee
+      bool found = false;
+      final updatedAttendees = attendees.map((attendee) {
+        if (attendee['userId'] == attendeeUserId) {
+          found = true;
+          // Create a mutable copy before modifying
+          final mutableAttendee = Map<String, dynamic>.from(attendee);
+          mutableAttendee['paymentStatus'] =
+              paymentStatus.name; // Store enum name as string
+          if (amount != null) {
+            mutableAttendee['amountToPay'] = amount;
+          } else {
+            // Optionally remove amount if setting to pending/hosted/waived and no amount provided?
+            // mutableAttendee.remove('amountToPay');
           }
-          return attendee;
-        }).toList();
-
-        if (!found) {
-          throw Exception('Attendee $attendeeUserId not found in reservation $reservationId');
+          return mutableAttendee;
         }
+        return attendee;
+      }).toList();
 
-        // Update the reservation document
-        await reservationRef.update({
-          'attendees': updatedAttendees,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        debugPrint("Successfully updated payment status for $attendeeUserId in $reservationId");
+      if (!found) {
+        throw Exception(
+            'Attendee $attendeeUserId not found in reservation $reservationId');
+      }
 
+      // Update the reservation document
+      await reservationRef.update({
+        'attendees': updatedAttendees,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint(
+          "Successfully updated payment status for $attendeeUserId in $reservationId");
     } catch (e) {
-      print("Error updating attendee payment status for reservation $reservationId: $e");
+      print(
+          "Error updating attendee payment status for reservation $reservationId: $e");
       // Rethrow a more specific or user-friendly error if needed
       throw Exception('Failed to update payment status: ${e.toString()}');
     }
@@ -464,38 +488,40 @@ class FirebaseReservationRepository implements ReservationRepository {
     String? hostingCategory,
     String? description,
   }) async {
-     // *** Path assumption same as updateAttendeePaymentStatus ***
+    // *** Path assumption same as updateAttendeePaymentStatus ***
     DocumentReference reservationRef;
     try {
-        reservationRef = _firestore.collection(_reservationsCollection).doc(reservationId);
-        // Check existence? Optional, update will fail if it doesn't exist.
-        // final reservationSnapshot = await reservationRef.get();
-        // if (!reservationSnapshot.exists) throw Exception('Reservation not found');
+      reservationRef =
+          _firestore.collection(_reservationsCollection).doc(reservationId);
+      // Check existence? Optional, update will fail if it doesn't exist.
+      // final reservationSnapshot = await reservationRef.get();
+      // if (!reservationSnapshot.exists) throw Exception('Reservation not found');
 
-        final updateData = <String, dynamic>{
-          'isCommunityVisible': isVisible,
-          'updatedAt': FieldValue.serverTimestamp(),
-        };
+      final updateData = <String, dynamic>{
+        'isCommunityVisible': isVisible,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
-        if (isVisible) {
-          // Only add hosting fields if making visible AND they are provided
-          if (hostingCategory != null) {
-            updateData['hostingCategory'] = hostingCategory;
-          }
-          if (description != null) {
-            updateData['hostingDescription'] = description;
-          }
-        } else {
-          // If making not visible, explicitly remove hosting fields
-          updateData['hostingCategory'] = FieldValue.delete();
-          updateData['hostingDescription'] = FieldValue.delete();
+      if (isVisible) {
+        // Only add hosting fields if making visible AND they are provided
+        if (hostingCategory != null) {
+          updateData['hostingCategory'] = hostingCategory;
         }
+        if (description != null) {
+          updateData['hostingDescription'] = description;
+        }
+      } else {
+        // If making not visible, explicitly remove hosting fields
+        updateData['hostingCategory'] = FieldValue.delete();
+        updateData['hostingDescription'] = FieldValue.delete();
+      }
 
-        await reservationRef.update(updateData);
-         debugPrint("Successfully updated community visibility for $reservationId to $isVisible");
-
+      await reservationRef.update(updateData);
+      debugPrint(
+          "Successfully updated community visibility for $reservationId to $isVisible");
     } catch (e) {
-      print("Error updating community visibility for reservation $reservationId: $e");
+      print(
+          "Error updating community visibility for reservation $reservationId: $e");
       throw Exception('Failed to update community visibility: ${e.toString()}');
     }
   }
@@ -510,9 +536,11 @@ class FirebaseReservationRepository implements ReservationRepository {
     try {
       // Assuming reservations are in the top-level collection for community queries
       Query query = _firestore
-          .collection(_reservationsCollection)
-          .where('isCommunityVisible', isEqualTo: true)
-          .where('status', isEqualTo: ReservationStatus.confirmed.statusString) // Only confirmed ones
+              .collection(_reservationsCollection)
+              .where('isCommunityVisible', isEqualTo: true)
+              .where('status',
+                  isEqualTo: ReservationStatus
+                      .confirmed.statusString) // Only confirmed ones
           // Optionally filter out reservations that are full? Requires capacity tracking.
           // .where('attendees.length', isLessThan: 'reservedCapacity') // Complex query
           ;
@@ -527,42 +555,46 @@ class FirebaseReservationRepository implements ReservationRepository {
       // Default start date to now if not provided, to only show future events
       DateTime effectiveStartDate = startDate?.toUtc() ?? now;
 
-       // Only show reservations starting from effectiveStartDate onwards
-      query = query.where('reservationStartTime', isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveStartDate));
+      // Only show reservations starting from effectiveStartDate onwards
+      query = query.where('reservationStartTime',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveStartDate));
 
       if (endDate != null) {
-        query = query.where('reservationStartTime', isLessThanOrEqualTo: Timestamp.fromDate(endDate.toUtc()));
+        query = query.where('reservationStartTime',
+            isLessThanOrEqualTo: Timestamp.fromDate(endDate.toUtc()));
       }
 
       // Order by start time (ascending) and limit
       // Requires composite index on isCommunityVisible, status, [hostingCategory], reservationStartTime
-      query = query.orderBy('reservationStartTime', descending: false)
-                   .limit(limit);
+      query =
+          query.orderBy('reservationStartTime', descending: false).limit(limit);
 
-       debugPrint("Fetching community reservations with query: ${query.parameters}");
+      debugPrint(
+          "Fetching community reservations with query: ${query.parameters}");
       final querySnapshot = await query.get();
 
       final reservations = querySnapshot.docs
           .map((doc) {
-              try {
-                  return ReservationModel.fromFirestore(doc);
-              } catch(e) {
-                  print("Error parsing community reservation doc ${doc.id}: $e");
-                  return null;
-              }
+            try {
+              return ReservationModel.fromFirestore(doc);
+            } catch (e) {
+              print("Error parsing community reservation doc ${doc.id}: $e");
+              return null;
+            }
           })
           .whereType<ReservationModel>()
           .toList();
 
-        debugPrint("Found ${reservations.length} community reservations.");
-        return reservations;
-
+      debugPrint("Found ${reservations.length} community reservations.");
+      return reservations;
     } catch (e) {
       print("Error fetching community-hosted reservations: $e");
       if (e is FirebaseException && e.code == 'failed-precondition') {
-         throw Exception("Database index missing for fetching community reservations. Check Firestore console configuration.");
+        throw Exception(
+            "Database index missing for fetching community reservations. Check Firestore console configuration.");
       }
-      throw Exception('Failed to fetch community reservations: ${e.toString()}');
+      throw Exception(
+          'Failed to fetch community reservations: ${e.toString()}');
     }
   }
 
@@ -609,17 +641,57 @@ class FirebaseReservationRepository implements ReservationRepository {
       // Assuming Cloud Function name is 'respondToJoinRequest'
       // This function might not return anything significant on success, just potential errors.
       final result = await _callFunction('respondToJoinRequest', payload);
-       if (result['success'] == false) {
-          // Throw exception if function indicated failure
-          throw Exception(result['error'] ?? 'Cloud function failed to respond to join request.');
-       }
-       // If successful, no need to return anything from a Future<void>
-        debugPrint("Successfully responded to join request for $requestUserId in $reservationId");
-
+      if (result['success'] == false) {
+        // Throw exception if function indicated failure
+        throw Exception(result['error'] ??
+            'Cloud function failed to respond to join request.');
+      }
+      // If successful, no need to return anything from a Future<void>
+      debugPrint(
+          "Successfully responded to join request for $requestUserId in $reservationId");
     } catch (e) {
-      print("Error responding to join request for $requestUserId in reservation $reservationId: $e");
+      print(
+          "Error responding to join request for $requestUserId in reservation $reservationId: $e");
       // Rethrow to signal failure
       throw Exception('Failed to respond to join request: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<void> cancelReservation(String reservationId) async {
+    try {
+      // Find the reservation document
+      final reservationRef =
+          _firestore.collection(_reservationsCollection).doc(reservationId);
+      final reservationSnapshot = await reservationRef.get();
+
+      if (!reservationSnapshot.exists) {
+        throw Exception('Reservation not found');
+      }
+
+      // Update the reservation status to cancelled
+      await reservationRef.update({
+        'status': ReservationStatus.cancelledByUser.statusString,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print("Error cancelling reservation: $e");
+      throw Exception('Failed to cancel reservation: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> createSubscription(
+      Map<String, dynamic> payload) async {
+    try {
+      // Call Cloud Function to handle subscription creation
+      return await _callFunction('createSubscription', payload);
+    } catch (e) {
+      print("Error creating subscription: $e");
+      return {
+        'success': false,
+        'error': 'Failed to create subscription: ${e.toString()}'
+      };
     }
   }
 
@@ -628,8 +700,7 @@ class FirebaseReservationRepository implements ReservationRepository {
   // Override the existing createReservationOnBackend to include new fields defaults
   @override
   Future<Map<String, dynamic>> createReservationOnBackend(
-    Map<String, dynamic> payload
-  ) async {
+      Map<String, dynamic> payload) async {
     // Ensure necessary fields have defaults if not provided by the BLoC state
     // (Though the BLoC state should ideally provide all needed fields)
     payload.putIfAbsent('isFullVenueReservation', () => false);
@@ -637,15 +708,18 @@ class FirebaseReservationRepository implements ReservationRepository {
 
     // If reservedCapacity isn't explicitly set (e.g., for non-venue types),
     // default it based on groupSize if available.
-    if (!payload.containsKey('reservedCapacity') && payload.containsKey('groupSize')) {
+    if (!payload.containsKey('reservedCapacity') &&
+        payload.containsKey('groupSize')) {
       payload['reservedCapacity'] = payload['groupSize'];
     }
 
     // Ensure governorateId is present (already checked in BLoC, but good fallback)
-     if (payload['governorateId'] == null || (payload['governorateId'] as String).isEmpty) {
+    if (payload['governorateId'] == null ||
+        (payload['governorateId'] as String).isEmpty) {
       return {
         'success': false,
-        'error': 'Internal error: Missing location context (Governorate ID) in final payload.'
+        'error':
+            'Internal error: Missing location context (Governorate ID) in final payload.'
       };
     }
 

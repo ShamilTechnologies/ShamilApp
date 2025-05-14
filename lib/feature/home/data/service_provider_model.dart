@@ -18,11 +18,16 @@ enum PricingInterval { day, week, month, year }
 
 PricingInterval pricingIntervalFromString(String? intervalString) {
   switch (intervalString?.toLowerCase()) {
-    case 'day': return PricingInterval.day;
-    case 'week': return PricingInterval.week;
-    case 'month': return PricingInterval.month;
-    case 'year': return PricingInterval.year;
-    default: return PricingInterval.month; // Default interval
+    case 'day':
+      return PricingInterval.day;
+    case 'week':
+      return PricingInterval.week;
+    case 'month':
+      return PricingInterval.month;
+    case 'year':
+      return PricingInterval.year;
+    default:
+      return PricingInterval.month; // Default interval
   }
 }
 
@@ -30,11 +35,16 @@ enum PricingModel { subscription, reservation, hybrid, other }
 
 PricingModel pricingModelFromString(String? modelString) {
   switch (modelString?.toLowerCase()) {
-    case 'subscription': return PricingModel.subscription;
-    case 'reservation': return PricingModel.reservation;
-    case 'hybrid': return PricingModel.hybrid;
-    case 'other': return PricingModel.other;
-    default: return PricingModel.other; // Default model
+    case 'subscription':
+      return PricingModel.subscription;
+    case 'reservation':
+      return PricingModel.reservation;
+    case 'hybrid':
+      return PricingModel.hybrid;
+    case 'other':
+      return PricingModel.other;
+    default:
+      return PricingModel.other; // Default model
   }
 }
 
@@ -55,16 +65,23 @@ class OpeningHoursDay extends Equatable {
       if (parts.length != 2) return null;
       final hour = int.tryParse(parts[0]);
       final minute = int.tryParse(parts[1]);
-      if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+      if (hour == null ||
+          minute == null ||
+          hour < 0 ||
+          hour > 23 ||
+          minute < 0 ||
+          minute > 59) return null;
       return TimeOfDay(hour: hour, minute: minute);
     }
 
     final startTimeValue = parseTime(data['open'] as String?);
     final endTimeValue = parseTime(data['close'] as String?);
     // Determine if open based on presence of times AND explicit flag (if available)
-    final bool explicitIsOpen = data['isOpen'] as bool? ?? true; // Default to open if flag missing
+    final bool explicitIsOpen =
+        data['isOpen'] as bool? ?? true; // Default to open if flag missing
     final bool hasValidTimes = startTimeValue != null && endTimeValue != null;
-    final bool isEffectivelyOpen = explicitIsOpen && hasValidTimes; // Must have times and be explicitly open
+    final bool isEffectivelyOpen = explicitIsOpen &&
+        hasValidTimes; // Must have times and be explicitly open
 
     return OpeningHoursDay(
       startTime: startTimeValue,
@@ -77,12 +94,14 @@ class OpeningHoursDay extends Equatable {
       if (time == null) return null;
       return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
     }
+
     return {
       'open': formatTime(startTime),
       'close': formatTime(endTime),
       'isOpen': isOpen,
     };
   }
+
   @override
   List<Object?> get props => [startTime, endTime, isOpen];
 }
@@ -127,15 +146,17 @@ class SubscriptionPlan extends Equatable {
       'interval': interval.name, // Store enum name
     };
   }
+
   @override
-  List<Object?> get props => [id, name, description, price, features, intervalCount, interval];
+  List<Object?> get props =>
+      [id, name, description, price, features, intervalCount, interval];
 }
 
 class AccessPassOption extends Equatable {
-   final String id;
-   final String label;
-   final double price;
-   final int durationHours; // Duration the pass is valid for in hours
+  final String id;
+  final String label;
+  final double price;
+  final int durationHours; // Duration the pass is valid for in hours
 
   const AccessPassOption({
     required this.id,
@@ -147,10 +168,12 @@ class AccessPassOption extends Equatable {
   factory AccessPassOption.fromMap(Map<String, dynamic> data) {
     return AccessPassOption(
       // Provide a default ID if missing, though ideally it should come from Firestore
-      id: data['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: data['id'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       label: data['label'] as String? ?? 'Access Pass',
       price: (data['price'] as num?)?.toDouble() ?? 0.0,
-      durationHours: (data['durationHours'] as num?)?.toInt() ?? 1, // Default to 1 hour?
+      durationHours:
+          (data['durationHours'] as num?)?.toInt() ?? 1, // Default to 1 hour?
     );
   }
 
@@ -162,11 +185,11 @@ class AccessPassOption extends Equatable {
       'durationHours': durationHours,
     };
   }
+
   @override
   List<Object?> get props => [id, label, price, durationHours];
 }
 // --- End Nested Classes ---
-
 
 /// Represents the main data model for a Service Provider entity.
 /// Includes details and configurations for reservations and subscriptions.
@@ -217,7 +240,31 @@ class ServiceProviderModel extends Equatable {
   final List<String>? paymentMethodsAccepted;
   final String? verificationStatus;
   final String? averageResponseTime;
+  final int maxCapacity;
   // final List<ReviewModel>? reviews; // Likely fetched separately
+
+  // Add getters for subscription and reservation status
+  bool get hasSubscriptionsEnabled =>
+      pricingModel == PricingModel.subscription ||
+      pricingModel == PricingModel.hybrid;
+
+  bool get hasReservationsEnabled =>
+      pricingModel == PricingModel.reservation ||
+      pricingModel == PricingModel.hybrid;
+
+  /// Creates an empty service provider model with default values
+  static ServiceProviderModel get empty => ServiceProviderModel(
+        id: '',
+        businessName: '',
+        category: '',
+        businessDescription: '',
+        address: const {},
+        isActive: false,
+        isApproved: false,
+        pricingModel: PricingModel.other,
+        createdAt: Timestamp.now(),
+        maxCapacity: 20,
+      );
 
   const ServiceProviderModel({
     // Existing required
@@ -267,6 +314,7 @@ class ServiceProviderModel extends Equatable {
     this.paymentMethodsAccepted,
     this.verificationStatus,
     this.averageResponseTime,
+    this.maxCapacity = 20,
     // this.reviews,
   });
 
@@ -277,18 +325,33 @@ class ServiceProviderModel extends Equatable {
     // --- Re-use existing parsing logic ---
     final Map<String, String> addressMap = {};
     (data['address'] as Map?)?.forEach((key, value) {
-      if (key is String && value is String?) { addressMap[key] = value ?? ''; }
+      if (key is String && value is String?) {
+        addressMap[key] = value ?? '';
+      }
     });
-    final List<String> amenitiesList = List<String>.from(data['amenities'] as List? ?? []);
+    final List<String> amenitiesList =
+        List<String>.from(data['amenities'] as List? ?? []);
     final Map<String, OpeningHoursDay> parsedOpeningHours = {};
-    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const days = [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday'
+    ];
     final openingHoursData = data['openingHours'] as Map?;
     if (openingHoursData != null) {
       for (var dayKey in days) {
-        final actualKey = openingHoursData.keys.firstWhere((k) => k.toString().toLowerCase() == dayKey, orElse: () => '');
-        if (actualKey.isNotEmpty && openingHoursData[actualKey] is Map<String, dynamic>) {
+        final actualKey = openingHoursData.keys.firstWhere(
+            (k) => k.toString().toLowerCase() == dayKey,
+            orElse: () => '');
+        if (actualKey.isNotEmpty &&
+            openingHoursData[actualKey] is Map<String, dynamic>) {
           try {
-            parsedOpeningHours[dayKey] = OpeningHoursDay.fromMap(openingHoursData[actualKey]);
+            parsedOpeningHours[dayKey] =
+                OpeningHoursDay.fromMap(openingHoursData[actualKey]);
           } catch (e) {
             print("Error parsing OpeningHoursDay for $dayKey: $e");
             parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false);
@@ -297,80 +360,129 @@ class ServiceProviderModel extends Equatable {
           parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false);
         }
       }
-    } else { for (var dayKey in days) {
-   parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false);
- } }
+    } else {
+      for (var dayKey in days) {
+        parsedOpeningHours[dayKey] = const OpeningHoursDay(isOpen: false);
+      }
+    }
 
-    final List<SubscriptionPlan> subscriptionPlansList = (data['subscriptionPlans'] as List?)
-        ?.map((planData) {
-          if (planData is Map<String, dynamic>) {
-            final String planId = planData['id']?.toString() ?? '${doc.id}_plan_${DateTime.now().microsecondsSinceEpoch}';
-            try { return SubscriptionPlan.fromMap(planData, planId); } catch (e) { print("Error parsing SubscriptionPlan (ID: ${planData['id']}): $e"); return null; }
-          } return null;
-        }).whereType<SubscriptionPlan>().toList() ?? [];
+    final List<SubscriptionPlan> subscriptionPlansList =
+        (data['subscriptionPlans'] as List?)
+                ?.map((planData) {
+                  if (planData is Map<String, dynamic>) {
+                    final String planId = planData['id']?.toString() ??
+                        '${doc.id}_plan_${DateTime.now().microsecondsSinceEpoch}';
+                    try {
+                      return SubscriptionPlan.fromMap(planData, planId);
+                    } catch (e) {
+                      print(
+                          "Error parsing SubscriptionPlan (ID: ${planData['id']}): $e");
+                      return null;
+                    }
+                  }
+                  return null;
+                })
+                .whereType<SubscriptionPlan>()
+                .toList() ??
+            [];
 
-    final List<BookableService> bookableServicesList = (data['bookableServices'] as List?)
-        ?.map((serviceData) {
-          if (serviceData is Map<String, dynamic>) {
-            final String serviceId = serviceData['id']?.toString() ?? '${doc.id}_service_${DateTime.now().microsecondsSinceEpoch}';
-            try { return BookableService.fromMap(serviceData, serviceId); } catch (e) { print("Error parsing BookableService (ID: ${serviceData['id']}): $e"); return null; }
-          } return null;
-        }).whereType<BookableService>().toList() ?? [];
+    final List<BookableService> bookableServicesList =
+        (data['bookableServices'] as List?)
+                ?.map((serviceData) {
+                  if (serviceData is Map<String, dynamic>) {
+                    final String serviceId = serviceData['id']?.toString() ??
+                        '${doc.id}_service_${DateTime.now().microsecondsSinceEpoch}';
+                    try {
+                      return BookableService.fromMap(serviceData, serviceId);
+                    } catch (e) {
+                      print(
+                          "Error parsing BookableService (ID: ${serviceData['id']}): $e");
+                      return null;
+                    }
+                  }
+                  return null;
+                })
+                .whereType<BookableService>()
+                .toList() ??
+            [];
 
-    final List<AccessPassOption>? accessOptionsList = (data['accessOptions'] as List?)
+    final List<AccessPassOption>? accessOptionsList = (data['accessOptions']
+            as List?)
         ?.map((optionData) {
           if (optionData is Map<String, dynamic>) {
-            try { return AccessPassOption.fromMap(optionData); } catch (e) { print("Error parsing AccessPassOption: $e. Data: $optionData"); return null; }
-          } return null;
-        }).whereType<AccessPassOption>().toList();
+            try {
+              return AccessPassOption.fromMap(optionData);
+            } catch (e) {
+              print("Error parsing AccessPassOption: $e. Data: $optionData");
+              return null;
+            }
+          }
+          return null;
+        })
+        .whereType<AccessPassOption>()
+        .toList();
     // --- End re-used parsing logic ---
 
     // Safely parse new fields from previous update
     final Map<String, String> socialLinksMap = {};
     (data['socialMediaLinks'] as Map?)?.forEach((key, value) {
-      if (key is String && value is String) { socialLinksMap[key] = value; }
+      if (key is String && value is String) {
+        socialLinksMap[key] = value;
+      }
     });
 
     return ServiceProviderModel(
       id: doc.id,
       businessName: data['businessName'] as String? ?? '',
       category: data['businessCategory'] as String? ?? '',
-      subCategory: data['businessSubCategory'] as String?, // Corrected field name?
-      businessDescription: data['businessDescription'] as String? ?? data['description'] as String? ?? '',
+      subCategory:
+          data['businessSubCategory'] as String?, // Corrected field name?
+      businessDescription: data['businessDescription'] as String? ??
+          data['description'] as String? ??
+          '',
       mainImageUrl: data['mainImageUrl'] as String?,
       logoUrl: data['logoUrl'] as String?,
       galleryImageUrls: List<String>.from(data['galleryImageUrls'] ?? []),
       address: addressMap,
       governorateId: data['governorateId'] as String?,
       location: data['location'] as GeoPoint?,
-      rating: (data['averageRating'] as num?)?.toDouble() ?? (data['rating'] as num?)?.toDouble() ?? 0.0,
+      rating: (data['averageRating'] as num?)?.toDouble() ??
+          (data['rating'] as num?)?.toDouble() ??
+          0.0,
       ratingCount: (data['ratingCount'] as num?)?.toInt() ?? 0,
-      isActive: data['isActive'] as bool? ?? false, // Default to false if missing?
-      isApproved: data['isApproved'] as bool? ?? false,// Default to false if missing?
+      isActive:
+          data['isActive'] as bool? ?? false, // Default to false if missing?
+      isApproved:
+          data['isApproved'] as bool? ?? false, // Default to false if missing?
       isFeatured: data['isFeatured'] as bool? ?? false,
       amenities: amenitiesList,
       pricingModel: pricingModelFromString(data['pricingModel'] as String?),
       subscriptionPlans: subscriptionPlansList,
       bookableServices: bookableServicesList,
       openingHours: parsedOpeningHours,
-      supportedReservationTypes: List<String>.from(data['supportedReservationTypes'] ?? []),
-      reservationTypeConfigs: data['reservationTypeConfigs'] as Map<String, dynamic>?,
+      supportedReservationTypes:
+          List<String>.from(data['supportedReservationTypes'] ?? []),
+      reservationTypeConfigs:
+          data['reservationTypeConfigs'] as Map<String, dynamic>?,
       seatMapUrl: data['seatMapUrl'] as String?,
       maxGroupSize: (data['maxGroupSize'] as num?)?.toInt(),
       accessOptions: accessOptionsList,
-      serviceSpecificConfigs: data['serviceSpecificConfigs'] as Map<String, dynamic>?,
+      serviceSpecificConfigs:
+          data['serviceSpecificConfigs'] as Map<String, dynamic>?,
       createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
       updatedAt: data['updatedAt'] as Timestamp?,
       website: data['website'] as String?,
       primaryPhoneNumber: data['primaryPhoneNumber'] as String?,
-      additionalPhoneNumbers: List<String>.from(data['additionalPhoneNumbers'] ?? []),
+      additionalPhoneNumbers:
+          List<String>.from(data['additionalPhoneNumbers'] ?? []),
       primaryEmail: data['primaryEmail'] as String?,
       additionalEmails: List<String>.from(data['additionalEmails'] ?? []),
       socialMediaLinks: socialLinksMap,
       yearsInBusiness: (data['yearsInBusiness'] as num?)?.toInt(),
       certifications: List<String>.from(data['certifications'] ?? []),
       awards: List<String>.from(data['awards'] ?? []),
-      paymentMethodsAccepted: List<String>.from(data['paymentMethodsAccepted'] ?? []),
+      paymentMethodsAccepted:
+          List<String>.from(data['paymentMethodsAccepted'] ?? []),
       verificationStatus: data['verificationStatus'] as String?,
       averageResponseTime: data['averageResponseTime'] as String?,
 
@@ -379,6 +491,7 @@ class ServiceProviderModel extends Equatable {
       minGroupSize: (data['minGroupSize'] as num?)?.toInt(),
       pricePerPerson: (data['pricePerPerson'] as num?)?.toDouble(),
       fullVenuePrice: (data['fullVenuePrice'] as num?)?.toDouble(),
+      maxCapacity: (data['maxCapacity'] as num?)?.toInt() ?? 20,
     );
   }
 
@@ -406,6 +519,7 @@ class ServiceProviderModel extends Equatable {
         website, primaryPhoneNumber, additionalPhoneNumbers, primaryEmail,
         additionalEmails, socialMediaLinks, yearsInBusiness, certifications,
         awards, paymentMethodsAccepted, verificationStatus, averageResponseTime,
+        maxCapacity,
       ];
 }
 

@@ -35,14 +35,22 @@ extension ReservationTypeExtension on ReservationType {
   /// Returns the string representation used in Firestore.
   String get typeString {
     switch (this) {
-      case ReservationType.timeBased: return 'time-based';
-      case ReservationType.serviceBased: return 'service-based';
-      case ReservationType.seatBased: return 'seat-based';
-      case ReservationType.recurring: return 'recurring';
-      case ReservationType.group: return 'group';
-      case ReservationType.accessBased: return 'access-based';
-      case ReservationType.sequenceBased: return 'sequence-based';
-      default: return 'unknown';
+      case ReservationType.timeBased:
+        return 'time-based';
+      case ReservationType.serviceBased:
+        return 'service-based';
+      case ReservationType.seatBased:
+        return 'seat-based';
+      case ReservationType.recurring:
+        return 'recurring';
+      case ReservationType.group:
+        return 'group';
+      case ReservationType.accessBased:
+        return 'access-based';
+      case ReservationType.sequenceBased:
+        return 'sequence-based';
+      default:
+        return 'unknown';
     }
   }
 
@@ -59,15 +67,23 @@ extension ReservationTypeExtension on ReservationType {
 ReservationType reservationTypeFromString(String? typeString) {
   final normalizedType = typeString?.toLowerCase().replaceAll('-', '');
   switch (normalizedType) {
-    case 'timebased': return ReservationType.timeBased;
-    case 'servicebased': return ReservationType.serviceBased;
-    case 'seatbased': return ReservationType.seatBased;
-    case 'recurring': return ReservationType.recurring;
-    case 'group': return ReservationType.group;
-    case 'accessbased': return ReservationType.accessBased;
-    case 'sequencebased': return ReservationType.sequenceBased;
+    case 'timebased':
+      return ReservationType.timeBased;
+    case 'servicebased':
+      return ReservationType.serviceBased;
+    case 'seatbased':
+      return ReservationType.seatBased;
+    case 'recurring':
+      return ReservationType.recurring;
+    case 'group':
+      return ReservationType.group;
+    case 'accessbased':
+      return ReservationType.accessBased;
+    case 'sequencebased':
+      return ReservationType.sequenceBased;
     default:
-      debugPrint("Warning: Unknown reservation type string '$typeString', defaulting to unknown.");
+      debugPrint(
+          "Warning: Unknown reservation type string '$typeString', defaulting to unknown.");
       return ReservationType.unknown;
   }
 }
@@ -77,34 +93,46 @@ extension PaymentStatusExtension on PaymentStatus {
   /// Parses a string into a PaymentStatus enum. Defaults to pending.
   static PaymentStatus fromString(String? statusString) {
     switch (statusString?.toLowerCase()) {
-      case 'pending': return PaymentStatus.pending;
-      case 'partial': return PaymentStatus.partial;
-      case 'complete': return PaymentStatus.complete;
-      case 'hosted': return PaymentStatus.hosted;
-      case 'waived': return PaymentStatus.waived;
+      case 'pending':
+        return PaymentStatus.pending;
+      case 'partial':
+        return PaymentStatus.partial;
+      case 'complete':
+        return PaymentStatus.complete;
+      case 'hosted':
+        return PaymentStatus.hosted;
+      case 'waived':
+        return PaymentStatus.waived;
       default:
         // Don't print warning for null, only for unrecognized strings
         if (statusString != null) {
-            debugPrint("Warning: Unknown payment status string '$statusString', defaulting to pending.");
+          debugPrint(
+              "Warning: Unknown payment status string '$statusString', defaulting to pending.");
         }
         return PaymentStatus.pending;
     }
   }
-   // name getter is implicitly provided by enum
+  // name getter is implicitly provided by enum
 }
-
 
 // Extension for ReservationStatus
 extension ReservationStatusExtension on ReservationStatus {
   String get statusString {
     switch (this) {
-      case ReservationStatus.pending: return 'pending';
-      case ReservationStatus.confirmed: return 'confirmed';
-      case ReservationStatus.cancelledByUser: return 'cancelled_by_user';
-      case ReservationStatus.cancelledByProvider: return 'cancelled_by_provider';
-      case ReservationStatus.completed: return 'completed';
-      case ReservationStatus.noShow: return 'no_show';
-      default: return 'unknown';
+      case ReservationStatus.pending:
+        return 'pending';
+      case ReservationStatus.confirmed:
+        return 'confirmed';
+      case ReservationStatus.cancelledByUser:
+        return 'cancelled_by_user';
+      case ReservationStatus.cancelledByProvider:
+        return 'cancelled_by_provider';
+      case ReservationStatus.completed:
+        return 'completed';
+      case ReservationStatus.noShow:
+        return 'no_show';
+      default:
+        return 'unknown';
     }
   }
 
@@ -123,36 +151,44 @@ extension ReservationStatusExtension on ReservationStatus {
 /// Parses a string into a ReservationStatus enum.
 ReservationStatus reservationStatusFromString(String? status) {
   switch (status?.toLowerCase()) {
-    case 'pending': return ReservationStatus.pending;
-    case 'confirmed': return ReservationStatus.confirmed;
+    case 'pending':
+      return ReservationStatus.pending;
+    case 'confirmed':
+      return ReservationStatus.confirmed;
     case 'cancelled': // Handle potential legacy 'cancelled'
-    case 'cancelled_by_user': return ReservationStatus.cancelledByUser;
-    case 'cancelled_by_provider': return ReservationStatus.cancelledByProvider;
-    case 'completed': return ReservationStatus.completed;
+    case 'cancelled_by_user':
+      return ReservationStatus.cancelledByUser;
+    case 'cancelled_by_provider':
+      return ReservationStatus.cancelledByProvider;
+    case 'completed':
+      return ReservationStatus.completed;
     case 'no_show':
-    case 'noshow': return ReservationStatus.noShow;
+    case 'noshow':
+      return ReservationStatus.noShow;
     default:
-       // Don't print warning for null, only for unrecognized strings
-       if (status != null) {
-           debugPrint("Warning: Unknown reservation status string '$status', defaulting to unknown.");
-       }
+      // Don't print warning for null, only for unrecognized strings
+      if (status != null) {
+        debugPrint(
+            "Warning: Unknown reservation status string '$status', defaulting to unknown.");
+      }
       return ReservationStatus.unknown;
   }
 }
 
 // --- End Enums and Extensions ---
 
-
 /// Represents an attendee associated with a reservation.
 class AttendeeModel extends Equatable {
   final String userId;
   final String name;
   final String type; // 'self', 'family', 'friend' // Added 'guest'?
-  final String status; // 'going', 'invited', 'declined', 'confirmed' // Added confirmed?
+  final String
+      status; // 'going', 'invited', 'declined', 'confirmed' // Added confirmed?
 
   // New fields
   final PaymentStatus paymentStatus;
   final double? amountToPay; // Individual's portion of the payment
+  final double? amountPaid; // Amount already paid by the attendee
   final bool isHost; // Whether this attendee is hosting the reservation
 
   const AttendeeModel({
@@ -162,6 +198,7 @@ class AttendeeModel extends Equatable {
     required this.status,
     this.paymentStatus = PaymentStatus.pending, // Default to pending
     this.amountToPay, // Allow null amount
+    this.amountPaid, // Allow null amount
     this.isHost = false, // Default to not host
   });
 
@@ -169,12 +206,16 @@ class AttendeeModel extends Equatable {
     return AttendeeModel(
       userId: map['userId'] as String? ?? '',
       name: map['name'] as String? ?? 'Unknown Attendee',
-      type: map['type'] as String? ?? 'unknown', // e.g. 'guest' if not specified
-      status: map['status'] as String? ?? 'unknown', // e.g. 'invited' or 'unknown'
+      type:
+          map['type'] as String? ?? 'unknown', // e.g. 'guest' if not specified
+      status:
+          map['status'] as String? ?? 'unknown', // e.g. 'invited' or 'unknown'
       // Parse new fields with defaults using the extension
-      paymentStatus: PaymentStatusExtension.fromString(map['paymentStatus'] as String?),
-      // Safely parse amountToPay
+      paymentStatus:
+          PaymentStatusExtension.fromString(map['paymentStatus'] as String?),
+      // Safely parse amounts
       amountToPay: (map['amountToPay'] as num?)?.toDouble(),
+      amountPaid: (map['amountPaid'] as num?)?.toDouble(),
       isHost: map['isHost'] as bool? ?? false,
     );
   }
@@ -187,8 +228,9 @@ class AttendeeModel extends Equatable {
       'status': status,
       // Store enum name (string) in Firestore
       'paymentStatus': paymentStatus.name,
-      // Only include amountToPay if it's not null
+      // Only include amounts if they're not null
       if (amountToPay != null) 'amountToPay': amountToPay,
+      if (amountPaid != null) 'amountPaid': amountPaid,
       'isHost': isHost,
     };
   }
@@ -201,9 +243,11 @@ class AttendeeModel extends Equatable {
     String? status,
     PaymentStatus? paymentStatus,
     double? amountToPay,
+    double? amountPaid,
     bool? isHost,
-    // Special flag to explicitly set amountToPay to null if needed
+    // Special flags to explicitly set amounts to null if needed
     bool clearAmountToPay = false,
+    bool clearAmountPaid = false,
   }) {
     return AttendeeModel(
       userId: userId ?? this.userId,
@@ -211,8 +255,9 @@ class AttendeeModel extends Equatable {
       type: type ?? this.type,
       status: status ?? this.status,
       paymentStatus: paymentStatus ?? this.paymentStatus,
-      // Use clear flag or existing logic for amount
+      // Use clear flags or existing logic for amounts
       amountToPay: clearAmountToPay ? null : (amountToPay ?? this.amountToPay),
+      amountPaid: clearAmountPaid ? null : (amountPaid ?? this.amountPaid),
       isHost: isHost ?? this.isHost,
     );
   }
@@ -223,12 +268,12 @@ class AttendeeModel extends Equatable {
         name,
         type,
         status,
-        paymentStatus, // Add new field to props
-        amountToPay,   // Add new field to props
-        isHost,        // Add new field to props
+        paymentStatus,
+        amountToPay,
+        amountPaid,
+        isHost,
       ];
 }
-
 
 /// Represents a reservation document stored in Firestore.
 /// Updated ReservationModel class as provided in the prompt.
@@ -349,13 +394,15 @@ class ReservationModel extends Equatable {
       providerId: data['providerId'] as String? ?? '',
       governorateId: data['governorateId'] as String? ?? '',
       // Handle legacy 'type' field name if 'reservationType' is missing
-      type: reservationTypeFromString(data['reservationType'] as String? ?? data['type'] as String?),
+      type: reservationTypeFromString(
+          data['reservationType'] as String? ?? data['type'] as String?),
       groupSize: effectiveGroupSize,
       serviceId: data['serviceId'] as String?,
       serviceName: data['serviceName'] as String?,
       durationMinutes: (data['durationMinutes'] as num?)?.toInt(),
       // Handle legacy 'dateTime' field if 'reservationStartTime' is missing
-      reservationStartTime: data['reservationStartTime'] as Timestamp? ?? data['dateTime'] as Timestamp?,
+      reservationStartTime: data['reservationStartTime'] as Timestamp? ??
+          data['dateTime'] as Timestamp?,
       endTime: data['endTime'] as Timestamp?,
       status: reservationStatusFromString(data['status'] as String?),
       paymentStatus: data['paymentStatus'] as String?, // Kept based on snippet
@@ -364,7 +411,8 @@ class ReservationModel extends Equatable {
       typeSpecificData: data['typeSpecificData'] as Map<String, dynamic>?,
       queuePosition: (data['queuePosition'] as num?)?.toInt(),
       estimatedEntryTime: data['estimatedEntryTime'] as Timestamp?,
-      createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(), // Fallback needed?
+      createdAt: data['createdAt'] as Timestamp? ??
+          Timestamp.now(), // Fallback needed?
       updatedAt: data['updatedAt'] as Timestamp?,
       attendees: parsedAttendees,
       reservationCode: data['reservationCode'] as String?,
@@ -388,7 +436,8 @@ class ReservationModel extends Equatable {
   /// Excludes fields automatically set by Firestore (like id, timestamps).
   Map<String, dynamic> toMapForCreate() {
     // Ensure attendees are converted using the updated toMap method
-    final attendeesMapList = attendees.map((attendee) => attendee.toMap()).toList();
+    final attendeesMapList =
+        attendees.map((attendee) => attendee.toMap()).toList();
 
     return {
       'userId': userId,
@@ -401,10 +450,12 @@ class ReservationModel extends Equatable {
       if (serviceId != null) 'serviceId': serviceId,
       if (serviceName != null) 'serviceName': serviceName,
       if (durationMinutes != null) 'durationMinutes': durationMinutes,
-      if (reservationStartTime != null) 'reservationStartTime': reservationStartTime,
+      if (reservationStartTime != null)
+        'reservationStartTime': reservationStartTime,
       if (endTime != null) 'endTime': endTime,
       'status': status.statusString, // Use string representation
-      if (paymentStatus != null) 'paymentStatus': paymentStatus, // Kept based on snippet
+      if (paymentStatus != null)
+        'paymentStatus': paymentStatus, // Kept based on snippet
       if (paymentDetails != null) 'paymentDetails': paymentDetails,
       if (notes != null) 'notes': notes,
       if (typeSpecificData != null) 'typeSpecificData': typeSpecificData,
@@ -444,33 +495,38 @@ class ReservationModel extends Equatable {
     String? newNotes,
     Map<String, dynamic>? newTypeSpecificData,
     List<Map<String, dynamic>>? updatedJoinRequests, // Allow updating requests
-     // Add other updatable fields as needed
+    // Add other updatable fields as needed
   }) {
     final map = <String, dynamic>{};
     if (newStatus != null) map['status'] = newStatus.statusString;
     if (newPaymentStatus != null) map['paymentStatus'] = newPaymentStatus;
-    if (newCostSplitDetails != null) map['costSplitDetails'] = newCostSplitDetails;
-    if (newCommunityVisibility != null) map['isCommunityVisible'] = newCommunityVisibility;
+    if (newCostSplitDetails != null)
+      map['costSplitDetails'] = newCostSplitDetails;
+    if (newCommunityVisibility != null)
+      map['isCommunityVisible'] = newCommunityVisibility;
     // Handle category/description updates carefully based on visibility
     if (newHostingCategory != null) {
       map['hostingCategory'] = newHostingCategory;
-    } else if (newCommunityVisibility == false) map['hostingCategory'] = FieldValue.delete(); // Remove if not visible
+    } else if (newCommunityVisibility == false)
+      map['hostingCategory'] = FieldValue.delete(); // Remove if not visible
     if (newHostingDescription != null) {
       map['hostingDescription'] = newHostingDescription;
-    } else if (newCommunityVisibility == false) map['hostingDescription'] = FieldValue.delete(); // Remove if not visible
+    } else if (newCommunityVisibility == false)
+      map['hostingDescription'] = FieldValue.delete(); // Remove if not visible
 
-     if (updatedAttendees != null) map['attendees'] = updatedAttendees.map((a) => a.toMap()).toList();
-     if (newPaymentDetails != null) map['paymentDetails'] = newPaymentDetails;
-     if (newNotes != null) map['notes'] = newNotes;
-     if (newTypeSpecificData != null) map['typeSpecificData'] = newTypeSpecificData;
-     if (updatedJoinRequests != null) map['joinRequests'] = updatedJoinRequests; // Update the requests list
-
+    if (updatedAttendees != null)
+      map['attendees'] = updatedAttendees.map((a) => a.toMap()).toList();
+    if (newPaymentDetails != null) map['paymentDetails'] = newPaymentDetails;
+    if (newNotes != null) map['notes'] = newNotes;
+    if (newTypeSpecificData != null)
+      map['typeSpecificData'] = newTypeSpecificData;
+    if (updatedJoinRequests != null)
+      map['joinRequests'] = updatedJoinRequests; // Update the requests list
 
     // Always include updatedAt on updates
     map['updatedAt'] = FieldValue.serverTimestamp();
     return map;
   }
-
 
   @override
   List<Object?> get props => [

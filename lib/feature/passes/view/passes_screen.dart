@@ -3,13 +3,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
-import 'package:shamil_mobile_app/feature/reservation/presentation/bloc/list/reservation_list_bloc.dart';
-import 'package:shamil_mobile_app/feature/subscription/bloc/subscription_list_bloc.dart';
-import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
-import 'package:shamil_mobile_app/feature/reservation/widgets/reservation_list_content.dart';
-import 'package:shamil_mobile_app/feature/subscription/view/components/subscription_list_content.dart';
 import 'package:gap/gap.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shamil_mobile_app/feature/passes/bloc/my_passes_bloc.dart';
+import 'package:shamil_mobile_app/feature/passes/data/models/pass_type.dart';
+import 'package:shamil_mobile_app/feature/passes/view/components/passes_content.dart';
+import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 
 class PassesScreen extends StatefulWidget {
   const PassesScreen({super.key});
@@ -46,19 +44,10 @@ class _PassesScreenState extends State<PassesScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider<ReservationListBloc>(
-          create: (context) => ReservationListBloc(
-            userRepository: context.read<UserRepository>(),
-          )..add(const LoadReservationList()),
-        ),
-        BlocProvider<SubscriptionListBloc>(
-          create: (context) => SubscriptionListBloc(
-            userRepository: context.read<UserRepository>(),
-          )..add(const LoadSubscriptionList()),
-        ),
-      ],
+    return BlocProvider(
+      create: (context) => MyPassesBloc(
+        userRepository: context.read<UserRepository>(),
+      )..add(const LoadMyPasses()),
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         body: SafeArea(
@@ -91,9 +80,9 @@ class _PassesScreenState extends State<PassesScreen>
                       ),
                       child: TabBarView(
                         controller: _tabController,
-                        children: const [
-                          ReservationListContent(),
-                          SubscriptionListContent(),
+                        children: [
+                          PassesContent(passType: PassType.reservation),
+                          PassesContent(passType: PassType.subscription),
                         ],
                       ),
                     ),
@@ -164,35 +153,47 @@ class _PassesScreenState extends State<PassesScreen>
   }
 
   Widget _buildRefreshButton(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        if (_selectedIndex == 0) {
-          context.read<ReservationListBloc>().add(const ReservationRefresh());
-        } else {
-          context.read<SubscriptionListBloc>().add(const SubscriptionRefresh());
-        }
-      },
-      borderRadius: BorderRadius.circular(50),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
+    return BlocBuilder<MyPassesBloc, MyPassesState>(
+      builder: (context, state) {
+        return InkWell(
+          onTap: () {
+            context
+                .read<MyPassesBloc>()
+                .add(const RefreshMyPasses(showSuccessMessage: true));
+          },
           borderRadius: BorderRadius.circular(50),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 0,
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(50),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 0,
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: const Icon(
-          CupertinoIcons.arrow_clockwise,
-          color: AppColors.primaryColor,
-          size: 20,
-        ),
-      ),
+            child: state is MyPassesLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
+                    ),
+                  )
+                : const Icon(
+                    CupertinoIcons.arrow_clockwise,
+                    color: AppColors.primaryColor,
+                    size: 20,
+                  ),
+          ),
+        );
+      },
     );
   }
 

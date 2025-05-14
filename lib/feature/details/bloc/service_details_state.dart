@@ -15,7 +15,7 @@ class ReservationDetails extends Equatable {
   final List<AttendeeModel>? attendees;
   final Map<String, dynamic>? costSplitDetails;
   final String? notes;
-  
+
   const ReservationDetails({
     required this.basePrice,
     required this.totalPrice,
@@ -29,7 +29,7 @@ class ReservationDetails extends Equatable {
     this.costSplitDetails,
     this.notes,
   });
-  
+
   ReservationDetails copyWith({
     double? basePrice,
     double? totalPrice,
@@ -54,31 +54,33 @@ class ReservationDetails extends Equatable {
       hostingCategory: hostingCategory ?? this.hostingCategory,
       hostingDescription: hostingDescription ?? this.hostingDescription,
       attendees: attendees ?? this.attendees,
-      costSplitDetails: clearCostSplitDetails ? null : (costSplitDetails ?? this.costSplitDetails),
+      costSplitDetails: clearCostSplitDetails
+          ? null
+          : (costSplitDetails ?? this.costSplitDetails),
       notes: notes ?? this.notes,
     );
   }
-  
+
   @override
   List<Object?> get props => [
-    basePrice,
-    totalPrice,
-    addOnsPrice,
-    isFullVenue,
-    reservedCapacity,
-    isCommunityVisible,
-    hostingCategory,
-    hostingDescription,
-    attendees,
-    costSplitDetails,
-    notes,
-  ];
+        basePrice,
+        totalPrice,
+        addOnsPrice,
+        isFullVenue,
+        reservedCapacity,
+        isCommunityVisible,
+        hostingCategory,
+        hostingDescription,
+        attendees,
+        costSplitDetails,
+        notes,
+      ];
 }
 
 /// Base state class for service details states
 abstract class ServiceDetailsState extends Equatable {
   const ServiceDetailsState();
-  
+
   @override
   List<Object?> get props => [];
 }
@@ -93,22 +95,22 @@ class ServiceDetailsLoading extends ServiceDetailsState {}
 class ServiceDetailsLoaded extends ServiceDetailsState {
   /// The full details of the service provider.
   final ServiceProviderModel providerDetails;
-  
+
   /// Available subscription plans
   final List<PlanModel> plans;
-  
+
   /// Available services
   final List<ServiceModel> services;
-  
+
   /// Whether the provider is favorited by the user
   final bool isFavorite;
-  
+
   /// Currently selected plan (if any)
   final PlanModel? selectedPlan;
-  
+
   /// Currently selected service (if any)
   final ServiceModel? selectedService;
-  
+
   /// Reservation configuration details (if a service is selected)
   final ReservationDetails? reservationDetails;
 
@@ -124,14 +126,14 @@ class ServiceDetailsLoaded extends ServiceDetailsState {
 
   @override
   List<Object?> get props => [
-    providerDetails, 
-    plans, 
-    services, 
-    isFavorite,
-    selectedPlan,
-    selectedService,
-    reservationDetails,
-  ];
+        providerDetails,
+        plans,
+        services,
+        isFavorite,
+        selectedPlan,
+        selectedService,
+        reservationDetails,
+      ];
 
   ServiceDetailsLoaded copyWith({
     ServiceProviderModel? providerDetails,
@@ -150,9 +152,14 @@ class ServiceDetailsLoaded extends ServiceDetailsState {
       plans: plans ?? this.plans,
       services: services ?? this.services,
       isFavorite: isFavorite ?? this.isFavorite,
-      selectedPlan: clearSelectedPlan ? null : (selectedPlan ?? this.selectedPlan),
-      selectedService: clearSelectedService ? null : (selectedService ?? this.selectedService),
-      reservationDetails: clearReservationDetails ? null : (reservationDetails ?? this.reservationDetails),
+      selectedPlan:
+          clearSelectedPlan ? null : (selectedPlan ?? this.selectedPlan),
+      selectedService: clearSelectedService
+          ? null
+          : (selectedService ?? this.selectedService),
+      reservationDetails: clearReservationDetails
+          ? null
+          : (reservationDetails ?? this.reservationDetails),
     );
   }
 }
@@ -174,7 +181,7 @@ class ServiceDetailsProcessing extends ServiceDetailsLoaded {
 class ServiceDetailsConfirmed extends ServiceDetailsLoaded {
   final String message;
   final String? confirmationId;
-  
+
   const ServiceDetailsConfirmed({
     required super.providerDetails,
     required super.plans,
@@ -186,20 +193,20 @@ class ServiceDetailsConfirmed extends ServiceDetailsLoaded {
     required this.message,
     this.confirmationId,
   });
-  
+
   @override
   List<Object?> get props => [
-    ...super.props,
-    message,
-    confirmationId,
-  ];
+        ...super.props,
+        message,
+        confirmationId,
+      ];
 }
 
 /// State indicating an error occurred while loading service details.
 class ServiceDetailsError extends ServiceDetailsLoaded {
   final String message;
 
-  const ServiceDetailsError({
+  ServiceDetailsError({
     required this.message,
     ServiceProviderModel? providerDetails,
     List<PlanModel> plans = const [],
@@ -209,7 +216,7 @@ class ServiceDetailsError extends ServiceDetailsLoaded {
     ServiceModel? selectedService,
     ReservationDetails? reservationDetails,
   }) : super(
-          providerDetails: providerDetails ?? const ServiceProviderModel.empty(),
+          providerDetails: providerDetails ?? ServiceProviderModel.empty,
           plans: plans,
           services: services,
           isFavorite: isFavorite,

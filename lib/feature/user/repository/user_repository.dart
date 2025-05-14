@@ -140,12 +140,13 @@ class FirebaseUserRepository implements UserRepository {
 
     try {
       // Get the reservation to find the provider ID
-      final reservationDoc = await _firestore
+      final reservationRef = _firestore
           .collection(FirestorePaths.endUsers())
           .doc(user.uid)
           .collection('reservations')
-          .doc(reservationId)
-          .get();
+          .doc(reservationId);
+
+      final reservationDoc = await reservationRef.get();
 
       if (!reservationDoc.exists || reservationDoc.data() == null) {
         throw Exception('Reservation not found');
@@ -156,23 +157,37 @@ class FirebaseUserRepository implements UserRepository {
 
       // Transaction to update reservation status and remove from provider's pending list
       await _firestore.runTransaction((transaction) async {
-        // Update reservation status to cancelled by user
-        transaction.update(reservationDoc.reference, {
-          'status': ReservationStatus.cancelledByUser.statusString,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        // If provider ID exists, update provider's records
+        // First perform ALL reads
+        DocumentSnapshot? pendingDoc;
         if (providerId != null && providerId.isNotEmpty) {
-          // Remove from pending reservations
           final pendingRef = _firestore
               .collection(FirestorePaths.serviceProviders())
               .doc(providerId)
               .collection('pendingReservations')
               .doc(reservationId);
 
-          final pendingDoc = await transaction.get(pendingRef);
-          if (pendingDoc.exists) {
+          // Read the pending reservation document
+          pendingDoc = await transaction.get(pendingRef);
+        }
+
+        // Now perform all writes
+
+        // Update reservation status to cancelled by user
+        transaction.update(reservationRef, {
+          'status': ReservationStatus.cancelledByUser.statusString,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // If provider ID exists, update provider's records
+        if (providerId != null && providerId.isNotEmpty) {
+          final pendingRef = _firestore
+              .collection(FirestorePaths.serviceProviders())
+              .doc(providerId)
+              .collection('pendingReservations')
+              .doc(reservationId);
+
+          // Delete if exists
+          if (pendingDoc != null && pendingDoc.exists) {
             transaction.delete(pendingRef);
           }
 
@@ -205,12 +220,13 @@ class FirebaseUserRepository implements UserRepository {
 
     try {
       // Get the subscription to find the provider ID
-      final subscriptionDoc = await _firestore
+      final subscriptionRef = _firestore
           .collection(FirestorePaths.endUsers())
           .doc(user.uid)
           .collection('subscriptions')
-          .doc(subscriptionId)
-          .get();
+          .doc(subscriptionId);
+
+      final subscriptionDoc = await subscriptionRef.get();
 
       if (!subscriptionDoc.exists || subscriptionDoc.data() == null) {
         throw Exception('Subscription not found');
@@ -221,8 +237,23 @@ class FirebaseUserRepository implements UserRepository {
 
       // Transaction to update subscription status
       await _firestore.runTransaction((transaction) async {
+        // First perform ALL reads
+        DocumentSnapshot? activeDoc;
+        if (providerId != null && providerId.isNotEmpty) {
+          final activeRef = _firestore
+              .collection(FirestorePaths.serviceProviders())
+              .doc(providerId)
+              .collection('activeSubscriptions')
+              .doc(subscriptionId);
+
+          // Read the active subscription document
+          activeDoc = await transaction.get(activeRef);
+        }
+
+        // Now perform all writes
+
         // Update subscription status to cancelled
-        transaction.update(subscriptionDoc.reference, {
+        transaction.update(subscriptionRef, {
           'status': SubscriptionStatus.cancelled.statusString,
           'cancellationReason': 'Cancelled by user',
           'updatedAt': FieldValue.serverTimestamp(),
@@ -237,8 +268,8 @@ class FirebaseUserRepository implements UserRepository {
               .collection('activeSubscriptions')
               .doc(subscriptionId);
 
-          final activeDoc = await transaction.get(activeRef);
-          if (activeDoc.exists) {
+          // Delete if exists
+          if (activeDoc != null && activeDoc.exists) {
             transaction.delete(activeRef);
           }
 
