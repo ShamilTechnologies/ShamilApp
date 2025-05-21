@@ -54,4 +54,19 @@ class ChangePassFilter extends MyPassesEvent {
   List<Object> get props => [filter];
 }
 
+/// Event to trigger a queue status update
+class UpdateQueueStatus extends MyPassesEvent {
+  const UpdateQueueStatus();
+}
+
+/// Event to start periodic queue status updates
+class StartQueueStatusUpdates extends MyPassesEvent {
+  const StartQueueStatusUpdates();
+}
+
+/// Event to stop periodic queue status updates
+class StopQueueStatusUpdates extends MyPassesEvent {
+  const StopQueueStatusUpdates();
+}
+
 // Add other events later if needed (e.g., CancelReservation, ViewDetails)

@@ -12,6 +12,7 @@ import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_mo
 import 'package:shamil_mobile_app/feature/subscription/data/subscription_model.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:shamil_mobile_app/feature/reservation/presentation/pages/queue_reservation_page.dart';
 
 class PassesContent extends StatelessWidget {
   final PassType passType;
@@ -598,53 +599,93 @@ class PassesContent extends StatelessWidget {
                     ),
                   ),
 
-                  // Action buttons
-                  if (isConfirmed || isPending)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                // Show details or view QR code
-                              },
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.primaryColor,
-                                side: const BorderSide(
-                                    color: AppColors.primaryColor),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                  // Queue information for queue-based reservations
+                  if (reservation.queueBased && isConfirmed)
+                    _buildQueueInfo(reservation),
+
+                  const Gap(16),
+
+                  // Button row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (reservation.queueBased &&
+                          isConfirmed &&
+                          reservation.queueStatus != null)
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            // Navigate to queue details screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => QueueReservationPage(
+                                  providerId: reservation.providerId,
+                                  governorateId: reservation.governorateId,
+                                  serviceId: reservation.serviceId,
+                                  serviceName: reservation.serviceName,
+                                  queueReservationId:
+                                      reservation.queueStatus?.id,
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 16),
                               ),
-                              child: const Text('View'),
+                            );
+                          },
+                          icon: const Icon(CupertinoIcons.person_3_fill,
+                              size: 16),
+                          label: const Text('View Queue'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primaryColor,
+                            side:
+                                const BorderSide(color: AppColors.primaryColor),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          const Gap(12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                // Show cancel confirmation dialog
-                                _showCancelConfirmationDialog(
-                                    context, reservation.id, true);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.redColor,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 16),
-                              ),
-                              child: const Text('Cancel'),
+                        ),
+                      if (reservation.queueBased &&
+                          isConfirmed &&
+                          reservation.queueStatus != null)
+                        const Gap(8),
+                      if ((isPending || isConfirmed) &&
+                          !isCancelled &&
+                          !isCompleted)
+                        OutlinedButton(
+                          onPressed: () {
+                            _showCancelConfirmation(context, reservation.id);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.redColor,
+                            side: const BorderSide(color: AppColors.redColor),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                        ],
+                          child: const Text('Cancel'),
+                        ),
+                      const Gap(8),
+                      Container(
+                        width: 100, // Fixed width to avoid infinite constraints
+                        child: ElevatedButton(
+                          onPressed: () {
+                            _showReservationDetails(context, reservation);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Details'),
+                        ),
                       ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1125,9 +1166,10 @@ class PassesContent extends StatelessWidget {
           onSelected: (selected) {
             // Apply the filter if it's not already selected
             if (selected && !isSelected) {
-              // Check if the bloc is in the correct state before dispatching
-              if (context.read<MyPassesBloc>().state is MyPassesLoaded) {
-                context.read<MyPassesBloc>().add(ChangePassFilter(filter));
+              // Use BlocProvider.of instead of context.read for better error handling
+              final bloc = BlocProvider.of<MyPassesBloc>(context);
+              if (bloc.state is MyPassesLoaded) {
+                bloc.add(ChangePassFilter(filter));
               }
             }
           },
@@ -1244,9 +1286,8 @@ class PassesContent extends StatelessWidget {
           CustomButton(
             onPressed: () {
               // Reset filter to 'All'
-              context
-                  .read<MyPassesBloc>()
-                  .add(const ChangePassFilter(PassFilter.all));
+              final bloc = BlocProvider.of<MyPassesBloc>(context);
+              bloc.add(const ChangePassFilter(PassFilter.all));
             },
             text: 'Show All Passes',
             width: 220,
@@ -1256,5 +1297,460 @@ class PassesContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Add a method to display queue information
+  Widget _buildQueueInfo(ReservationModel reservation) {
+    if (!reservation.queueBased || reservation.queueStatus == null) {
+      return const SizedBox.shrink();
+    }
+
+    final queueStatus = reservation.queueStatus!;
+    Color statusColor;
+    IconData statusIcon;
+
+    switch (queueStatus.status) {
+      case 'waiting':
+        statusColor = Colors.orange;
+        statusIcon = CupertinoIcons.time;
+        break;
+      case 'processing':
+        statusColor = Colors.green;
+        statusIcon = CupertinoIcons.arrow_right_circle_fill;
+        break;
+      case 'completed':
+        statusColor = Colors.blue;
+        statusIcon = CupertinoIcons.checkmark_circle_fill;
+        break;
+      case 'cancelled':
+        statusColor = Colors.red;
+        statusIcon = CupertinoIcons.xmark_circle_fill;
+        break;
+      case 'no_show':
+        statusColor = Colors.grey;
+        statusIcon = CupertinoIcons.person_crop_circle_badge_xmark;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusIcon = CupertinoIcons.question_circle;
+    }
+
+    // Safely format the estimated entry time
+    String formattedTime = 'Unknown';
+    try {
+      if (queueStatus.estimatedEntryTime != null) {
+        formattedTime = queueStatus.estimatedEntryTime
+            .toLocal()
+            .toString()
+            .substring(11, 16);
+      }
+    } catch (e) {
+      // Use default value if formatting fails
+      print('Error formatting time: $e');
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(statusIcon, color: statusColor, size: 18),
+              const Gap(8),
+              Text(
+                'Queue Status: ${queueStatus.status?.toUpperCase() ?? "UNKNOWN"}',
+                style: AppTextStyle.getTitleStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          ),
+          const Gap(8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Position: #${queueStatus.position}',
+                    style: AppTextStyle.getbodyStyle(
+                      fontSize: 12,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                  const Gap(4),
+                  Text(
+                    'People ahead: ${queueStatus.peopleAhead}',
+                    style: AppTextStyle.getbodyStyle(
+                      fontSize: 12,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Estimated time:',
+                    style: AppTextStyle.getbodyStyle(
+                      fontSize: 12,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                  const Gap(4),
+                  Text(
+                    formattedTime,
+                    style: AppTextStyle.getTitleStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Method to show reservation details
+  void _showReservationDetails(
+      BuildContext context, ReservationModel reservation) {
+    // Capture the bloc before showing dialog
+    final myPassesBloc = BlocProvider.of<MyPassesBloc>(context);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dialogContext) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Reservation Details',
+                    style: AppTextStyle.getTitleStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    icon: const Icon(CupertinoIcons.xmark_circle_fill),
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
+              const Gap(24),
+
+              // Service info
+              Text(
+                reservation.serviceName ?? 'Service Reservation',
+                style: AppTextStyle.getTitleStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Gap(8),
+
+              // Details
+              _buildDetailRow('Status', _getStatusText(reservation.status)),
+              _buildDetailRow(
+                  'Date',
+                  DateFormat('EEEE, MMMM d, y').format(
+                      reservation.reservationStartTime?.toDate() ??
+                          DateTime.now())),
+              _buildDetailRow(
+                  'Time',
+                  DateFormat('h:mm a').format(
+                      reservation.reservationStartTime?.toDate() ??
+                          DateTime.now())),
+              if (reservation.queueBased &&
+                  reservation.queueStatus != null) ...[
+                const Divider(height: 32),
+                Text(
+                  'Queue Information',
+                  style: AppTextStyle.getTitleStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Gap(12),
+                _buildDetailRow(
+                    'Position', '#${reservation.queueStatus!.position}'),
+                _buildDetailRow(
+                    'Status', reservation.queueStatus!.status.toUpperCase()),
+                _buildDetailRow(
+                    'People Ahead', '${reservation.queueStatus!.peopleAhead}'),
+                _buildDetailRow(
+                    'Estimated Entry',
+                    DateFormat('h:mm a')
+                        .format(reservation.queueStatus!.estimatedEntryTime)),
+              ],
+
+              const Divider(height: 32),
+
+              // Attendees
+              Text(
+                'Attendees',
+                style: AppTextStyle.getTitleStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Gap(12),
+              ...reservation.attendees
+                  .map((attendee) => _buildAttendeeRow(attendee)),
+
+              const Gap(24),
+
+              // Buttons
+              Row(
+                children: [
+                  if ((reservation.status == ReservationStatus.pending ||
+                          reservation.status == ReservationStatus.confirmed) &&
+                      reservation.queueBased &&
+                      reservation.queueStatus != null)
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => QueueReservationPage(
+                                providerId: reservation.providerId,
+                                governorateId: reservation.governorateId,
+                                serviceId: reservation.serviceId,
+                                serviceName: reservation.serviceName,
+                                queueReservationId: reservation.queueStatus?.id,
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('View Queue'),
+                      ),
+                    ),
+                  if (reservation.status == ReservationStatus.pending ||
+                      reservation.status == ReservationStatus.confirmed) ...[
+                    const Gap(12),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          _showCancelConfirmation(context, reservation.id);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.redColor,
+                          side: const BorderSide(color: AppColors.redColor),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Cancel Reservation'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Method to show cancel confirmation dialog
+  void _showCancelConfirmation(BuildContext context, String reservationId) {
+    // Capture the bloc from the original context before building a new context in the dialog
+    final myPassesBloc = BlocProvider.of<MyPassesBloc>(context);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel Reservation'),
+        content: const Text(
+            'Are you sure you want to cancel this reservation? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('No, Keep It'),
+          ),
+          TextButton(
+            onPressed: () {
+              myPassesBloc
+                  .add(CancelReservationPass(reservationId: reservationId));
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Yes, Cancel',
+                style: TextStyle(color: AppColors.redColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build detail row
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: AppTextStyle.getbodyStyle(
+                color: AppColors.secondaryText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyle.getbodyStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build attendee row
+  Widget _buildAttendeeRow(AttendeeModel attendee) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                attendee.name.isNotEmpty ? attendee.name[0].toUpperCase() : '?',
+                style: AppTextStyle.getTitleStyle(
+                  color: AppColors.primaryColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const Gap(12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  attendee.name,
+                  style: AppTextStyle.getbodyStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${attendee.type.toUpperCase()} ${attendee.isHost ? '• HOST' : ''}',
+                  style: AppTextStyle.getSmallStyle(
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _getAttendeeStatusColor(attendee.status).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              attendee.status.toUpperCase(),
+              style: AppTextStyle.getSmallStyle(
+                color: _getAttendeeStatusColor(attendee.status),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to get status text
+  String _getStatusText(ReservationStatus status) {
+    switch (status) {
+      case ReservationStatus.pending:
+        return 'Pending';
+      case ReservationStatus.confirmed:
+        return 'Confirmed';
+      case ReservationStatus.cancelledByUser:
+        return 'Cancelled by User';
+      case ReservationStatus.cancelledByProvider:
+        return 'Cancelled by Provider';
+      case ReservationStatus.completed:
+        return 'Completed';
+      case ReservationStatus.noShow:
+        return 'No Show';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  // Helper method to get attendee status color
+  Color _getAttendeeStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+        return Colors.green;
+      case 'going':
+        return Colors.green;
+      case 'invited':
+        return Colors.orange;
+      case 'declined':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 }

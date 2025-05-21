@@ -17,6 +17,7 @@ import 'package:shamil_mobile_app/feature/home/views/home_utils/explore_search_b
 import 'package:shamil_mobile_app/core/utils/bottom_sheets.dart';
 import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart'
     hide buildProfilePlaceholder;
+import 'package:shamil_mobile_app/core/services/notification_service.dart';
 
 // Adjusted height for better integration with home screen
 const double _kExpandedHeight = 180.0;
@@ -168,6 +169,7 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
                                       _buildActionButton(
                                         icon: CupertinoIcons.bell,
                                         onTap: onNotificationsTap,
+                                        isNotification: true,
                                       ),
                                       const Gap(12),
 
@@ -344,25 +346,58 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
   Widget _buildActionButton({
     required IconData icon,
     required VoidCallback onTap,
+    bool isNotification = false,
   }) {
-    return Material(
-      color: Colors.white.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          height: 40,
-          width: 40,
-          child: Center(
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 20,
+    return Stack(
+      children: [
+        Material(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 40,
+              width: 40,
+              child: Center(
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
             ),
           ),
         ),
-      ),
+
+        // Show notification badge if it's the notification button
+        if (isNotification)
+          StreamBuilder<int>(
+            stream: NotificationService().unreadCountStream,
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+              if (unreadCount > 0) {
+                return Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+      ],
     );
   }
 

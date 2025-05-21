@@ -138,7 +138,7 @@ class _AccessCodeViewState extends State<AccessCodeView> {
               onPressed: () => Navigator.of(context).pop(),
             ),
             title: const Text(
-              "Access Code",
+              "Access & Events",
               style: TextStyle(
                 color: AppColors.primaryColor,
                 fontWeight: FontWeight.bold,
@@ -148,11 +148,24 @@ class _AccessCodeViewState extends State<AccessCodeView> {
           ),
           // Use the reusable content widget
           body: SafeArea(
-            child: AccessCodeContent(
-              userId: _userId!,
-              userName: _userName,
-              profileImageUrl: _profileImageUrl,
-              isBottomSheet: false, // Indicate it's not in a bottom sheet
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Provide explicit constraints to the child
+                return Container(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth,
+                    maxHeight: constraints.maxHeight,
+                  ),
+                  child: AccessCodeContent(
+                    userId: _userId!,
+                    userName: _userName,
+                    profileImageUrl: _profileImageUrl,
+                    isBottomSheet: false, // Indicate it's not in a bottom sheet
+                  ),
+                );
+              },
             ),
           ),
         ),

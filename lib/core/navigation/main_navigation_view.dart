@@ -6,6 +6,10 @@ import 'package:line_icons/line_icons.dart';
 import 'package:provider/provider.dart'; // Import Provider
 import 'package:shamil_mobile_app/core/navigation/navigation_notifier.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
+import 'package:shamil_mobile_app/feature/community/bloc/community_bloc.dart';
+import 'package:shamil_mobile_app/feature/community/bloc/community_event.dart';
+import 'package:shamil_mobile_app/feature/community/repository/community_repository.dart';
+import 'package:shamil_mobile_app/feature/community/view/community_screen.dart';
 import 'package:shamil_mobile_app/feature/favorites/views/favorites_screen.dart';
 import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
 import 'package:shamil_mobile_app/feature/passes/bloc/my_passes_bloc.dart';
@@ -38,9 +42,16 @@ class _MainNavigationViewState extends State<MainNavigationView> {
             ..add(const LoadMyPasses()),
       child: const PassesScreen(),
     ),
-    // --- Favorites Screen (Index 2) ---
+    // --- Community Screen (Index 2) ---
+    BlocProvider<CommunityBloc>(
+      create: (context) => CommunityBloc(
+        communityRepository: context.read<CommunityRepository>(),
+      )..add(const LoadCommunityData()),
+      child: const CommunityScreen(),
+    ),
+    // --- Favorites Screen (Index 3) ---
     const FavoritesScreen(),
-    // --- Profile Screen (Index 3) ---
+    // --- Profile Screen (Index 4) ---
     const ProfileScreen(),
   ];
 
@@ -126,6 +137,10 @@ class _MainNavigationViewState extends State<MainNavigationView> {
                 GButton(
                   icon: LineIcons.alternateTicket,
                   text: 'My Passes',
+                ),
+                GButton(
+                  icon: LineIcons.users,
+                  text: 'Community',
                 ),
                 GButton(
                   icon: LineIcons.heart,

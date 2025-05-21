@@ -18,6 +18,7 @@ import 'package:shamil_mobile_app/feature/profile/views/edit_profile_view.dart';
 import 'package:shamil_mobile_app/feature/passes/view/passes_screen.dart';
 import 'package:shamil_mobile_app/feature/social/views/friends_view.dart';
 import 'package:shamil_mobile_app/feature/social/views/family_view.dart';
+import 'package:shamil_mobile_app/feature/reservation/presentation/pages/reminder_settings_page.dart';
 
 // Placeholder for transparent image data (can be moved to a constants file)
 const kTransparentImage = <int>[
@@ -773,6 +774,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               );
             },
+          ),
+          const Divider(height: 1),
+          _buildOptionItem(
+            CupertinoIcons.list_number,
+            'Queue Reservations',
+            'Join and manage virtual queues',
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ReminderSettingsPage(),
+                ),
+              );
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                CupertinoIcons.list_number,
+                color: Colors.blue,
+                size: 22,
+              ),
+            ),
           ),
           const Divider(height: 1),
           _buildOptionItem(

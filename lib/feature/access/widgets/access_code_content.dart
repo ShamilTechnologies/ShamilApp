@@ -13,6 +13,8 @@ import 'package:shamil_mobile_app/core/widgets/placeholders.dart'
     as app_placeholders;
 import 'package:shamil_mobile_app/feature/access/bloc/access_bloc.dart';
 import 'package:shamil_mobile_app/feature/access/widgets/wireless_animation.dart';
+import 'package:shamil_mobile_app/feature/passes/view/passes_screen.dart';
+import 'package:shamil_mobile_app/feature/reservation/presentation/pages/queue_reservation_page.dart';
 
 class AccessCodeContent extends StatefulWidget {
   final String? userId;
@@ -338,6 +340,329 @@ class _AccessCodeContentState extends State<AccessCodeContent>
               ),
               const Gap(32),
 
+              // --- Upcoming Events Section ---
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.event,
+                          color: theme.colorScheme.primary,
+                          size: 22,
+                        ),
+                        const Gap(8),
+                        Text(
+                          "Upcoming Events",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Gap(16),
+                    // Placeholder for upcoming events - would be replaced with actual data
+                    // This would typically come from a BlocBuilder for events
+                    _buildEventListItem(
+                      theme,
+                      "Your hair appointment",
+                      DateTime.now().add(const Duration(days: 2)),
+                      "Confirmed",
+                      AppColors.accentColor,
+                    ),
+                    const Divider(height: 24),
+                    _buildEventListItem(
+                      theme,
+                      "Salon visit",
+                      DateTime.now().add(const Duration(days: 5)),
+                      "Pending",
+                      Colors.orange,
+                    ),
+                    const Gap(12),
+                    Center(
+                      child: TextButton(
+                        onPressed: () {
+                          // Navigate to all events/reservations
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PassesScreen(),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          "View All Events",
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Gap(24),
+
+              // --- Queue Status Section ---
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.queue,
+                          color: theme.colorScheme.primary,
+                          size: 22,
+                        ),
+                        const Gap(8),
+                        Text(
+                          "Your Queue Status",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Gap(16),
+                    // Active queue card
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.people,
+                                  color: theme.colorScheme.primary,
+                                  size: 20,
+                                ),
+                              ),
+                              const Gap(12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Hair Salon Queue",
+                                      style:
+                                          theme.textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      "Position: 3",
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accentColor,
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                child: Text(
+                                  "Active",
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Gap(16),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: LinearProgressIndicator(
+                              value: 0.66,
+                              backgroundColor: Colors.white,
+                              color: AppColors.accentColor,
+                              minHeight: 10,
+                            ),
+                          ),
+                          const Gap(8),
+                          Text(
+                            "Estimated wait time: 15 minutes",
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.secondary,
+                            ),
+                          ),
+                          const Gap(12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () {
+                                  // Leave queue action
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text("Leave Queue?"),
+                                      content: const Text(
+                                        "Are you sure you want to leave this queue? You'll lose your position.",
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: const Text("Cancel"),
+                                        ),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          onPressed: () {
+                                            // Handle leave queue action
+                                            Navigator.pop(context);
+                                            // Show confirmation
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                    "You've left the queue"),
+                                              ),
+                                            );
+                                          },
+                                          child: const Text("Leave Queue"),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                  side: const BorderSide(color: Colors.red),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                ),
+                                child: const Text("Leave Queue"),
+                              ),
+                              const Gap(8),
+                              ElevatedButton(
+                                onPressed: () {
+                                  // View details action
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          QueueReservationPage(
+                                        providerId: "placeholder",
+                                        governorateId: "placeholder",
+                                        serviceId: "placeholder",
+                                        serviceName: "Hair Salon Queue",
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: theme.colorScheme.primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                ),
+                                child: const Text("View Details"),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(16),
+                    // Join new queue button
+                    Center(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          // Navigate to queue selection
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PassesScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text("Join New Queue"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Gap(32),
+
               // --- NFC Section ---
               BlocBuilder<AccessBloc, AccessState>(
                 builder: (context, state) {
@@ -485,6 +810,70 @@ class _AccessCodeContentState extends State<AccessCodeContent>
           ),
         ),
       ),
+    );
+  }
+
+  // Helper method to build event list items
+  Widget _buildEventListItem(
+    ThemeData theme,
+    String title,
+    DateTime eventDate,
+    String status,
+    Color statusColor,
+  ) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.event_note,
+            color: theme.colorScheme.primary,
+            size: 22,
+          ),
+        ),
+        const Gap(12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Gap(2),
+              Text(
+                "${eventDate.day}/${eventDate.month}/${eventDate.year} at ${eventDate.hour}:${eventDate.minute.toString().padLeft(2, '0')}",
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.secondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Text(
+            status,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: statusColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

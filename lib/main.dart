@@ -37,6 +37,11 @@ import 'package:shamil_mobile_app/feature/social/repository/social_repository.da
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
 import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:shamil_mobile_app/core/constants/app_constants.dart';
+import 'package:shamil_mobile_app/core/services/notification_service.dart';
+// Import Community Repository
+import 'package:shamil_mobile_app/feature/community/repository/community_repository.dart';
 
 // --- FCM Background Handler ---
 @pragma('vm:entry-point')
@@ -81,6 +86,9 @@ Future<void> main() async {
   // Initialize Firebase Messaging Background Handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+  // Initialize notification service
+  await NotificationService().initialize();
+
   runApp(
     MultiRepositoryProvider(
       providers: [
@@ -92,6 +100,10 @@ Future<void> main() async {
         ),
         RepositoryProvider<UserRepository>(
           create: (context) => FirebaseUserRepository(),
+        ),
+        // Add Community Repository provider
+        RepositoryProvider<CommunityRepository>(
+          create: (context) => CommunityRepositoryImpl(),
         ),
         // RepositoryProvider<SubscriptionRepository>(
         //   create: (context) => FirebaseSubscriptionRepository(),
@@ -150,15 +162,14 @@ class _MainAppState extends State<MainApp> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _setupFcmListenersAndPermissions();
-        _handleTerminatedNotification();
-      }
-    });
+    _configureFirebaseMessaging();
+    _handleTerminatedNotification();
+
+    // Initialize the notification service
+    _initializeNotificationService();
   }
 
-  Future<void> _setupFcmListenersAndPermissions() async {
+  Future<void> _configureFirebaseMessaging() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
@@ -267,6 +278,30 @@ class _MainAppState extends State<MainApp> {
       print("FCM Token update/add attempted in Firestore.");
     } catch (e) {
       print("Error saving FCM token to Firestore: $e");
+    }
+  }
+
+  Future<void> _initializeNotificationService() async {
+    try {
+      await NotificationService().initialize();
+
+      // Set user ID for notifications if user is logged in
+      final firebaseAuth = FirebaseAuth.instance;
+      final currentUser = firebaseAuth.currentUser;
+      if (currentUser != null) {
+        await NotificationService().setUserId(currentUser.uid);
+      }
+
+      // Listen for auth state changes to update notification user ID
+      firebaseAuth.authStateChanges().listen((User? user) {
+        if (user != null) {
+          NotificationService().setUserId(user.uid);
+        } else {
+          NotificationService().removeUserId();
+        }
+      });
+    } catch (e) {
+      print('Error initializing notification service: $e');
     }
   }
 

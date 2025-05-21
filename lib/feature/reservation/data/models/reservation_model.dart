@@ -28,6 +28,69 @@ enum ReservationStatus {
   unknown
 }
 
+// --- Queue Status Class ---
+/// Represents the status of a queue-based reservation
+class QueueStatus extends Equatable {
+  final String id;
+  final int position;
+  final String
+      status; // 'waiting', 'processing', 'completed', 'cancelled', 'no_show'
+  final DateTime estimatedEntryTime;
+  final int peopleAhead;
+
+  const QueueStatus({
+    required this.id,
+    required this.position,
+    required this.status,
+    required this.estimatedEntryTime,
+    this.peopleAhead = 0,
+  });
+
+  factory QueueStatus.fromMap(Map<String, dynamic> map) {
+    return QueueStatus(
+      id: map['id'] as String? ?? '',
+      position: map['position'] as int? ?? 0,
+      status: map['status'] as String? ?? 'waiting',
+      estimatedEntryTime: (map['estimatedEntryTime'] is Timestamp)
+          ? (map['estimatedEntryTime'] as Timestamp).toDate()
+          : (map['estimatedEntryTime'] is DateTime)
+              ? map['estimatedEntryTime'] as DateTime
+              : DateTime.now(),
+      peopleAhead: map['peopleAhead'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'position': position,
+      'status': status,
+      'estimatedEntryTime': estimatedEntryTime,
+      'peopleAhead': peopleAhead,
+    };
+  }
+
+  QueueStatus copyWith({
+    String? id,
+    int? position,
+    String? status,
+    DateTime? estimatedEntryTime,
+    int? peopleAhead,
+  }) {
+    return QueueStatus(
+      id: id ?? this.id,
+      position: position ?? this.position,
+      status: status ?? this.status,
+      estimatedEntryTime: estimatedEntryTime ?? this.estimatedEntryTime,
+      peopleAhead: peopleAhead ?? this.peopleAhead,
+    );
+  }
+
+  @override
+  List<Object?> get props =>
+      [id, position, status, estimatedEntryTime, peopleAhead];
+}
+
 // --- Extensions ---
 
 // Extension for ReservationType
@@ -314,6 +377,12 @@ class ReservationModel extends Equatable {
   // Field for pending join requests (list of maps containing userId, userName, timestamp?)
   final List<Map<String, dynamic>>? joinRequests;
 
+  // Add queue status field for real-time queue updates
+  final QueueStatus? queueStatus;
+
+  // Add queueBased field to identify queue-based reservations
+  final bool queueBased;
+
   const ReservationModel({
     required this.id,
     required this.userId,
@@ -348,6 +417,8 @@ class ReservationModel extends Equatable {
     this.hostingDescription,
     this.costSplitDetails,
     this.joinRequests, // Nullable list of requests
+    this.queueStatus, // Queue status for real-time updates
+    this.queueBased = false, // Whether this reservation is queue-based
   });
 
   factory ReservationModel.fromFirestore(DocumentSnapshot doc) {
@@ -429,6 +500,10 @@ class ReservationModel extends Equatable {
       costSplitDetails: data['costSplitDetails'] as Map<String, dynamic>?,
       // Assign parsed requests, use null if list is empty after parsing
       joinRequests: parsedJoinRequests.isEmpty ? null : parsedJoinRequests,
+      queueStatus: data['queueStatus'] != null
+          ? QueueStatus.fromMap(data['queueStatus'] as Map<String, dynamic>)
+          : null,
+      queueBased: data['queueBased'] as bool? ?? false,
     );
   }
 
@@ -474,6 +549,8 @@ class ReservationModel extends Equatable {
       if (costSplitDetails != null) 'costSplitDetails': costSplitDetails,
       // Include joinRequests only if not null (usually starts null/empty)
       if (joinRequests != null) 'joinRequests': joinRequests,
+      if (queueStatus != null) 'queueStatus': queueStatus!.toMap(),
+      'queueBased': queueBased,
       // Let repository/backend handle server timestamps
       // 'createdAt': FieldValue.serverTimestamp(),
       // 'updatedAt': FieldValue.serverTimestamp(),
@@ -563,5 +640,83 @@ class ReservationModel extends Equatable {
         hostingDescription,
         costSplitDetails,
         joinRequests, // Add new field to props
+        queueStatus,
+        queueBased,
       ];
+
+  /// Returns a copy of this reservation with the specified fields replaced.
+  ReservationModel copyWith({
+    String? id,
+    String? userId,
+    String? userName,
+    String? providerId,
+    String? governorateId,
+    ReservationType? type,
+    int? groupSize,
+    String? serviceId,
+    String? serviceName,
+    int? durationMinutes,
+    Timestamp? reservationStartTime,
+    Timestamp? endTime,
+    ReservationStatus? status,
+    String? paymentStatus,
+    Map<String, dynamic>? paymentDetails,
+    String? notes,
+    Map<String, dynamic>? typeSpecificData,
+    int? queuePosition,
+    Timestamp? estimatedEntryTime,
+    Timestamp? createdAt,
+    Timestamp? updatedAt,
+    List<AttendeeModel>? attendees,
+    String? reservationCode,
+    double? totalPrice,
+    List<String>? selectedAddOnsList,
+    bool? isFullVenueReservation,
+    int? reservedCapacity,
+    bool? isCommunityVisible,
+    String? hostingCategory,
+    String? hostingDescription,
+    Map<String, dynamic>? costSplitDetails,
+    List<Map<String, dynamic>>? joinRequests,
+    QueueStatus? queueStatus,
+    bool? queueBased,
+  }) {
+    return ReservationModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      providerId: providerId ?? this.providerId,
+      governorateId: governorateId ?? this.governorateId,
+      type: type ?? this.type,
+      groupSize: groupSize ?? this.groupSize,
+      serviceId: serviceId ?? this.serviceId,
+      serviceName: serviceName ?? this.serviceName,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
+      reservationStartTime: reservationStartTime ?? this.reservationStartTime,
+      endTime: endTime ?? this.endTime,
+      status: status ?? this.status,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentDetails: paymentDetails ?? this.paymentDetails,
+      notes: notes ?? this.notes,
+      typeSpecificData: typeSpecificData ?? this.typeSpecificData,
+      queuePosition: queuePosition ?? this.queuePosition,
+      estimatedEntryTime: estimatedEntryTime ?? this.estimatedEntryTime,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      attendees: attendees ?? this.attendees,
+      reservationCode: reservationCode ?? this.reservationCode,
+      totalPrice: totalPrice ?? this.totalPrice,
+      selectedAddOnsList: selectedAddOnsList ?? this.selectedAddOnsList,
+      isFullVenueReservation:
+          isFullVenueReservation ?? this.isFullVenueReservation,
+      reservedCapacity: reservedCapacity ?? this.reservedCapacity,
+      isCommunityVisible: isCommunityVisible ?? this.isCommunityVisible,
+      hostingCategory: hostingCategory ?? this.hostingCategory,
+      hostingDescription: hostingDescription ?? this.hostingDescription,
+      costSplitDetails: costSplitDetails ?? this.costSplitDetails,
+      joinRequests: joinRequests ?? this.joinRequests,
+      queueStatus: queueStatus ?? this.queueStatus,
+      queueBased: queueBased ?? this.queueBased,
+    );
+  }
 }

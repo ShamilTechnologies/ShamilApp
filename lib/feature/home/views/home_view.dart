@@ -23,6 +23,8 @@ import 'package:shamil_mobile_app/core/navigation/navigation_notifier.dart'; // 
 import 'package:shamil_mobile_app/feature/access/views/access_code_view.dart';
 import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
+import 'package:shamil_mobile_app/feature/home/views/notifications/notifications_view.dart';
+import 'package:shamil_mobile_app/feature/reservation/presentation/pages/queue_reservation_page.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -245,6 +247,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
       // Update background to a beautiful gradient
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          // Navigate to Access Code view (NFC/QR scanning page)
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AccessCodeView(),
+            ),
+          );
+        },
+        backgroundColor: AppColors.primaryColor,
+        label: const Text('Access Code'),
+        icon: const Icon(Icons.qr_code_scanner),
+        tooltip: 'Scan QR code or NFC',
+      ),
       body: Container(
         decoration: BoxDecoration(
           // Subtle gradient background that complements the content
@@ -395,9 +412,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               }
                             },
                             onNotificationsTap: () {
-                              // Handle notifications tap
-                              print("Notifications tapped");
-                              // TODO: Implement notifications screen navigation
+                              // Navigate to notifications screen
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationsView(),
+                                ),
+                              );
                             },
                             topSafeAreaPadding:
                                 MediaQuery.of(context).padding.top,
@@ -728,6 +749,85 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (mounted) {
       setState(fn);
     }
+  }
+
+  void _showQueueServiceSelectionDialog(BuildContext context) {
+    // Get current city from state
+    final cityName = _currentCity;
+
+    // Use the HomeBloc to get services
+    final homeState = context.read<HomeBloc>().state;
+    List<ServiceProviderDisplayModel> providers = [];
+
+    if (homeState is HomeDataLoaded) {
+      // Get nearby providers or popular ones
+      providers = homeState.homeData?.nearbyPlaces ??
+          homeState.homeData?.popularPlaces ??
+          [];
+    }
+
+    if (providers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No services available for queue reservation')));
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select a Service'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount:
+                providers.length > 10 ? 10 : providers.length, // Limit to 10
+            itemBuilder: (context, index) {
+              final provider = providers[index];
+              return ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.store_mall_directory,
+                    color: AppColors.primaryColor,
+                  ),
+                ),
+                title: Text(provider.businessName),
+                subtitle: Text(provider.businessCategory),
+                onTap: () {
+                  Navigator.pop(context); // Close dialog
+
+                  // Navigate to QueueReservationPage
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => QueueReservationPage(
+                        providerId: provider.id,
+                        governorateId:
+                            provider.city, // Use city as governorateId
+                        serviceId: null, // Will be selected on the queue page
+                        serviceName: provider.businessName,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
