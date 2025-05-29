@@ -5,29 +5,21 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'
     show OpeningHoursDay;
 import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_configuration_event.dart';
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
-    show
-        ReservationModel,
-        AttendeeModel,
-        ReservationStatus,
-        ReservationStatusExtension;
+    show ReservationModel, AttendeeModel;
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
-import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_configuration_bloc.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/repository/options_configuration_repository.dart';
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
-import 'package:shamil_mobile_app/feature/auth/data/authModel.dart'; // For AuthModel if current user is an attendee
-import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart'; // To get current user
+import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:flutter/services.dart';
-import 'package:animations/animations.dart';
 import 'dart:ui' as ui;
 import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/attendee_selection_section.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/venue_booking_section.dart';
@@ -36,6 +28,9 @@ import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/cal
 import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/payment_method_section.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/reminder_settings_section.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/view/widgets/sharing_settings_section.dart';
+import 'package:shamil_mobile_app/core/payment/models/payment_models.dart';
+import 'package:shamil_mobile_app/core/payment/ui/widgets/enhanced_payment_widget.dart';
+import 'package:shamil_mobile_app/core/payment/bloc/payment_bloc.dart';
 
 class OptionsConfigurationScreen extends StatelessWidget {
   final String providerId;
@@ -400,49 +395,40 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
   ) {
     final List<Widget> optionsWidgets = [];
 
-    // Add curved container for the main content
+    // Enhanced main content with modern design
     return Container(
       decoration: const BoxDecoration(
-        color: AppColors.lightBackground,
+        color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(30),
-          topRight: Radius.circular(30),
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
         ),
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(30),
-          topRight: Radius.circular(30),
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 8, bottom: 100),
-          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 24,
+            bottom: 100, // Space for bottom action bar
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 5,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2.5),
-                  ),
-                ),
-              ),
+              // Progress indicator
+              _buildProgressIndicator(state),
+              const Gap(24),
 
-              // Item summary card
-              _buildItemSummaryCard(theme, state),
+              // Price summary card
+              _buildPriceSummaryCard(theme, state),
+              const Gap(24),
 
-              // Attendees summary if any
-              if (state.selectedAttendees.isNotEmpty &&
-                  options['allowAttendeeSelection'] == true)
-                _buildAttendeesSummaryCard(theme, state),
-
-              // Dynamic options
-              ..._buildDynamicOptions(
+              // Configuration sections
+              ..._buildConfigurationSections(
                 theme,
                 state,
                 options,
@@ -649,7 +635,7 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
     );
   }
 
-  List<Widget> _buildDynamicOptions(
+  List<Widget> _buildConfigurationSections(
     ThemeData theme,
     OptionsConfigurationState state,
     Map<String, dynamic> options,
@@ -658,75 +644,16 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
     bool isLoadingOperatingHours,
     bool isLoadingReservations,
   ) {
-    final List<Widget> optionsWidgets = [];
-
-    // Date & Time Selection
-    if (options['allowDateSelection'] == true) {
-      optionsWidgets.add(_buildDateSelection(
-          theme, state, operatingHours, isLoadingOperatingHours));
-    }
-
-    if (options['allowTimeSelection'] == true) {
-      optionsWidgets.add(_buildTimeSelection(
-        theme,
-        state,
-        operatingHours,
-        existingReservations,
-        isLoadingOperatingHours,
-        isLoadingReservations,
-      ));
-    }
-
-    // Attendee Selection
-    if (options['allowAttendeeSelection'] == true) {
-      // Use the new AttendeeSelectionSection widget
-      optionsWidgets.add(AttendeeSelectionSection(state: state));
-    }
-
-    // Venue Booking
-    if (options['allowVenueBooking'] == true ||
-        (options['venueDetails'] != null && options['venueDetails'] is Map)) {
-      // Use the new VenueBookingSection widget
-      optionsWidgets.add(VenueBookingSection(state: state));
-    }
-
-    // Cost Splitting
-    if (options['allowCostSplitting'] == true ||
-        state.selectedAttendees.length > 1 ||
-        (state.venueBookingConfig?.attendees.length ?? 0) > 1) {
-      // Use the new CostSplitSection widget
-      optionsWidgets.add(CostSplitSection(state: state));
-    }
-
-    // Calendar Integration - add when date selection is enabled
-    if (options['allowDateSelection'] == true) {
-      optionsWidgets.add(CalendarIntegrationSection(state: state));
-
-      // Reminder Settings - add when date selection is enabled
-      optionsWidgets.add(ReminderSettingsSection(state: state));
-    }
-
-    // Sharing settings - add when attendees are selected
-    if (state.selectedAttendees.isNotEmpty ||
-        options['allowAttendeeSelection'] == true) {
-      optionsWidgets.add(SharingSettingsSection(state: state));
-    }
-
-    // Payment Method Section - add always
-    optionsWidgets.add(PaymentMethodSection(state: state));
-
-    // Add-Ons Selection
-    if (options['availableAddOns'] is List &&
-        (options['availableAddOns'] as List).isNotEmpty) {
-      optionsWidgets.add(_buildAddOnsSection(theme, state, options));
-    }
-
-    // Special Requests / Notes
-    if (options['allowSpecialRequests'] == true) {
-      optionsWidgets.add(_buildSpecialRequestsSection(theme, state));
-    }
-
-    return optionsWidgets;
+    // Use the existing dynamic options builder
+    return _buildDynamicOptions(
+      theme,
+      state,
+      options,
+      operatingHours,
+      existingReservations,
+      isLoadingOperatingHours,
+      isLoadingReservations,
+    );
   }
 
   Widget _buildOptionCard(
@@ -1145,9 +1072,7 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
               Expanded(
                 child: ElevatedButton(
                   onPressed: state.canConfirm && !state.isLoading
-                      ? () => context
-                          .read<OptionsConfigurationBloc>()
-                          .add(const ConfirmConfiguration())
+                      ? () => _proceedToPayment(context, state)
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryColor,
@@ -1158,13 +1083,27 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
                     ),
                     elevation: 0,
                   ),
-                  child: Text(
-                    state.isLoading ? "Processing..." : "Confirm",
-                    style: AppTextStyle.getTitleStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (!state.isLoading) ...[
+                        const Icon(
+                          CupertinoIcons.creditcard,
+                          size: 18,
+                        ),
+                        const Gap(8),
+                      ],
+                      Text(
+                        state.isLoading
+                            ? "Processing..."
+                            : "Proceed to Payment",
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1820,6 +1759,330 @@ class _OptionsConfigurationViewState extends State<_OptionsConfigurationView>
             : "Any specific requests or instructions?",
       ),
     );
+  }
+
+  Future<void> _proceedToPayment(
+      BuildContext context, OptionsConfigurationState state) async {
+    // Create payment amount with taxes and fees
+    final PaymentAmount paymentAmount = PaymentAmount(
+      amount: state.totalPrice,
+      currency: Currency.egp,
+      taxAmount: state.totalPrice * 0.14, // 14% VAT
+      shippingAmount: state.totalPrice * 0.05, // 5% platform fee
+    );
+
+    // Get current user info
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! LoginSuccessState) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to proceed with payment'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final user = authState.user;
+    final PaymentCustomer customer = PaymentCustomer(
+      id: user.uid,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+    );
+
+    final bool isSubscription = state.originalPlan != null;
+    final String description = isSubscription
+        ? 'Subscription: ${state.originalPlan!.name}'
+        : 'Booking: ${state.originalService!.name}';
+
+    // Show enhanced payment modal with better UX
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      enableDrag: true,
+      useSafeArea: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => EnhancedPaymentWidget(
+          amount: paymentAmount,
+          customer: customer,
+          description: description,
+          onPaymentSuccess: () {
+            Navigator.pop(context); // Close modal
+            _handlePaymentSuccess(context, state);
+          },
+          onPaymentFailure: () {
+            Navigator.pop(context); // Close modal
+            _handlePaymentFailure(context);
+          },
+          onPaymentCancelled: () {
+            Navigator.pop(context); // Close modal
+          },
+          showSavedMethods: true,
+          allowSaving: true,
+          metadata: {
+            'provider_id': widget.providerId,
+            'service_id': state.originalService?.id,
+            'plan_id': state.originalPlan?.id,
+            'total_price': state.totalPrice.toString(),
+            'booking_type': isSubscription ? 'subscription' : 'booking',
+            'timestamp': DateTime.now().toIso8601String(),
+          },
+        ),
+      ),
+    );
+  }
+
+  void _handlePaymentSuccess(
+      BuildContext context, OptionsConfigurationState state) {
+    // First submit the configuration
+    context.read<OptionsConfigurationBloc>().add(const ConfirmConfiguration());
+
+    // Show success message and navigate back
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(state.originalPlan != null
+            ? 'Subscription activated successfully!'
+            : 'Booking confirmed successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    // Pop back to the service provider screen
+    Navigator.popUntil(
+        context,
+        (route) =>
+            route.isFirst || route.settings.name == '/service_provider_detail');
+  }
+
+  void _handlePaymentFailure(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Payment failed. Please try again.'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  Widget _buildProgressIndicator(OptionsConfigurationState state) {
+    // Calculate progress based on configuration completeness
+    int completedSteps = 0;
+    int totalSteps = 3; // Basic steps: date/time, options, payment
+
+    if (state.selectedDate != null) completedSteps++;
+    if (state.totalPrice > 0) completedSteps++;
+    if (state.canConfirm) completedSteps++;
+
+    double progress = completedSteps / totalSteps;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Configuration Progress',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blue.shade700,
+                    ),
+              ),
+              Text(
+                '${(progress * 100).toInt()}%',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+              ),
+            ],
+          ),
+          const Gap(12),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.blue.shade100,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+            borderRadius: BorderRadius.circular(8),
+            minHeight: 6,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceSummaryCard(
+      ThemeData theme, OptionsConfigurationState state) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade600, Colors.blue.shade700],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                widget.isPlan ? CupertinoIcons.star : CupertinoIcons.calendar,
+                color: Colors.white,
+                size: 24,
+              ),
+              const Gap(12),
+              Expanded(
+                child: Text(
+                  state.itemName,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Gap(16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Total Amount',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                  Text(
+                    '${state.currencySymbol}${state.totalPrice.toStringAsFixed(2)}',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  widget.isPlan ? 'Subscription' : 'Booking',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildDynamicOptions(
+    ThemeData theme,
+    OptionsConfigurationState state,
+    Map<String, dynamic> options,
+    Map<String, OpeningHoursDay> operatingHours,
+    List<ReservationModel> existingReservations,
+    bool isLoadingOperatingHours,
+    bool isLoadingReservations,
+  ) {
+    final List<Widget> optionsWidgets = [];
+
+    // Date & Time Selection
+    if (options['allowDateSelection'] == true) {
+      optionsWidgets.add(_buildDateSelection(
+          theme, state, operatingHours, isLoadingOperatingHours));
+    }
+
+    if (options['allowTimeSelection'] == true) {
+      optionsWidgets.add(_buildTimeSelection(
+        theme,
+        state,
+        operatingHours,
+        existingReservations,
+        isLoadingOperatingHours,
+        isLoadingReservations,
+      ));
+    }
+
+    // Attendee Selection
+    if (options['allowAttendeeSelection'] == true) {
+      // Use the new AttendeeSelectionSection widget
+      optionsWidgets.add(AttendeeSelectionSection(state: state));
+    }
+
+    // Venue Booking
+    if (options['allowVenueBooking'] == true ||
+        (options['venueDetails'] != null && options['venueDetails'] is Map)) {
+      // Use the new VenueBookingSection widget
+      optionsWidgets.add(VenueBookingSection(state: state));
+    }
+
+    // Cost Splitting
+    if (options['allowCostSplitting'] == true ||
+        state.selectedAttendees.length > 1 ||
+        (state.venueBookingConfig?.attendees.length ?? 0) > 1) {
+      // Use the new CostSplitSection widget
+      optionsWidgets.add(CostSplitSection(state: state));
+    }
+
+    // Calendar Integration - add when date selection is enabled
+    if (options['allowDateSelection'] == true) {
+      optionsWidgets.add(CalendarIntegrationSection(state: state));
+
+      // Reminder Settings - add when date selection is enabled
+      optionsWidgets.add(ReminderSettingsSection(state: state));
+    }
+
+    // Sharing settings - add when attendees are selected
+    if (state.selectedAttendees.isNotEmpty ||
+        options['allowAttendeeSelection'] == true) {
+      optionsWidgets.add(SharingSettingsSection(state: state));
+    }
+
+    // Payment Method Section - add always
+    optionsWidgets.add(PaymentMethodSection(state: state));
+
+    // Add-Ons Selection
+    if (options['availableAddOns'] is List &&
+        (options['availableAddOns'] as List).isNotEmpty) {
+      optionsWidgets.add(_buildAddOnsSection(theme, state, options));
+    }
+
+    // Special Requests / Notes
+    if (options['allowSpecialRequests'] == true) {
+      optionsWidgets.add(_buildSpecialRequestsSection(theme, state));
+    }
+
+    return optionsWidgets;
   }
 }
 

@@ -1,4 +1,5 @@
 // lib/feature/home/views/home_view.dart
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
@@ -247,21 +248,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       // Update background to a beautiful gradient
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // Navigate to Access Code view (NFC/QR scanning page)
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const AccessCodeView(),
-            ),
-          );
-        },
-        backgroundColor: AppColors.primaryColor,
-        label: const Text('Access Code'),
-        icon: const Icon(Icons.qr_code_scanner),
-        tooltip: 'Scan QR code or NFC',
-      ),
+      floatingActionButton: _buildCustomFloatingButton(context),
       body: Container(
         decoration: BoxDecoration(
           // Subtle gradient background that complements the content
@@ -827,6 +814,333 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Builds a beautiful animated squared floating action button with dissolving colors
+  Widget _buildCustomFloatingButton(BuildContext context) {
+    return _AnimatedSquareButton(
+      onTap: () {
+        // Navigate to Access Code view (NFC/QR scanning page)
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AccessCodeView(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Eye-catching animated floating action button with balanced complexity
+class _AnimatedSquareButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _AnimatedSquareButton({required this.onTap});
+
+  @override
+  State<_AnimatedSquareButton> createState() => _AnimatedSquareButtonState();
+}
+
+class _AnimatedSquareButtonState extends State<_AnimatedSquareButton>
+    with TickerProviderStateMixin {
+  late AnimationController _scaleController;
+  late AnimationController _colorController;
+  late AnimationController _pulseController;
+  late AnimationController _gradientController;
+  late AnimationController _colorMixController;
+
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _colorAnimation;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _gradientAnimation;
+  late Animation<double> _colorMixAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Scale animation for interaction
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 120),
+      vsync: this,
+    );
+
+    // Color cycling animation
+    _colorController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    );
+
+    // Pulse glow animation
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+
+    // Gradient movement animation
+    _gradientController = AnimationController(
+      duration: const Duration(seconds: 4),
+      vsync: this,
+    );
+
+    // Color mix animation
+    _colorMixController = AnimationController(
+      duration: const Duration(seconds: 5),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.93,
+    ).animate(CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves.easeOut,
+    ));
+
+    _colorAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _colorController,
+      curve: Curves.easeInOut,
+    ));
+
+    _pulseAnimation = Tween<double>(
+      begin: 0.4,
+      end: 0.8,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+
+    _gradientAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _gradientController,
+      curve: Curves.linear,
+    ));
+
+    _colorMixAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _colorMixController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Start continuous animations
+    _colorController.repeat(reverse: true);
+    _pulseController.repeat(reverse: true);
+    _gradientController.repeat();
+    _colorMixController.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _scaleController.dispose();
+    _colorController.dispose();
+    _pulseController.dispose();
+    _gradientController.dispose();
+    _colorMixController.dispose();
+    super.dispose();
+  }
+
+  Color _getAnimatedColor() {
+    return Color.lerp(
+          AppColors.primaryColor,
+          AppColors.tealColor,
+          _colorAnimation.value,
+        ) ??
+        AppColors.primaryColor;
+  }
+
+  Color _getSecondaryColor() {
+    return Color.lerp(
+          AppColors.secondaryColor,
+          AppColors.purpleColor,
+          _colorAnimation.value,
+        ) ??
+        AppColors.secondaryColor;
+  }
+
+  Color _getMixedColor() {
+    // Create a complex color mix animation
+    final mixProgress = _colorMixAnimation.value;
+    final baseColor = Color.lerp(
+          AppColors.primaryColor,
+          AppColors.tealColor,
+          mixProgress,
+        ) ??
+        AppColors.primaryColor;
+
+    return Color.lerp(
+          baseColor,
+          AppColors.purpleColor,
+          math.sin(mixProgress * math.pi * 2) * 0.3 + 0.5,
+        ) ??
+        baseColor;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _scaleAnimation,
+        _colorAnimation,
+        _pulseAnimation,
+        _gradientAnimation,
+        _colorMixAnimation
+      ]),
+      builder: (context, child) {
+        final primaryColor = _getAnimatedColor();
+        final secondaryColor = _getSecondaryColor();
+        final mixedColor = _getMixedColor();
+
+        // Calculate moving gradient positions
+        final gradientProgress = _gradientAnimation.value;
+        final beginAlignment = Alignment.lerp(
+              Alignment.topLeft,
+              Alignment.bottomRight,
+              gradientProgress,
+            ) ??
+            Alignment.topLeft;
+        final endAlignment = Alignment.lerp(
+              Alignment.bottomRight,
+              Alignment.topLeft,
+              gradientProgress,
+            ) ??
+            Alignment.bottomRight;
+
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                // Animated pulsing glow with mixed color
+                BoxShadow(
+                  color: mixedColor.withOpacity(_pulseAnimation.value * 0.6),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 6),
+                ),
+                // Secondary glow
+                BoxShadow(
+                  color:
+                      secondaryColor.withOpacity(_pulseAnimation.value * 0.4),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 3),
+                ),
+                // Mixed color accent glow
+                BoxShadow(
+                  color: Color.lerp(primaryColor, mixedColor, 0.7)
+                          ?.withOpacity(_pulseAnimation.value * 0.3) ??
+                      primaryColor.withOpacity(0.3),
+                  blurRadius: 15,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 2),
+                ),
+                // Depth shadow
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                gradient: LinearGradient(
+                  begin: beginAlignment,
+                  end: endAlignment,
+                  colors: [
+                    primaryColor,
+                    mixedColor,
+                    secondaryColor,
+                    Color.lerp(secondaryColor, mixedColor, 0.6) ??
+                        secondaryColor,
+                  ],
+                  stops: const [0.0, 0.3, 0.7, 1.0],
+                ),
+                // Inner highlight
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Stack(
+                children: [
+                  // Animated shine effect
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withOpacity(0.3),
+                            Colors.transparent,
+                            Colors.white.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Button content
+                  Positioned.fill(
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () {
+                          _scaleController.forward().then((_) {
+                            _scaleController.reverse();
+                          });
+                          widget.onTap();
+                        },
+                        onTapDown: (_) => _scaleController.forward(),
+                        onTapUp: (_) => _scaleController.reverse(),
+                        onTapCancel: () => _scaleController.reverse(),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.qr_code_scanner_rounded,
+                              color: Colors.white,
+                              size: 26,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  offset: const Offset(0, 1),
+                                  blurRadius: 2,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

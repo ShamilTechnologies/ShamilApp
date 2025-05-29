@@ -3,8 +3,7 @@
 // Define properties accessible by the app and plugins
 ext {
     compileSdkVersion = 34     // Define compile SDK version
-    // *** UPDATED minSdkVersion ***
-    minSdkVersion = 24         // Increase to 23 (required by firebase_auth)
+    minSdkVersion = 23         // Required by firebase_auth (minimum 23)
     targetSdkVersion = 34     // Define target SDK version
 }
 
@@ -19,9 +18,9 @@ buildscript {
 
     dependencies {
         // Define build tool dependencies
-        classpath 'com.android.tools.build:gradle:7.3.0' // Match version in settings.gradle
+        classpath 'com.android.tools.build:gradle:8.6.1' // Updated to support androidx.core:core-ktx:1.16.0
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath 'com.google.gms:google-services:4.3.15' // Match version in settings.gradle
+        classpath 'com.google.gms:google-services:4.4.2' // Updated version
     }
 }
 

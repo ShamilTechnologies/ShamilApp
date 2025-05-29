@@ -5,6 +5,7 @@ import 'package:firebase_app_check/firebase_app_check.dart'; // For App Check
 import 'package:firebase_messaging/firebase_messaging.dart'; // Import FCM
 // Required for kDebugMode check
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Add this import
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -12,7 +13,6 @@ import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/core/utils/themes.dart';
 import 'package:shamil_mobile_app/feature/intro/splash_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
-import 'package:shamil_mobile_app/feature/reservation/data/repositories/reservation_repository.dart';
 import 'package:shamil_mobile_app/firebase_options.dart';
 // import 'package:shamil_mobile_app/storage_service.dart'; // Keep if used elsewhere
 
@@ -43,6 +43,21 @@ import 'package:shamil_mobile_app/core/services/notification_service.dart';
 // Import Community Repository
 import 'package:shamil_mobile_app/feature/community/repository/community_repository.dart';
 
+// Import the new centralized data orchestrator
+import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
+
+// Payment system imports
+import 'package:shamil_mobile_app/core/payment/payment_orchestrator.dart';
+import 'package:shamil_mobile_app/core/payment/bloc/payment_bloc.dart';
+import 'package:shamil_mobile_app/core/payment/integration_example_simple.dart';
+import 'package:shamil_mobile_app/feature/payments/views/payments_screen.dart';
+import 'package:shamil_mobile_app/feature/reservation/presentation/screens/reservation_payment_screen.dart';
+
+// Import the new credentials manager
+import 'package:shamil_mobile_app/core/payment/config/payment_credentials_manager.dart';
+import 'package:shamil_mobile_app/core/payment/config/payment_environment_config.dart';
+import 'package:shamil_mobile_app/core/payment/gateways/stripe/stripe_service.dart';
+
 // --- FCM Background Handler ---
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -53,6 +68,26 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (message.notification != null) {
     print(
         'Message also contained a notification: ${message.notification?.title}');
+  }
+}
+
+/// Initialize payment system with credentials
+Future<void> _initializePaymentSystem() async {
+  try {
+    // Initialize payment credentials manager
+    await PaymentCredentialsManager.instance.initializeWithStripeCredentials();
+
+    // Initialize payment environment configuration
+    await PaymentEnvironmentConfig.instance.initialize();
+
+    // Initialize Stripe service
+    await StripeService().initialize();
+
+    debugPrint('✅ Payment system initialized successfully');
+  } catch (e) {
+    debugPrint('❌ Failed to initialize payment system: $e');
+    // Don't throw error to prevent app crash
+    // Payment features will be disabled if initialization fails
   }
 }
 
@@ -89,25 +124,29 @@ Future<void> main() async {
   // Initialize notification service
   await NotificationService().initialize();
 
+  // Initialize payment system
+  await _initializePaymentSystem();
+
+  // Set preferred orientations
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
   runApp(
-    MultiRepositoryProvider(
+    MultiProvider(
       providers: [
-        RepositoryProvider<ReservationRepository>(
-          create: (context) => FirebaseReservationRepository(),
+        // Provide the centralized data orchestrator
+        Provider<FirebaseDataOrchestrator>(
+          create: (_) => FirebaseDataOrchestrator(),
         ),
-        RepositoryProvider<SocialRepository>(
-          create: (context) => FirebaseSocialRepository(),
+        // Temporary: Keep old repositories for screens not yet migrated
+        Provider<UserRepository>(
+          create: (_) => FirebaseUserRepository(),
         ),
-        RepositoryProvider<UserRepository>(
-          create: (context) => FirebaseUserRepository(),
+        Provider<CommunityRepository>(
+          create: (_) => CommunityRepositoryImpl(),
         ),
-        // Add Community Repository provider
-        RepositoryProvider<CommunityRepository>(
-          create: (context) => CommunityRepositoryImpl(),
-        ),
-        // RepositoryProvider<SubscriptionRepository>(
-        //   create: (context) => FirebaseSubscriptionRepository(),
-        // ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -118,30 +157,29 @@ Future<void> main() async {
           ),
           BlocProvider<SocialBloc>(
             create: (context) => SocialBloc(
-              socialRepository: context.read<SocialRepository>(),
+              dataOrchestrator: context.read<FirebaseDataOrchestrator>(),
             ),
             lazy: true,
           ),
-          // *** ENSURED HomeBloc IS PROVIDED HERE ***
           BlocProvider<HomeBloc>(
-            create: (context) => HomeBloc()..add(const LoadHomeData()),
+            create: (context) => HomeBloc(
+              dataOrchestrator: context.read<FirebaseDataOrchestrator>(),
+            )..add(const LoadHomeData()),
             lazy: false,
           ),
-          // BlocProvider<SubscriptionBloc>(
-          //   create: (context) => SubscriptionBloc(
-          //     subscriptionRepository: context.read<SubscriptionRepository>(),
-          //   ),
-          //   lazy: true,
-          // ),
           BlocProvider<FavoritesBloc>(
-            create: (context) {
-              return FavoritesBloc.fromCurrentUser()
-                ..add(const LoadFavorites());
-            },
+            create: (context) => FavoritesBloc(
+              dataOrchestrator: context.read<FirebaseDataOrchestrator>(),
+            )..add(const LoadFavorites()),
             lazy: false,
+          ),
+          // Payment system provider
+          BlocProvider<PaymentBloc>(
+            create: (context) => PaymentBloc(
+              stripeService: null, // Use null to let it create its own instance
+            )..add(const InitializePayments()),
           ),
         ],
-        // *** ADDED ChangeNotifierProvider for NavigationNotifier ***
         child: ChangeNotifierProvider(
           create: (_) => NavigationNotifier(),
           child: const MainApp(),
@@ -315,6 +353,53 @@ class _MainAppState extends State<MainApp> {
       routes: {
         '/login': (context) => const LoginView(),
         '/home': (context) => const MainNavigationView(),
+        // Payment routes
+        '/payment-demo': (context) => const PaymentIntegrationDemoScreen(),
+        '/service-payment': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return SimplePaymentIntegrationExamples.buildServicePaymentScreen(
+            serviceId: args?['serviceId'] ?? 'default',
+            serviceName: args?['serviceName'] ?? 'Service',
+            amount: args?['amount'] ?? 100.0,
+            userId: args?['userId'] ?? 'user123',
+            userEmail: args?['userEmail'] ?? 'user@example.com',
+            userName: args?['userName'] ?? 'User Name',
+          );
+        },
+        '/subscription-payment': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return SimplePaymentIntegrationExamples
+              .buildSubscriptionPaymentScreen(
+            planId: args?['planId'] ?? 'plan_default',
+            planName: args?['planName'] ?? 'Plan',
+            monthlyPrice: args?['monthlyPrice'] ?? 99.0,
+            durationMonths: args?['durationMonths'] ?? 1,
+            userId: args?['userId'] ?? 'user123',
+            userEmail: args?['userEmail'] ?? 'user@example.com',
+            userName: args?['userName'] ?? 'User Name',
+          );
+        },
+        '/payments': (context) => const PaymentsScreen(),
+        '/payment-history': (context) => const PaymentsScreen(),
+        '/reservation-payment': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          if (args == null ||
+              args['reservation'] == null ||
+              args['serviceProvider'] == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Invalid payment data'),
+              ),
+            );
+          }
+          return ReservationPaymentScreen(
+            reservation: args['reservation'],
+            serviceProvider: args['serviceProvider'],
+          );
+        },
       },
       builder: (context, child) {
         return MultiBlocProvider(

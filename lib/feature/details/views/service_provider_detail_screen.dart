@@ -22,11 +22,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:dots_indicator/dots_indicator.dart';
 
+import 'package:shamil_mobile_app/core/ui/theme/app_theme.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
-import 'package:shamil_mobile_app/core/widgets/placeholders.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
-import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
@@ -41,6 +40,8 @@ import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/view/options_configuration_screen.dart';
 import 'package:shamil_mobile_app/feature/details/widgets/options_bottom_sheet.dart'
     as options_sheet;
+
+import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
 
 class ServiceProviderDetailScreen extends StatefulWidget {
   final String providerId;
@@ -1676,6 +1677,35 @@ class _ServiceProviderDetailScreenState
                       ),
                   ],
                 ),
+
+                // Configuration button only
+                if (service.price != null && service.price! > 0) ...[
+                  const Gap(12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _navigateToOptionsConfiguration(
+                        context,
+                        service: service,
+                        provider: provider,
+                      ),
+                      icon: const Icon(
+                        CupertinoIcons.settings,
+                        size: 18,
+                      ),
+                      label: const Text('Configure & Book'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1832,6 +1862,33 @@ class _ServiceProviderDetailScreenState
                     }).toList(),
                   ),
                 ],
+
+                // Configuration button only
+                const Gap(16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _navigateToOptionsConfiguration(
+                      context,
+                      planData: plan,
+                      provider: provider,
+                    ),
+                    icon: const Icon(
+                      CupertinoIcons.settings,
+                      size: 18,
+                    ),
+                    label: const Text('Configure & Subscribe'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

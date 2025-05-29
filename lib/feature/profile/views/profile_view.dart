@@ -19,6 +19,7 @@ import 'package:shamil_mobile_app/feature/passes/view/passes_screen.dart';
 import 'package:shamil_mobile_app/feature/social/views/friends_view.dart';
 import 'package:shamil_mobile_app/feature/social/views/family_view.dart';
 import 'package:shamil_mobile_app/feature/reservation/presentation/pages/reminder_settings_page.dart';
+import 'package:shamil_mobile_app/feature/payments/views/payments_screen.dart';
 
 // Placeholder for transparent image data (can be moved to a constants file)
 const kTransparentImage = <int>[
@@ -100,31 +101,24 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ImagePicker _picker = ImagePicker();
-  bool _isUpdatingPicture =
-      false; // Local flag for picture update loading state
-  // REMOVED: late final SocialBloc _socialBloc;
+  bool _isUpdatingPicture = false;
+  final ScrollController _scrollController = ScrollController();
+  bool _isCollapsed = false;
 
   @override
   void initState() {
     super.initState();
-    // REMOVED: _socialBloc = SocialBloc(); // Don't create local instance
-
-    // Load initial social data using the *globally provided* Bloc
-    // Use WidgetsBinding to ensure context is available
+    _scrollController.addListener(_scrollListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        // Check if widget is still mounted
         try {
-          // Read the globally provided SocialBloc
           final socialBloc = context.read<SocialBloc>();
-          // Load initial data if needed (check state first to avoid redundant loads)
           if (socialBloc.state is SocialInitial) {
             socialBloc.add(const LoadFamilyMembers());
-            socialBloc.add(const LoadFriendsAndRequests()); // Load friends too
+            socialBloc.add(const LoadFriendsAndRequests());
           }
         } catch (e) {
           print("Error accessing SocialBloc in ProfileScreen initState: $e");
-          // Show error if Bloc isn't provided correctly
           showGlobalSnackBar(context, "Could not load social data.",
               isError: true);
         }
@@ -134,8 +128,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
-    // REMOVED: _socialBloc.close(); // No local Bloc to dispose
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollListener() {
+    final scrollOffset = _scrollController.offset;
+
+    // Trigger collapse when user scrolls past the profile header
+    // Adjust threshold based on header height (approximately 300px)
+    final shouldCollapse = scrollOffset > 250;
+
+    if (shouldCollapse != _isCollapsed) {
+      setState(() {
+        _isCollapsed = shouldCollapse;
+      });
+    }
   }
 
   // --- Image Picking Logic ---
@@ -146,70 +155,118 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context) {
           return Container(
             margin: const EdgeInsets.all(16.0),
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(24.0),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20.0),
+              borderRadius: BorderRadius.circular(24.0),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Profile Photo',
-                  style: AppTextStyle.getTitleStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const Gap(16),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.camera_fill,
-                      color: AppColors.primaryColor,
-                    ),
+                const Gap(20),
+                Text(
+                  'Update Profile Photo',
+                  style: AppTextStyle.getTitleStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                   ),
-                  title: Text(
-                    'Take a Photo',
-                    style: AppTextStyle.getbodyStyle(),
-                  ),
+                ),
+                const Gap(24),
+                _buildImageSourceOption(
+                  icon: CupertinoIcons.camera_fill,
+                  title: 'Take Photo',
+                  subtitle: 'Use camera to take a new photo',
+                  color: AppColors.primaryColor,
                   onTap: () => Navigator.of(context).pop(ImageSource.camera),
                 ),
-                const Divider(),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.photo_fill,
-                      color: AppColors.primaryColor,
-                    ),
-                  ),
-                  title: Text(
-                    'Choose from Gallery',
-                    style: AppTextStyle.getbodyStyle(),
-                  ),
+                const Gap(12),
+                _buildImageSourceOption(
+                  icon: CupertinoIcons.photo_fill,
+                  title: 'Choose from Gallery',
+                  subtitle: 'Select from your photo library',
+                  color: Colors.purple,
                   onTap: () => Navigator.of(context).pop(ImageSource.gallery),
                 ),
+                const Gap(20),
               ],
             ),
           );
         });
+  }
+
+  Widget _buildImageSourceOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.1)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const Gap(16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTextStyle.getTitleStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Gap(2),
+                  Text(
+                    subtitle,
+                    style: AppTextStyle.getSmallStyle(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              CupertinoIcons.chevron_right,
+              color: color,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickAndUpdateProfilePicture() async {
@@ -242,7 +299,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
   }
-  // --- End Image Picking Logic ---
 
   // --- Logout Logic ---
   Future<void> _handleLogout() async {
@@ -250,33 +306,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.red.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
-                CupertinoIcons.exclamationmark_triangle,
+                CupertinoIcons.square_arrow_left,
                 color: Colors.red,
                 size: 24,
               ),
             ),
             const Gap(16),
-            const Text('Confirm Logout'),
+            const Text('Sign Out'),
           ],
         ),
-        content: const Text("Are you sure you want to log out?"),
+        content:
+            const Text("Are you sure you want to sign out of your account?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(
+            child: Text(
               "Cancel",
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: Colors.grey.shade600),
             ),
           ),
           ElevatedButton(
@@ -286,17 +343,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(50),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text("Logout"),
+            child: const Text("Sign Out"),
           ),
         ],
       ),
     );
     if (confirm == true && mounted) {
       try {
-        showGlobalSnackBar(context, "Logging out...");
+        showGlobalSnackBar(context, "Signing out...");
         context.read<AuthBloc>().add(const LogoutEvent());
       } catch (e) {
         print("Error dispatching logout event: $e");
@@ -306,622 +363,1256 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
   }
-  // --- End Logout Logic ---
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // REMOVED: BlocProvider.value wrapper
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: MultiBlocListener(
-        listeners: [
-          // Listener for AuthBloc side effects
-          BlocListener<AuthBloc, AuthState>(
-            listener: (context, state) {
-              // Reset local picture updating flag AFTER Bloc finishes
-              if (state is! AuthLoadingState && _isUpdatingPicture) {
-                if (mounted) {
-                  // Check mounted before calling setState
-                  setState(() {
-                    _isUpdatingPicture = false;
-                  });
-                }
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<AuthBloc, AuthState>(
+          listener: (context, state) {
+            if (state is! AuthLoadingState && _isUpdatingPicture) {
+              if (mounted) {
+                setState(() {
+                  _isUpdatingPicture = false;
+                });
               }
-              // Show feedback only if WE initiated the update
-              if (state is LoginSuccessState && _isUpdatingPicture) {
-                showGlobalSnackBar(context, "Profile picture updated!");
-              } else if (state is AuthErrorState && _isUpdatingPicture) {
-                showGlobalSnackBar(context, "Update failed: ${state.message}",
-                    isError: true);
-              } else if (state is PasswordResetEmailSentState) {
-                showGlobalSnackBar(context, "Password reset email sent.");
-              }
-            },
-          ),
-          // Listener for SocialBloc side effects (e.g., success/error from family/friend actions)
-          BlocListener<SocialBloc, SocialState>(
-            listener: (context, state) {
-              if (state is SocialSuccess) {
-                showGlobalSnackBar(context, state.message);
-              } else if (state is SocialError) {
-                showGlobalSnackBar(context, state.message, isError: true);
-              }
-            },
-          ),
-        ],
-        // Use BlocBuilder for AuthBloc to determine the main UI structure
-        child: BlocBuilder<AuthBloc, AuthState>(
-          builder: (context, authState) {
-            // Show LoadingScreen during initial load or general AuthBloc loading
-            if (authState is AuthInitial || authState is AuthLoadingState) {
-              return const LoadingScreen();
             }
-            // Show error if AuthBloc failed to load profile
-            if (authState is AuthErrorState) {
-              return _buildErrorDisplay(context, theme,
-                  "Could not load profile: ${authState.message}");
+            if (state is LoginSuccessState && _isUpdatingPicture) {
+              showGlobalSnackBar(context, "Profile picture updated!");
+            } else if (state is AuthErrorState && _isUpdatingPicture) {
+              showGlobalSnackBar(context, "Update failed: ${state.message}",
+                  isError: true);
+            } else if (state is PasswordResetEmailSentState) {
+              showGlobalSnackBar(context, "Password reset email sent.");
             }
-            // Show message if email verification is pending
-            if (authState is AwaitingVerificationState) {
-              return _buildErrorDisplay(context, theme,
-                  "Please verify your email (${authState.email})",
-                  showRetry: false);
+          },
+        ),
+        BlocListener<SocialBloc, SocialState>(
+          listener: (context, state) {
+            if (state is SocialSuccess) {
+              showGlobalSnackBar(context, state.message);
+            } else if (state is SocialError) {
+              showGlobalSnackBar(context, state.message, isError: true);
             }
-            // Build the main profile content if AuthBloc has user data
-            if (authState is LoginSuccessState) {
-              final userModel = authState.user;
-              // Pass data and callbacks down to the content widget
-              // ProfileContent will access the globally provided SocialBloc via context
-              return SafeArea(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(30),
-                      bottomRight: Radius.circular(30),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(context),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(30),
-                              topRight: Radius.circular(30),
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(30),
-                              topRight: Radius.circular(30),
-                            ),
-                            child: RefreshIndicator(
-                              onRefresh: () async {
-                                context
-                                    .read<AuthBloc>()
-                                    .add(const CheckEmailVerificationStatus());
-                                context
-                                    .read<SocialBloc>()
-                                    .add(const LoadFamilyMembers());
-                                context
-                                    .read<SocialBloc>()
-                                    .add(const LoadFriendsAndRequests());
-                                await Future.delayed(
-                                    const Duration(milliseconds: 500));
-                              },
-                              child: _buildProfileContent(context, userModel),
-                            ),
-                          ),
-                        ),
+          },
+        ),
+      ],
+      child: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, authState) {
+          if (authState is AuthInitial || authState is AuthLoadingState) {
+            return const LoadingScreen();
+          }
+          if (authState is AuthErrorState) {
+            return _buildErrorDisplay(
+                context, theme, "Could not load profile: ${authState.message}");
+          }
+          if (authState is AwaitingVerificationState) {
+            return _buildErrorDisplay(
+                context, theme, "Please verify your email (${authState.email})",
+                showRetry: false);
+          }
+          if (authState is LoginSuccessState) {
+            final userModel = authState.user;
+            return Scaffold(
+              backgroundColor: Colors.grey.shade50,
+              body: Stack(
+                children: [
+                  // Main scrollable content
+                  CustomScrollView(
+                    controller: _scrollController,
+                    slivers: [
+                      // Normal profile header
+                      SliverToBoxAdapter(
+                        child: _buildNormalProfileHeader(context, userModel),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _buildProfileContent(context, userModel),
                       ),
                     ],
                   ),
-                ),
-              );
-            }
-            // Fallback for any unexpected AuthBloc state
-            return const Center(child: Text("An unexpected error occurred."));
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.primaryColor,
-                          AppColors.primaryColor.withOpacity(0.7),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.person_fill,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
-                  const Gap(14),
-                  Text(
-                    'My Profile',
-                    style: AppTextStyle.getHeadlineTextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  // Floating header (only visible when collapsed)
+                  if (_isCollapsed)
+                    _buildFloatingCollapsedHeader(context, userModel),
                 ],
               ),
-              _buildRefreshButton(context),
-            ],
-          ),
-          const Gap(12),
-          Text(
-            'Manage your account settings and preferences',
-            style: AppTextStyle.getbodyStyle(
-              color: AppColors.secondaryText,
-            ),
-          ),
-        ],
+            );
+          }
+          return const Center(child: Text("An unexpected error occurred."));
+        },
       ),
     );
   }
 
-  Widget _buildRefreshButton(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        context.read<AuthBloc>().add(const CheckEmailVerificationStatus());
-        context.read<SocialBloc>().add(const LoadFamilyMembers());
-        context.read<SocialBloc>().add(const LoadFriendsAndRequests());
-      },
-      borderRadius: BorderRadius.circular(50),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(50),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 0,
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Icon(
-          CupertinoIcons.arrow_clockwise,
-          color: AppColors.primaryColor,
-          size: 20,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileContent(BuildContext context, final userModel) {
-    // Profile picture section
+  // Helper method to build profile image
+  Widget _buildProfileImage(final userModel, double size) {
     String? profilePicUrl = userModel.profilePicUrl ?? userModel.image;
     if (profilePicUrl != null && profilePicUrl.isEmpty) {
       profilePicUrl = null;
     }
 
-    // Profile card
-    final profileCard = Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      padding: const EdgeInsets.all(20),
+    return (profilePicUrl == null)
+        ? Icon(
+            CupertinoIcons.person_fill,
+            size: size,
+            color: AppColors.primaryColor.withOpacity(0.5),
+          )
+        : FadeInImage.memoryNetwork(
+            placeholder: transparentImageData,
+            image: profilePicUrl,
+            fit: BoxFit.cover,
+            imageErrorBuilder: (context, error, stackTrace) => Icon(
+              CupertinoIcons.person_fill,
+              size: size,
+              color: AppColors.primaryColor.withOpacity(0.5),
+            ),
+          );
+  }
+
+  // Helper method to build expanded header
+  Widget _buildExpandedHeader(BuildContext context, final userModel) {
+    String? profilePicUrl = userModel.profilePicUrl ?? userModel.image;
+    if (profilePicUrl != null && profilePicUrl.isEmpty) {
+      profilePicUrl = null;
+    }
+
+    return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            spreadRadius: 0,
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white,
+            Colors.grey.shade50,
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Logout button positioned in top right
+          Positioned(
+            top: 16,
+            right: 16,
+            child: SafeArea(
+              child: IconButton(
+                onPressed: _handleLogout,
+                icon: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.1),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.square_arrow_left,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Profile content centered
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Gap(20),
+                  // Profile Picture
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primaryColor.withOpacity(0.1),
+                              AppColors.primaryColor.withOpacity(0.05),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          border: Border.all(
+                            color: AppColors.primaryColor.withOpacity(0.2),
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryColor.withOpacity(0.1),
+                              blurRadius: 15,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: _buildProfileImage(userModel, 50),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: -2,
+                        right: -2,
+                        child: GestureDetector(
+                          onTap: _isUpdatingPicture
+                              ? null
+                              : _pickAndUpdateProfilePicture,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryColor,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      AppColors.primaryColor.withOpacity(0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: _isUpdatingPicture
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    CupertinoIcons.camera_fill,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Gap(16),
+                  // User Info
+                  Text(
+                    userModel.name,
+                    style: AppTextStyle.getTitleStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Gap(4),
+                  Text(
+                    userModel.email,
+                    style: AppTextStyle.getbodyStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (userModel.phone != null &&
+                      userModel.phone!.isNotEmpty) ...[
+                    const Gap(4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          CupertinoIcons.phone_fill,
+                          size: 14,
+                          color: AppColors.primaryColor,
+                        ),
+                        const Gap(4),
+                        Flexible(
+                          child: Text(
+                            userModel.phone!,
+                            style: AppTextStyle.getbodyStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const Gap(20),
+                ],
+              ),
+            ),
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Profile image
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.primaryColor.withOpacity(0.1),
-                        AppColors.primaryColor.withOpacity(0.05),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(
-                      color: AppColors.primaryColor.withOpacity(0.2),
-                      width: 4,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: (profilePicUrl == null)
-                        ? Icon(
-                            CupertinoIcons.person_fill,
-                            size: 60,
-                            color: AppColors.primaryColor.withOpacity(0.5),
-                          )
-                        : FadeInImage.memoryNetwork(
-                            placeholder: transparentImageData,
-                            image: profilePicUrl,
-                            fit: BoxFit.cover,
-                            imageErrorBuilder: (context, error, stackTrace) =>
-                                Icon(
-                              CupertinoIcons.person_fill,
-                              size: 60,
-                              color: AppColors.primaryColor.withOpacity(0.5),
-                            ),
-                          ),
-                  ),
-                ),
-                // Edit button
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: GestureDetector(
-                    onTap: _isUpdatingPicture
-                        ? null
-                        : _pickAndUpdateProfilePicture,
-                    child: Container(
+    );
+  }
+
+  // Normal profile header (always visible in scroll)
+  Widget _buildNormalProfileHeader(BuildContext context, final userModel) {
+    String? profilePicUrl = userModel.profilePicUrl ?? userModel.image;
+    if (profilePicUrl != null && profilePicUrl.isEmpty) {
+      profilePicUrl = null;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white,
+            Colors.grey.shade50,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Logout button row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    onPressed: _handleLogout,
+                    icon: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryColor,
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primaryColor.withOpacity(0.3),
-                            spreadRadius: 0,
+                            color: Colors.red.withOpacity(0.1),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
                         ],
                       ),
-                      child: _isUpdatingPicture
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
+                      child: const Icon(
+                        CupertinoIcons.square_arrow_left,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Gap(20),
+              // Profile Picture
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primaryColor.withOpacity(0.1),
+                          AppColors.primaryColor.withOpacity(0.05),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border.all(
+                        color: AppColors.primaryColor.withOpacity(0.2),
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryColor.withOpacity(0.1),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: _buildProfileImage(userModel, 60),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: -2,
+                    right: -2,
+                    child: GestureDetector(
+                      onTap: _isUpdatingPicture
+                          ? null
+                          : _pickAndUpdateProfilePicture,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryColor,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryColor.withOpacity(0.3),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: _isUpdatingPicture
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                CupertinoIcons.camera_fill,
                                 color: Colors.white,
+                                size: 18,
                               ),
-                            )
-                          : const Icon(
-                              CupertinoIcons.camera_fill,
-                              color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Gap(20),
+              // User Info
+              Text(
+                userModel.name,
+                style: AppTextStyle.getTitleStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Gap(6),
+              Text(
+                userModel.email,
+                style: AppTextStyle.getbodyStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (userModel.phone != null && userModel.phone!.isNotEmpty) ...[
+                const Gap(4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      CupertinoIcons.phone_fill,
+                      size: 14,
+                      color: AppColors.primaryColor,
+                    ),
+                    const Gap(4),
+                    Flexible(
+                      child: Text(
+                        userModel.phone!,
+                        style: AppTextStyle.getbodyStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const Gap(20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Floating collapsed header (only visible when scrolled)
+  Widget _buildFloatingCollapsedHeader(BuildContext context, final userModel) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white,
+              Colors.grey.shade50,
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 15,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              children: [
+                // App title or greeting
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Profile',
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Gap(2),
+                      Text(
+                        'Welcome back, ${userModel.name.split(' ').first}',
+                        style: AppTextStyle.getbodyStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const Gap(16),
+                // Logout button
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.red.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _handleLogout,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              CupertinoIcons.square_arrow_left,
+                              color: Colors.red,
                               size: 18,
                             ),
+                            const Gap(8),
+                            Text(
+                              'Logout',
+                              style: AppTextStyle.getbodyStyle(
+                                color: Colors.red,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const Gap(16),
-          Text(
-            userModel.name,
-            style: AppTextStyle.getTitleStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomFloatingHeader(BuildContext context, final userModel) {
+    String? profilePicUrl = userModel.profilePicUrl ?? userModel.image;
+    if (profilePicUrl != null && profilePicUrl.isEmpty) {
+      profilePicUrl = null;
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      height: _isCollapsed ? 70 : 320,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white,
+            Colors.grey.shade50,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: _isCollapsed
+            ? // Collapsed state - horizontal row
+            Container(
+                height: 70,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    // Small profile picture
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOutCubic,
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryColor.withOpacity(0.15),
+                            AppColors.primaryColor.withOpacity(0.08),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        border: Border.all(
+                          color: AppColors.primaryColor.withOpacity(0.25),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryColor.withOpacity(0.15),
+                            blurRadius: 12,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: _buildProfileImage(userModel, 22),
+                      ),
+                    ),
+                    const Gap(14),
+                    // Name
+                    Expanded(
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.easeInOutCubic,
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        child: Text(
+                          userModel.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    // Spacer between name and logout button
+                    const Gap(20),
+                    // Logout button
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeInOutCubic,
+                      child: IconButton(
+                        onPressed: _handleLogout,
+                        icon: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOutCubic,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.red.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.square_arrow_left,
+                            color: Colors.red,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : // Expanded state - use existing expanded header
+            _buildExpandedHeader(context, userModel),
+      ),
+    );
+  }
+
+  Widget _buildCustomHeader(BuildContext context, final userModel) {
+    String? profilePicUrl = userModel.profilePicUrl ?? userModel.image;
+    if (profilePicUrl != null && profilePicUrl.isEmpty) {
+      profilePicUrl = null;
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      height: _isCollapsed ? 80 : 320,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white,
+            Colors.grey.shade50,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: _isCollapsed
+            ? // Collapsed state - everything in one row
+            Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    // Small profile picture
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryColor.withOpacity(0.1),
+                            AppColors.primaryColor.withOpacity(0.05),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        border: Border.all(
+                          color: AppColors.primaryColor.withOpacity(0.2),
+                          width: 2,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: (profilePicUrl == null)
+                            ? Icon(
+                                CupertinoIcons.person_fill,
+                                size: 22,
+                                color: AppColors.primaryColor.withOpacity(0.5),
+                              )
+                            : FadeInImage.memoryNetwork(
+                                placeholder: transparentImageData,
+                                image: profilePicUrl,
+                                fit: BoxFit.cover,
+                                imageErrorBuilder:
+                                    (context, error, stackTrace) => Icon(
+                                  CupertinoIcons.person_fill,
+                                  size: 22,
+                                  color:
+                                      AppColors.primaryColor.withOpacity(0.5),
+                                ),
+                              ),
+                      ),
+                    ),
+                    const Gap(12),
+                    // Name
+                    Expanded(
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 300),
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        child: Text(
+                          userModel.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    const Gap(12),
+                    // Logout button
+                    IconButton(
+                      onPressed: _handleLogout,
+                      icon: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.square_arrow_left,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : // Expanded state - vertical layout
+            Stack(
+                children: [
+                  // Logout button - positioned in top right
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: IconButton(
+                      onPressed: _handleLogout,
+                      icon: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.square_arrow_left,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Profile content centered
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Gap(40),
+                          // Profile Picture
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      AppColors.primaryColor.withOpacity(0.1),
+                                      AppColors.primaryColor.withOpacity(0.05),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  border: Border.all(
+                                    color:
+                                        AppColors.primaryColor.withOpacity(0.2),
+                                    width: 3,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primaryColor
+                                          .withOpacity(0.1),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: (profilePicUrl == null)
+                                      ? Icon(
+                                          CupertinoIcons.person_fill,
+                                          size: 60,
+                                          color: AppColors.primaryColor
+                                              .withOpacity(0.5),
+                                        )
+                                      : FadeInImage.memoryNetwork(
+                                          placeholder: transparentImageData,
+                                          image: profilePicUrl,
+                                          fit: BoxFit.cover,
+                                          imageErrorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  Icon(
+                                            CupertinoIcons.person_fill,
+                                            size: 60,
+                                            color: AppColors.primaryColor
+                                                .withOpacity(0.5),
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: -2,
+                                right: -2,
+                                child: GestureDetector(
+                                  onTap: _isUpdatingPicture
+                                      ? null
+                                      : _pickAndUpdateProfilePicture,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryColor,
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.primaryColor
+                                              .withOpacity(0.3),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: _isUpdatingPicture
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            CupertinoIcons.camera_fill,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Gap(20),
+                          // User Info
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 300),
+                            style: AppTextStyle.getTitleStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            child: Text(
+                              userModel.name,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Gap(6),
+                          Text(
+                            userModel.email,
+                            style: AppTextStyle.getbodyStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 14,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (userModel.phone != null &&
+                              userModel.phone!.isNotEmpty) ...[
+                            const Gap(4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  CupertinoIcons.phone_fill,
+                                  size: 14,
+                                  color: AppColors.primaryColor,
+                                ),
+                                const Gap(4),
+                                Flexible(
+                                  child: Text(
+                                    userModel.phone!,
+                                    style: AppTextStyle.getbodyStyle(
+                                      color: AppColors.secondaryText,
+                                      fontSize: 13,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const Gap(20),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildProfileContent(BuildContext context, final userModel) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Account Section
+          _buildSectionHeader('Account'),
+          const Gap(12),
+          _buildModernOptionCard([
+            _buildModernOptionItem(
+              icon: CupertinoIcons.person_crop_circle,
+              title: 'Edit Profile',
+              subtitle: 'Update your personal information',
+              color: AppColors.primaryColor,
+              onTap: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const EditProfileView()));
+              },
             ),
-          ),
-          const Gap(4),
-          Text(
-            userModel.email,
-            style: AppTextStyle.getbodyStyle(
-              color: AppColors.secondaryText,
+            _buildModernOptionItem(
+              icon: CupertinoIcons.creditcard_fill,
+              title: 'Payments',
+              subtitle: 'Manage payments and transactions',
+              color: Colors.green,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PaymentsScreen(),
+                  ),
+                );
+              },
             ),
-          ),
-          const Gap(16),
-          if (userModel.phone != null && userModel.phone!.isNotEmpty)
-            _buildInfoItem(CupertinoIcons.phone_fill, userModel.phone!),
+            _buildModernOptionItem(
+              icon: CupertinoIcons.ticket_fill,
+              title: 'My Passes',
+              subtitle: 'View your reservations and subscriptions',
+              color: Colors.orange,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PassesScreen(),
+                  ),
+                );
+              },
+            ),
+          ]),
+
+          const Gap(24),
+
+          // Social Section
+          _buildSectionHeader('Social'),
+          const Gap(12),
+          _buildModernOptionCard([
+            _buildModernOptionItem(
+              icon: CupertinoIcons.person_2_fill,
+              title: 'Family Members',
+              subtitle: 'Manage your family connections',
+              color: AppColors.primaryColor,
+              onTap: () {
+                try {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BlocProvider.value(
+                        value: BlocProvider.of<SocialBloc>(context),
+                        child: const FamilyView(),
+                      ),
+                    ),
+                  ).then((_) {
+                    context
+                        .read<AuthBloc>()
+                        .add(const CheckEmailVerificationStatus());
+                  });
+                } catch (e) {
+                  print("Error navigating to FamilyView: $e");
+                  showGlobalSnackBar(
+                      context, "Unable to access Family Members view",
+                      isError: true);
+                }
+              },
+            ),
+            _buildModernOptionItem(
+              icon: CupertinoIcons.person_3_fill,
+              title: 'Friends',
+              subtitle: 'Connect with other users',
+              color: AppColors.accentColor,
+              onTap: () {
+                try {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BlocProvider.value(
+                        value: BlocProvider.of<SocialBloc>(context),
+                        child: const FriendsView(),
+                      ),
+                    ),
+                  ).then((_) {
+                    context
+                        .read<AuthBloc>()
+                        .add(const CheckEmailVerificationStatus());
+                  });
+                } catch (e) {
+                  print("Error navigating to FriendsView: $e");
+                  showGlobalSnackBar(context, "Unable to access Friends view",
+                      isError: true);
+                }
+              },
+            ),
+          ]),
+
+          const Gap(24),
+
+          // Services Section
+          _buildSectionHeader('Services'),
+          const Gap(12),
+          _buildModernOptionCard([
+            _buildModernOptionItem(
+              icon: CupertinoIcons.list_number,
+              title: 'Queue Reservations',
+              subtitle: 'Join and manage virtual queues',
+              color: Colors.blue,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ReminderSettingsPage(),
+                  ),
+                );
+              },
+            ),
+            _buildModernOptionItem(
+              icon: CupertinoIcons.settings,
+              title: 'Settings',
+              subtitle: 'App preferences and notifications',
+              color: Colors.grey,
+              onTap: () {
+                showGlobalSnackBar(context, "Settings coming soon!");
+              },
+            ),
+            _buildModernOptionItem(
+              icon: CupertinoIcons.question_circle,
+              title: 'Help & Support',
+              subtitle: 'Get assistance with the app',
+              color: Colors.purple,
+              onTap: () {
+                showGlobalSnackBar(context, "Help & Support coming soon!");
+              },
+            ),
+          ]),
+
+          const Gap(40),
         ],
       ),
     );
+  }
 
-    // Options section
-    final optionsCard = Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: AppTextStyle.getTitleStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _buildModernOptionCard(List<Widget> children) {
+    return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            spreadRadius: 0,
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
-        children: [
-          _buildOptionItem(
-            CupertinoIcons.person_crop_circle,
-            'Edit Profile',
-            'Update your personal information',
-            () {
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const EditProfileView()));
-            },
-          ),
-          const Divider(height: 1),
-          _buildOptionItem(
-            CupertinoIcons.person_2_fill,
-            'Family Members',
-            'Manage your family connections',
-            () {
-              try {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BlocProvider.value(
-                      value: BlocProvider.of<SocialBloc>(context),
-                      child: const FamilyView(),
-                    ),
-                  ),
-                ).then((_) {
-                  // Refresh profile data when returning from family view
-                  context
-                      .read<AuthBloc>()
-                      .add(const CheckEmailVerificationStatus());
-                });
-              } catch (e) {
-                print("Error navigating to FamilyView: $e");
-                showGlobalSnackBar(
-                    context, "Unable to access Family Members view",
-                    isError: true);
-              }
-            },
-            icon: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                CupertinoIcons.person_2_fill,
-                color: AppColors.primaryColor,
-                size: 22,
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          _buildOptionItem(
-            CupertinoIcons.person_3_fill,
-            'Friends',
-            'Connect with other users',
-            () {
-              try {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BlocProvider.value(
-                      value: BlocProvider.of<SocialBloc>(context),
-                      child: const FriendsView(),
-                    ),
-                  ),
-                ).then((_) {
-                  // Refresh profile data when returning
-                  context
-                      .read<AuthBloc>()
-                      .add(const CheckEmailVerificationStatus());
-                });
-              } catch (e) {
-                print("Error navigating to FriendsView: $e");
-                showGlobalSnackBar(context, "Unable to access Friends view",
-                    isError: true);
-              }
-            },
-            icon: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.accentColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                CupertinoIcons.person_3_fill,
-                color: AppColors.accentColor,
-                size: 22,
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          _buildOptionItem(
-            CupertinoIcons.ticket_fill,
-            'My Passes',
-            'View your reservations and subscriptions',
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const PassesScreen(),
-                ),
-              );
-            },
-          ),
-          const Divider(height: 1),
-          _buildOptionItem(
-            CupertinoIcons.list_number,
-            'Queue Reservations',
-            'Join and manage virtual queues',
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ReminderSettingsPage(),
-                ),
-              );
-            },
-            icon: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                CupertinoIcons.list_number,
-                color: Colors.blue,
-                size: 22,
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          _buildOptionItem(
-            CupertinoIcons.settings,
-            'Settings',
-            'App preferences and notifications',
-            () {
-              // Will be implemented later
-              showGlobalSnackBar(context, "Settings coming soon!");
-            },
-          ),
-          const Divider(height: 1),
-          _buildOptionItem(
-            CupertinoIcons.question_circle,
-            'Help & Support',
-            'Get assistance with the app',
-            () {
-              // Will be implemented later
-              showGlobalSnackBar(context, "Help & Support coming soon!");
-            },
-          ),
-        ],
+        children: children,
       ),
-    );
-
-    // Logout section
-    final logoutButton = Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      child: ElevatedButton.icon(
-        onPressed: _handleLogout,
-        icon: const Icon(CupertinoIcons.square_arrow_left, size: 20),
-        label: const Text('Logout'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red.withOpacity(0.1),
-          foregroundColor: Colors.red,
-          elevation: 0,
-          minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      ),
-    );
-
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 20),
-      children: [
-        profileCard,
-        const Gap(16),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Account Options',
-            style: AppTextStyle.getTitleStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        const Gap(8),
-        optionsCard,
-        logoutButton,
-      ],
     );
   }
 
-  Widget _buildInfoItem(IconData icon, String text) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          size: 16,
-          color: AppColors.primaryColor,
-        ),
-        const Gap(8),
-        Text(
-          text,
-          style: AppTextStyle.getbodyStyle(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOptionItem(
-    IconData defaultIcon,
-    String title,
-    String subtitle,
-    VoidCallback onTap, {
-    Widget? icon,
+  Widget _buildModernOptionItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
   }) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      leading: icon ??
-          Icon(
-            defaultIcon,
-            color: AppColors.primaryColor,
-            size: 24,
-          ),
-      title: Text(
-        title,
-        style: AppTextStyle.getTitleStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: AppTextStyle.getSmallStyle(
-          color: AppColors.secondaryText,
-        ),
-      ),
-      trailing: const Icon(
-        CupertinoIcons.chevron_right,
-        color: AppColors.primaryColor,
-        size: 18,
-      ),
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 24,
+              ),
+            ),
+            const Gap(16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTextStyle.getTitleStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Gap(4),
+                  Text(
+                    subtitle,
+                    style: AppTextStyle.getSmallStyle(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              CupertinoIcons.chevron_right,
+              color: Colors.grey.shade400,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  /// Widget to display error message
   Widget _buildErrorDisplay(
       BuildContext context, ThemeData theme, String message,
       {bool showRetry = true}) {
@@ -989,7 +1680,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-} // End of _ProfileScreenState
+}
 
 /// Helper to build the placeholder image (can be moved to a shared file)
 Widget buildProfilePlaceholder(

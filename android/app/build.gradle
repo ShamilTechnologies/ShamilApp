@@ -39,21 +39,27 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+        // Enable core library desugaring
+        coreLibraryDesugaringEnabled true
     }
 
     // Set Kotlin JVM target
     kotlinOptions {
         jvmTarget = '1.8'
+        // Add Kotlin compiler options to handle compatibility issues
+        freeCompilerArgs += [
+            "-Xopt-in=kotlin.RequiresOptIn",
+            "-Xjvm-default=all"
+        ]
     }
 
     // Default configuration for all build types
     defaultConfig {
         applicationId "com.shamilTechnologies.shamil_mobile_app"
 
-        // *** Use Flutter's minSdkVersion and targetSdkVersion ***
-        // These values are defined in the root android/build.gradle's ext block
-        minSdkVersion 23     // Recommended: Set to 21 or 23 in root build.gradle
-        targetSdkVersion flutter.targetSdkVersion // Recommended: Set to 34 in root build.gradle
+        // *** Set explicit minSdkVersion for firebase_auth compatibility ***
+        minSdkVersion 23     // Required by firebase_auth
+        targetSdkVersion flutter.targetSdkVersion
 
         // *** Use standard Flutter versioning ***
         versionCode flutterVersionCode.toInteger()
@@ -96,6 +102,8 @@ flutter {
 // *** Standard dependencies block ***
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version" // Use kotlin_version defined in root build.gradle
+    // Core library desugaring dependency
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     // Add other app-specific dependencies here if needed
     // implementation 'androidx.multidex:multidex:2.0.1' // Required if multiDexEnabled is true and minSdkVersion < 21
 }

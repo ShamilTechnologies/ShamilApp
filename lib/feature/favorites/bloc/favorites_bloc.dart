@@ -2,9 +2,8 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
-import 'package:shamil_mobile_app/feature/favorites/repository/favorites_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
-import 'package:shamil_mobile_app/feature/favorites/repository/firebase_favorites_repository.dart';
+import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
 
 // Events
 abstract class FavoritesEvent extends Equatable {
@@ -75,12 +74,8 @@ class FavoritesLoading extends FavoritesState {
 
 class FavoritesLoaded extends FavoritesState {
   final List<ServiceProviderDisplayModel> favorites;
-
-  // For favorite status checks
   final String? checkedProviderId;
   final bool? isProviderFavorite;
-
-  // For operations in progress
   final String? operationInProgressId;
 
   const FavoritesLoaded({
@@ -90,12 +85,10 @@ class FavoritesLoaded extends FavoritesState {
     this.operationInProgressId,
   });
 
-  // Helper method to check if a provider is in favorites
   bool isProviderInFavorites(String providerId) {
     return favorites.any((provider) => provider.id == providerId);
   }
 
-  // Create a copy with updated operation status
   FavoritesLoaded copyWith({
     List<ServiceProviderDisplayModel>? favorites,
     String? checkedProviderId,
@@ -127,7 +120,7 @@ class FavoritesError extends FavoritesState {
   List<Object?> get props => [message];
 }
 
-// Add internal events at the end of the file
+// Internal events
 class _UpdateFavoritesFromStream extends FavoritesEvent {
   final List<ServiceProviderDisplayModel> favorites;
   const _UpdateFavoritesFromStream(this.favorites);
@@ -146,34 +139,26 @@ class _FavoritesStreamError extends FavoritesEvent {
 
 // Bloc
 class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
-  final FavoritesRepository _repository;
+  final FirebaseDataOrchestrator _dataOrchestrator;
   StreamSubscription? _favoritesSubscription;
 
-  // Create a factory constructor to initialize with the current user
-  factory FavoritesBloc.fromCurrentUser() {
-    final user = fb_auth.FirebaseAuth.instance.currentUser;
-    final userId = user?.uid ?? 'guest_placeholder';
-    return FavoritesBloc(FirebaseFavoritesRepository(userId: userId));
-  }
-
-  FavoritesBloc(this._repository) : super(FavoritesInitial()) {
+  FavoritesBloc({required FirebaseDataOrchestrator dataOrchestrator})
+      : _dataOrchestrator = dataOrchestrator,
+        super(FavoritesInitial()) {
     print('FavoritesBloc initialized');
     on<LoadFavorites>(_onLoadFavorites);
     on<AddToFavorites>(_onAddToFavorites);
     on<RemoveFromFavorites>(_onRemoveFromFavorites);
     on<CheckFavoriteStatus>(_onCheckFavoriteStatus);
     on<ToggleFavorite>(_onToggleFavorite);
-    // Register handlers for internal events
     on<_UpdateFavoritesFromStream>(_onUpdateFavoritesFromStream);
     on<_FavoritesStreamError>(_onFavoritesStreamError);
   }
 
-  // Helper method to check if user is logged in
   bool _isUserLoggedIn() {
-    return fb_auth.FirebaseAuth.instance.currentUser != null;
+    return _dataOrchestrator.isAuthenticated;
   }
 
-  // Helper method to check if a provider is in favorites
   bool isProviderFavorite(String providerId) {
     if (state is FavoritesLoaded) {
       return (state as FavoritesLoaded).isProviderInFavorites(providerId);
@@ -185,30 +170,20 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
       LoadFavorites event, Emitter<FavoritesState> emit) async {
     print('LoadFavorites event received');
 
-    // Check if user is logged in
     if (!_isUserLoggedIn()) {
       emit(const FavoritesError("User not logged in"));
       return;
     }
 
     try {
-      // Emit loading state first
       emit(const FavoritesLoading(isGlobalLoading: true));
 
-      // Cancel any existing subscription to avoid duplicate streams
       await _favoritesSubscription?.cancel();
 
-      // Get favorites directly first
-      final favorites = await _repository.getFavoritesList();
-
-      // Emit the loaded state with the initial data
-      emit(FavoritesLoaded(favorites: favorites));
-
-      // Set up the subscription for future updates
-      _favoritesSubscription = _repository.getFavorites().listen(
+      // Set up the subscription for real-time updates
+      _favoritesSubscription = _dataOrchestrator.getFavoritesStream().listen(
         (updatedFavorites) {
           print('Received ${updatedFavorites.length} favorites from stream');
-          // Use add instead of emit for stream updates
           if (!isClosed) {
             add(_UpdateFavoritesFromStream(updatedFavorites));
           }
@@ -229,7 +204,6 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
     }
   }
 
-  // Add handlers for internal events
   void _onUpdateFavoritesFromStream(
       _UpdateFavoritesFromStream event, Emitter<FavoritesState> emit) {
     emit(FavoritesLoaded(favorites: event.favorites));
@@ -237,7 +211,6 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
 
   void _onFavoritesStreamError(
       _FavoritesStreamError event, Emitter<FavoritesState> emit) {
-    // Don't emit error state if we already have data
     if (state is FavoritesLoaded) {
       print(
           'Favorites stream error, but keeping existing data: ${event.message}');
@@ -249,13 +222,11 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
   Future<void> _onAddToFavorites(
       AddToFavorites event, Emitter<FavoritesState> emit) async {
     try {
-      // Check if user is logged in
       if (!_isUserLoggedIn()) {
         emit(const FavoritesError("User not logged in"));
         return;
       }
 
-      // Prepare loading state with operation ID
       if (state is FavoritesLoaded) {
         emit((state as FavoritesLoaded).copyWith(
           operationInProgressId: event.provider.id,
@@ -267,16 +238,13 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
         ));
       }
 
-      // Add to favorites
-      await _repository.addToFavorites(event.provider);
+      await _dataOrchestrator.addToFavorites(event.provider.id);
 
-      // If we're still in loaded state, update immediately
       if (state is FavoritesLoaded) {
         final currentState = state as FavoritesLoaded;
         final updatedFavorites =
             List<ServiceProviderDisplayModel>.from(currentState.favorites);
 
-        // Only add if not already there
         if (!updatedFavorites.any((p) => p.id == event.provider.id)) {
           updatedFavorites.add(event.provider);
         }
@@ -296,13 +264,11 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
   Future<void> _onRemoveFromFavorites(
       RemoveFromFavorites event, Emitter<FavoritesState> emit) async {
     try {
-      // Check if user is logged in
       if (!_isUserLoggedIn()) {
         emit(const FavoritesError("User not logged in"));
         return;
       }
 
-      // Prepare loading state with operation ID
       if (state is FavoritesLoaded) {
         emit((state as FavoritesLoaded).copyWith(
           operationInProgressId: event.providerId,
@@ -314,10 +280,8 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
         ));
       }
 
-      // Remove from favorites
-      await _repository.removeFromFavorites(event.providerId);
+      await _dataOrchestrator.removeFromFavorites(event.providerId);
 
-      // Update state immediately
       if (state is FavoritesLoaded) {
         final currentState = state as FavoritesLoaded;
         final updatedFavorites = currentState.favorites
@@ -339,7 +303,12 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
   Future<void> _onCheckFavoriteStatus(
       CheckFavoriteStatus event, Emitter<FavoritesState> emit) async {
     try {
-      // If we already have favorites loaded, just check the list
+      if (!_isUserLoggedIn()) {
+        emit(const FavoritesError("User not logged in"));
+        return;
+      }
+
+      // For now, just check the current state
       if (state is FavoritesLoaded) {
         final currentState = state as FavoritesLoaded;
         final isFavorite = currentState.isProviderInFavorites(event.providerId);
@@ -348,69 +317,23 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
           checkedProviderId: event.providerId,
           isProviderFavorite: isFavorite,
         ));
-        return;
-      }
-
-      // Otherwise check from the repository directly
-      if (_isUserLoggedIn()) {
-        bool isFavorite = false;
-        try {
-          isFavorite = await _repository.isFavorite(event.providerId);
-        } catch (e) {
-          print('Error in isFavorite check: $e');
-          // Default to false on error
-          isFavorite = false;
-        }
-
-        if (state is FavoritesLoaded) {
-          // If state changed while we were checking
-          final currentState = state as FavoritesLoaded;
-          emit(currentState.copyWith(
-            checkedProviderId: event.providerId,
-            isProviderFavorite: isFavorite,
-          ));
-        } else {
-          // Create a new loaded state with just this info
-          emit(FavoritesLoaded(
-            favorites: const [],
-            checkedProviderId: event.providerId,
-            isProviderFavorite: isFavorite,
-          ));
-        }
-      } else {
-        // Always emit a valid state even when user isn't logged in
-        emit(FavoritesLoaded(
-          favorites: const [],
-          checkedProviderId: event.providerId,
-          isProviderFavorite: false,
-        ));
       }
     } catch (e) {
       print('Error checking favorite status: $e');
-      // Don't emit error - just return a valid result with false
-      if (state is FavoritesLoaded) {
-        final currentState = state as FavoritesLoaded;
-        emit(currentState.copyWith(
-          checkedProviderId: event.providerId,
-          isProviderFavorite: false,
-        ));
-      } else {
-        emit(FavoritesLoaded(
-          favorites: const [],
-          checkedProviderId: event.providerId,
-          isProviderFavorite: false,
-        ));
-      }
+      emit(FavoritesError(e.toString()));
     }
   }
 
   Future<void> _onToggleFavorite(
       ToggleFavorite event, Emitter<FavoritesState> emit) async {
     try {
-      // Check current favorite status
-      final bool isFavorite = isProviderFavorite(event.provider.id);
+      if (!_isUserLoggedIn()) {
+        emit(const FavoritesError("User not logged in"));
+        return;
+      }
 
-      // Add or remove based on current status
+      final isFavorite = isProviderFavorite(event.provider.id);
+
       if (isFavorite) {
         add(RemoveFromFavorites(event.provider.id));
       } else {
@@ -423,8 +346,8 @@ class FavoritesBloc extends Bloc<FavoritesEvent, FavoritesState> {
   }
 
   @override
-  Future<void> close() async {
-    await _favoritesSubscription?.cancel();
+  Future<void> close() {
+    _favoritesSubscription?.cancel();
     return super.close();
   }
 }

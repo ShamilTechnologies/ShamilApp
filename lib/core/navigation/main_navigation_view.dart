@@ -14,6 +14,7 @@ import 'package:shamil_mobile_app/feature/favorites/views/favorites_screen.dart'
 import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
 import 'package:shamil_mobile_app/feature/passes/bloc/my_passes_bloc.dart';
 import 'package:shamil_mobile_app/feature/passes/view/passes_screen.dart';
+
 import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart'; // Import Notifier
 import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 

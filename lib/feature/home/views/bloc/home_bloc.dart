@@ -18,11 +18,14 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_display_mod
 // Assuming this file exists in your project structure:
 // import 'package:shamil_mobile_app/core/constants/business_categories.dart';
 
+// Import the data orchestrator
+import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
+
 part 'home_event.dart'; // Defines HomeEvent and its subclasses
 part 'home_state.dart'; // Defines HomeState and its subclasses (HomeInitial, HomeLoading, HomeDataLoaded, HomeError)
 
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseDataOrchestrator _dataOrchestrator;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static const String _bannersCollection = 'banners';
@@ -33,7 +36,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   static const String _defaultCity = 'Cairo'; // Default city
   static const String _cityPrefKey = 'selectedCity';
 
-  HomeBloc() : super(HomeInitial()) {
+  HomeBloc({required FirebaseDataOrchestrator dataOrchestrator})
+      : _dataOrchestrator = dataOrchestrator,
+        super(HomeInitial()) {
     on<LoadHomeData>(_onLoadHomeData);
     on<UpdateCityManually>(_onUpdateCityManually);
     on<FilterByCategory>(_onFilterByCategory);
@@ -188,37 +193,68 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         "HomeBloc: Loading home data for city: $cityToLoad. IsRefresh: ${event.isRefresh}, ShowFullScreenShimmer: $showFullScreenShimmer");
 
     try {
-      // Fetch data concurrently
-      final results = await Future.wait([
-        _fetchAllBanners(),
-        _fetchNearbyServiceProviders(cityToLoad),
-        // Potentially fetch other lists like popular, recommended here if needed on initial load
-      ]);
+      // Check available cities for debugging
+      final availableCities = await _dataOrchestrator.getAvailableCities();
+      print("HomeBloc: Available cities in database: $availableCities");
 
-      final List<BannerModel> banners = results[0] as List<BannerModel>;
-      final List<ServiceProviderDisplayModel> nearbyPlaces =
-          results[1] as List<ServiceProviderDisplayModel>;
+      if (availableCities.isNotEmpty && !availableCities.contains(cityToLoad)) {
+        print(
+            "HomeBloc: City '$cityToLoad' not found in database. Available cities: $availableCities");
+        print(
+            "HomeBloc: Consider using one of these cities: ${availableCities.take(3).join(', ')}");
 
-      // Construct the HomeData object
+        // Try to find a smart match for the chosen location
+        final bestMatch =
+            await _dataOrchestrator.findBestLocationMatch(cityToLoad);
+        if (bestMatch != null) {
+          print("HomeBloc: Found best match for '$cityToLoad': '$bestMatch'");
+          cityToLoad = bestMatch;
+          await _storeSelectedCity(cityToLoad);
+        } else if (!event.isRefresh && availableCities.isNotEmpty) {
+          // If no match found and this is an initial load, use the first available city
+          print(
+              "HomeBloc: No match found. Auto-switching to available city: ${availableCities.first}");
+          cityToLoad = availableCities.first;
+          await _storeSelectedCity(cityToLoad);
+        }
+      }
+
+      // Use the data orchestrator to fetch service providers
+      final nearbyPlaces = await _dataOrchestrator.getServiceProviders(
+        city: cityToLoad,
+        limit: 20,
+      );
+
+      // Fetch banners
+      final banners = await _dataOrchestrator.getBanners();
+
       final homeData = HomeData(
         banners: banners,
         nearbyPlaces: nearbyPlaces,
-        // Initialize other lists as empty or fetch them if required
-        popularPlaces: const [], // Placeholder, could be fetched
-        recommendedPlaces: const [], // Placeholder, could be fetched
-        specialOffers: const [], // Placeholder, could be fetched
-        searchResults: const [], // Search results are initially empty
-        categoryFilteredResults: const [], // Filtered results are initially empty
+        popularPlaces: [], // Will be implemented later
+        recommendedPlaces: [], // Will be implemented later
       );
 
-      emit(HomeDataLoaded(homeData: homeData, selectedCity: cityToLoad));
-      print("HomeBloc: Home data loaded successfully for $cityToLoad.");
-    } catch (e, s) {
-      print("HomeBloc: Error loading home data: $e\n$s");
+      // Check if we have providers for the selected location
+      if (nearbyPlaces.isEmpty && availableCities.isNotEmpty) {
+        print(
+            "HomeBloc: No providers found for '$cityToLoad'. Available cities: $availableCities");
+      }
+
+      emit(HomeDataLoaded(
+        homeData: homeData,
+        selectedCity: cityToLoad,
+        filteredByCategory: null,
+        selectedSubCategory: null,
+        searchQuery: null,
+      ));
+    } catch (e) {
+      print("HomeBloc: Error loading home data: $e");
       emit(HomeError(
-          message: "Failed to load data: ${e.toString()}",
-          isInitialError: showFullScreenShimmer,
-          previousState: previousStateData));
+        message: "Failed to load home data: ${e.toString()}",
+        isInitialError: showFullScreenShimmer,
+        previousState: previousStateData,
+      ));
     }
   }
 
@@ -265,11 +301,15 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       final List<ServiceProviderDisplayModel> filteredProviders;
       if (isClearingFilter) {
         // If clearing filter, fetch default "nearby" providers for the current city
-        filteredProviders = await _fetchNearbyServiceProviders(city);
+        filteredProviders = await _dataOrchestrator.getServiceProviders(
+          city: city,
+          limit: 20,
+        );
       } else {
         // Fetch by specific main category
-        filteredProviders = await _fetchServiceProvidersByCategory(
-            categoryToFilter, city, null); // subCategory is null
+        filteredProviders =
+            await _dataOrchestrator.getServiceProvidersByCategory(
+                categoryToFilter, city, null); // subCategory is null
       }
 
       // Use copyWith on existing homeData if available, otherwise create new
@@ -284,8 +324,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           ) ??
           HomeData(
             // Fallback if currentHomeData was null (e.g., error state previously)
-            banners:
-                await _fetchAllBanners(), // Re-fetch banners if no current data
+            banners: await _dataOrchestrator
+                .getBanners(), // Re-fetch banners if no current data
             nearbyPlaces: filteredProviders,
             categoryFilteredResults: filteredProviders,
           );
@@ -342,7 +382,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
     try {
       // Fetch providers filtered by main category AND sub-category (if not "All")
-      final filteredProviders = await _fetchServiceProvidersByCategory(
+      final filteredProviders =
+          await _dataOrchestrator.getServiceProvidersByCategory(
         mainCategory,
         city,
         isSelectingAllSub
@@ -399,10 +440,13 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       final List<ServiceProviderDisplayModel> searchResults;
       if (event.query.trim().isEmpty) {
         // If search query is empty, show nearby places (or clear results based on UX)
-        searchResults = await _fetchNearbyServiceProviders(city);
+        searchResults = await _dataOrchestrator.getServiceProviders(
+          city: city,
+          limit: 20,
+        );
       } else {
         // Perform search query
-        searchResults = await _fetchServiceProvidersByQuery(
+        searchResults = await _dataOrchestrator.getServiceProvidersByQuery(
             query: event.query, city: city, category: null, subCategory: null);
       }
 
@@ -417,7 +461,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           ) ??
           HomeData(
             // Fallback
-            banners: currentHomeData?.banners ?? await _fetchAllBanners(),
+            banners: currentHomeData?.banners ??
+                await _dataOrchestrator.getBanners(),
             nearbyPlaces: searchResults, // If query empty, these are nearby
             searchResults: searchResults,
           );
@@ -467,16 +512,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
     try {
       // Update Firestore
-      final favoriteDocRef = _firestore
-          .collection(_usersCollection)
-          .doc(userId)
-          .collection(_favoritesSubCollection)
-          .doc(event.providerId);
-      if (newFavoriteStatus) {
-        await favoriteDocRef.set({'addedAt': FieldValue.serverTimestamp()});
-      } else {
-        await favoriteDocRef.delete();
-      }
+      await _dataOrchestrator.toggleFavorite(
+          userId, event.providerId, newFavoriteStatus);
       print("HomeBloc: Favorite status updated in Firestore.");
 
       // Update local state immutably
@@ -513,190 +550,5 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           isInitialError: false,
           previousState: currentState));
     }
-  }
-
-  // --- Helper Data Fetching Methods ---
-
-  /// Fetches all active banners, ordered by priority.
-  Future<List<BannerModel>> _fetchAllBanners() async {
-    try {
-      final snapshot = await _firestore
-          .collection(_bannersCollection)
-          .where('isActive', isEqualTo: true)
-          .orderBy('priority', descending: true)
-          .get();
-      return snapshot.docs
-          .map((doc) => BannerModel.fromFirestore(doc))
-          .toList();
-    } catch (e) {
-      print("Error fetching banners: $e");
-      return []; // Return empty list on error
-    }
-  }
-
-  /// Fetches nearby service providers for a given city.
-  Future<List<ServiceProviderDisplayModel>> _fetchNearbyServiceProviders(
-      String city,
-      {int limit = 10}) async {
-    print("Fetching nearby providers for city: $city");
-    try {
-      final snapshot = await _firestore
-          .collection(_serviceProvidersCollection)
-          .where('isActive', isEqualTo: true)
-          .where('isApproved', isEqualTo: true)
-          .where('address.city',
-              isEqualTo: city) // Assumes 'address' is a map with a 'city' field
-          .limit(limit)
-          .get();
-      return _mapDocsToDisplayModel(snapshot.docs);
-    } catch (e) {
-      print("Error fetching nearby service providers for $city: $e");
-      return [];
-    }
-  }
-
-  /// Fetches service providers by main category and optionally by sub-category for a given city.
-  /// Requires Firestore indexes for optimal performance (e.g., businessCategory_asc, address.city_asc, subCategory_asc).
-  Future<List<ServiceProviderDisplayModel>> _fetchServiceProvidersByCategory(
-      String category, String city, String? subCategory,
-      {int limit = 20}) async {
-    print(
-        "Fetching providers for Category: '$category'${subCategory != null ? ", SubCategory: '$subCategory'" : ""} in City: '$city'");
-    try {
-      Query query = _firestore
-          .collection(_serviceProvidersCollection)
-          .where('isActive', isEqualTo: true)
-          .where('isApproved', isEqualTo: true)
-          .where('businessCategory',
-              isEqualTo: category) // Field for main category
-          .where('address.city', isEqualTo: city);
-
-      // Add subCategory filter if provided and not "all"
-      if (subCategory != null &&
-          subCategory.isNotEmpty &&
-          subCategory.toLowerCase() != "all") {
-        // *** ASSUMPTION: Your Firestore documents have a 'subCategory' field for sub-category filtering ***
-        // This requires a composite index on (businessCategory, address.city, subCategory)
-        query = query.where('subCategory', isEqualTo: subCategory);
-        print("Applying subCategory filter: '$subCategory'");
-      }
-
-      final snapshot = await query.limit(limit).get();
-      return _mapDocsToDisplayModel(snapshot.docs);
-    } catch (e) {
-      print("Error fetching providers by category/subCategory: $e");
-      if (e is FirebaseException && e.code == 'failed-precondition') {
-        print(
-            "Firestore index missing for category/sub-category query. Ensure an index exists for fields: businessCategory, address.city, and subCategory (if used).");
-      }
-      return [];
-    }
-  }
-
-  /// Fetches service providers based on a search query, city, and optional category/sub-category filters.
-  /// Uses 'searchKeywords' (array-contains) for text search.
-  /// Requires appropriate Firestore indexes.
-  Future<List<ServiceProviderDisplayModel>> _fetchServiceProvidersByQuery(
-      {required String query,
-      required String city,
-      String? category, // Optional: to search within a category
-      String? subCategory, // Optional: to search within a sub-category
-      int limit = 20,
-      bool popular = false, // Flag for popular (e.g., sort by ratingCount)
-      bool recommended =
-          false // Flag for recommended (e.g., where isFeatured == true)
-      }) async {
-    // If query is empty and not fetching popular/recommended, return empty or default list
-    if (query.isEmpty && !popular && !recommended) return [];
-
-    print(
-        "Fetching providers for query: '$query', city: '$city'${category != null ? ", category: '$category'" : ""}${subCategory != null ? ", subCategory: '$subCategory'" : ""}, popular: $popular, recommended: $recommended");
-    try {
-      Query firestoreQuery = _firestore
-          .collection(_serviceProvidersCollection)
-          .where('isActive', isEqualTo: true)
-          .where('isApproved', isEqualTo: true)
-          .where('address.city', isEqualTo: city);
-
-      // Apply category filters if provided
-      if (category != null && category.isNotEmpty) {
-        firestoreQuery =
-            firestoreQuery.where('businessCategory', isEqualTo: category);
-        if (subCategory != null &&
-            subCategory.isNotEmpty &&
-            subCategory.toLowerCase() != "all") {
-          // Requires composite index including businessCategory, address.city, subCategory
-          firestoreQuery =
-              firestoreQuery.where('subCategory', isEqualTo: subCategory);
-        }
-      }
-
-      // Apply search query using array-contains on a 'searchKeywords' field
-      // This field should be an array of lowercase strings in your Firestore documents.
-      if (query.isNotEmpty) {
-        // Requires a composite index that includes any category/subCategory filters and 'searchKeywords'
-        firestoreQuery = firestoreQuery.where('searchKeywords',
-            arrayContains: query.toLowerCase().trim());
-      }
-
-      // Ordering (apply AFTER filtering)
-      // Note: Firestore has limitations on ordering after inequality/array-contains filters.
-      // You might need specific composite indexes for each ordering scenario.
-      if (popular) {
-        // Example: Order by rating count. Ensure 'ratingCount' field exists.
-        // Requires an index that includes all prior filters and 'ratingCount'.
-        firestoreQuery =
-            firestoreQuery.orderBy('ratingCount', descending: true);
-      } else if (recommended) {
-        // Example: Filter by 'isFeatured' and order.
-        // Requires an index that includes all prior filters, 'isFeatured', and the orderBy field.
-        firestoreQuery = firestoreQuery.where('isFeatured', isEqualTo: true);
-        // firestoreQuery = firestoreQuery.orderBy('someOtherFieldForRecommended', descending: true); // if needed
-      } else if (query.isEmpty && category == null && subCategory == null) {
-        // Default sort if no query/filter/special order? Maybe by name or creation date.
-        // firestoreQuery = firestoreQuery.orderBy('businessName');
-      }
-
-      final snapshot = await firestoreQuery.limit(limit).get();
-      return _mapDocsToDisplayModel(snapshot.docs);
-    } catch (e) {
-      print("Error fetching providers by query/type for city $city: $e");
-      if (e is FirebaseException && e.code == 'failed-precondition') {
-        print(
-            "Firestore index missing for search query. Check composite indexes involving filters, searchKeywords, and any orderBy clauses.");
-      }
-      return [];
-    }
-  }
-
-  /// Maps Firestore document snapshots to [ServiceProviderDisplayModel] list,
-  /// checking and setting the favorite status for each provider for the current user.
-  Future<List<ServiceProviderDisplayModel>> _mapDocsToDisplayModel(
-      List<QueryDocumentSnapshot> docs) async {
-    final currentUserId = _userId; // Cache userId
-    if (docs.isEmpty) return [];
-
-    Set<String> favoriteIds = {};
-    if (currentUserId != null) {
-      // Fetch all favorites for the user in one go to optimize reads
-      try {
-        final favoritesSnapshot = await _firestore
-            .collection(_usersCollection)
-            .doc(currentUserId)
-            .collection(_favoritesSubCollection)
-            .get();
-        favoriteIds = favoritesSnapshot.docs.map((doc) => doc.id).toSet();
-      } catch (e) {
-        print("HomeBloc: Error fetching user favorites: $e");
-        // Proceed without favorites if fetching fails, or handle error more explicitly
-      }
-    }
-
-    return docs.map((doc) {
-      final isFavorite = favoriteIds.contains(doc.id);
-      // TODO: Calculate distance if user's current Position is available and passed to this method
-      return ServiceProviderDisplayModel.fromFirestore(doc,
-          isFavorite: isFavorite, distanceInKm: null);
-    }).toList();
   }
 }

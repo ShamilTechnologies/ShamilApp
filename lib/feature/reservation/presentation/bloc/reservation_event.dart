@@ -179,3 +179,17 @@ class UpdateCostSplitSettings extends ReservationEvent {
   @override
   List<Object?> get props => [enabled, splitMethod, customSplitRatio];
 }
+
+/// Event to initiate payment for a reservation
+class InitiateReservationPayment extends ReservationEvent {
+  final ReservationModel reservation;
+  final ServiceProviderModel provider;
+
+  const InitiateReservationPayment({
+    required this.reservation,
+    required this.provider,
+  });
+
+  @override
+  List<Object?> get props => [reservation, provider];
+}
