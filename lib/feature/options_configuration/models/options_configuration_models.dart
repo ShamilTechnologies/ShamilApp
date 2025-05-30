@@ -105,14 +105,48 @@ class AttendeeConfig extends Equatable {
 
   // Create from a Friend
   factory AttendeeConfig.fromFriend(dynamic friend) {
+    // Handle both Map<String, dynamic> (from Firestore) and friend objects
+    String userId = '';
+    String name = 'Unknown';
+    String? profilePictureUrl;
+
+    if (friend is Map<String, dynamic>) {
+      // Handle Map from Firestore
+      userId = friend['userId'] as String? ??
+          friend['id'] as String? ??
+          friend['friendId'] as String? ??
+          '';
+      name = friend['name'] as String? ??
+          friend['displayName'] as String? ??
+          friend['userName'] as String? ??
+          'Unknown';
+      profilePictureUrl = friend['profilePicUrl'] as String? ??
+          friend['profilePictureUrl'] as String? ??
+          friend['avatar'] as String?;
+    } else {
+      // Handle friend object with properties
+      try {
+        userId = friend.userId?.toString() ?? friend.id?.toString() ?? '';
+        name = friend.name?.toString() ??
+            friend.displayName?.toString() ??
+            'Unknown';
+        profilePictureUrl = friend.profilePicUrl?.toString() ??
+            friend.profilePictureUrl?.toString();
+      } catch (e) {
+        // Fallback if properties don't exist
+        userId = '';
+        name = friend?.toString() ?? 'Unknown Friend';
+        profilePictureUrl = null;
+      }
+    }
+
     return AttendeeConfig(
-      id: friend.userId,
-      name: friend.name,
+      id: userId,
+      name: name,
       type: AttendeeType.friend,
-      profilePictureUrl: friend.profilePicUrl,
+      profilePictureUrl: profilePictureUrl,
       paymentStatus: PaymentStatus.pending,
-      amountOwed: 0.0, // Will be calculated later
-      userId: friend.userId,
+      amountOwed: 0.0,
     );
   }
 

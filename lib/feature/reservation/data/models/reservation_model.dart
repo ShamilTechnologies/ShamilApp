@@ -47,15 +47,22 @@ class QueueStatus extends Equatable {
   });
 
   factory QueueStatus.fromMap(Map<String, dynamic> map) {
+    // Helper function to safely convert timestamps
+    DateTime _safeDateTime(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is Timestamp) return value.toDate();
+      if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+      if (value is num)
+        return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+      if (value is DateTime) return value;
+      return DateTime.now();
+    }
+
     return QueueStatus(
       id: map['id'] as String? ?? '',
       position: map['position'] as int? ?? 0,
       status: map['status'] as String? ?? 'waiting',
-      estimatedEntryTime: (map['estimatedEntryTime'] is Timestamp)
-          ? (map['estimatedEntryTime'] as Timestamp).toDate()
-          : (map['estimatedEntryTime'] is DateTime)
-              ? map['estimatedEntryTime'] as DateTime
-              : DateTime.now(),
+      estimatedEntryTime: _safeDateTime(map['estimatedEntryTime']),
       peopleAhead: map['peopleAhead'] as int? ?? 0,
     );
   }
@@ -424,6 +431,16 @@ class ReservationModel extends Equatable {
   factory ReservationModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
+    // Helper function to safely convert timestamps from Firestore data
+    Timestamp? _safeTimestamp(dynamic value) {
+      if (value == null) return null;
+      if (value is Timestamp) return value;
+      if (value is int) return Timestamp.fromMillisecondsSinceEpoch(value);
+      if (value is num)
+        return Timestamp.fromMillisecondsSinceEpoch(value.toInt());
+      return null;
+    }
+
     // Parse attendees using the updated AttendeeModel.fromMap
     final List<AttendeeModel> parsedAttendees = (data['attendees'] as List?)
             ?.map((attendeeData) {
@@ -471,20 +488,20 @@ class ReservationModel extends Equatable {
       serviceId: data['serviceId'] as String?,
       serviceName: data['serviceName'] as String?,
       durationMinutes: (data['durationMinutes'] as num?)?.toInt(),
-      // Handle legacy 'dateTime' field if 'reservationStartTime' is missing
-      reservationStartTime: data['reservationStartTime'] as Timestamp? ??
-          data['dateTime'] as Timestamp?,
-      endTime: data['endTime'] as Timestamp?,
+      // Handle legacy 'dateTime' field if 'reservationStartTime' is missing - use safe timestamp conversion
+      reservationStartTime: _safeTimestamp(data['reservationStartTime']) ??
+          _safeTimestamp(data['dateTime']),
+      endTime: _safeTimestamp(data['endTime']),
       status: reservationStatusFromString(data['status'] as String?),
       paymentStatus: data['paymentStatus'] as String?, // Kept based on snippet
       paymentDetails: data['paymentDetails'] as Map<String, dynamic>?,
       notes: data['notes'] as String?,
       typeSpecificData: data['typeSpecificData'] as Map<String, dynamic>?,
       queuePosition: (data['queuePosition'] as num?)?.toInt(),
-      estimatedEntryTime: data['estimatedEntryTime'] as Timestamp?,
-      createdAt: data['createdAt'] as Timestamp? ??
+      estimatedEntryTime: _safeTimestamp(data['estimatedEntryTime']),
+      createdAt: _safeTimestamp(data['createdAt']) ??
           Timestamp.now(), // Fallback needed?
-      updatedAt: data['updatedAt'] as Timestamp?,
+      updatedAt: _safeTimestamp(data['updatedAt']),
       attendees: parsedAttendees,
       reservationCode: data['reservationCode'] as String?,
       totalPrice: (data['totalPrice'] as num?)?.toDouble(),
@@ -526,8 +543,8 @@ class ReservationModel extends Equatable {
       if (serviceName != null) 'serviceName': serviceName,
       if (durationMinutes != null) 'durationMinutes': durationMinutes,
       if (reservationStartTime != null)
-        'reservationStartTime': reservationStartTime,
-      if (endTime != null) 'endTime': endTime,
+        'reservationStartTime': reservationStartTime!.millisecondsSinceEpoch,
+      if (endTime != null) 'endTime': endTime!.millisecondsSinceEpoch,
       'status': status.statusString, // Use string representation
       if (paymentStatus != null)
         'paymentStatus': paymentStatus, // Kept based on snippet
@@ -535,7 +552,8 @@ class ReservationModel extends Equatable {
       if (notes != null) 'notes': notes,
       if (typeSpecificData != null) 'typeSpecificData': typeSpecificData,
       if (queuePosition != null) 'queuePosition': queuePosition,
-      if (estimatedEntryTime != null) 'estimatedEntryTime': estimatedEntryTime,
+      if (estimatedEntryTime != null)
+        'estimatedEntryTime': estimatedEntryTime!.millisecondsSinceEpoch,
       'attendees': attendeesMapList,
       if (reservationCode != null) 'reservationCode': reservationCode,
       if (totalPrice != null) 'totalPrice': totalPrice,
@@ -549,7 +567,15 @@ class ReservationModel extends Equatable {
       if (costSplitDetails != null) 'costSplitDetails': costSplitDetails,
       // Include joinRequests only if not null (usually starts null/empty)
       if (joinRequests != null) 'joinRequests': joinRequests,
-      if (queueStatus != null) 'queueStatus': queueStatus!.toMap(),
+      if (queueStatus != null)
+        'queueStatus': {
+          'id': queueStatus!.id,
+          'position': queueStatus!.position,
+          'status': queueStatus!.status,
+          'estimatedEntryTime':
+              queueStatus!.estimatedEntryTime.millisecondsSinceEpoch,
+          'peopleAhead': queueStatus!.peopleAhead,
+        },
       'queueBased': queueBased,
       // Let repository/backend handle server timestamps
       // 'createdAt': FieldValue.serverTimestamp(),

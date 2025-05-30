@@ -40,6 +40,10 @@ class OptionsConfigurationState extends Equatable {
   final bool shareWithAttendees;
   final List<String>? additionalEmails;
 
+  // User self-inclusion in booking
+  final bool includeUserInBooking;
+  final bool payForAllAttendees;
+
   final double basePrice;
   final double addOnsPrice;
   final double totalPrice;
@@ -71,6 +75,8 @@ class OptionsConfigurationState extends Equatable {
     this.enableSharing = true, // Default to enabled
     this.shareWithAttendees = true, // Default to share with attendees
     this.additionalEmails,
+    this.includeUserInBooking = false,
+    this.payForAllAttendees = false,
     this.basePrice = 0.0,
     this.addOnsPrice = 0.0,
     this.totalPrice = 0.0,
@@ -84,6 +90,127 @@ class OptionsConfigurationState extends Equatable {
 
   String get itemName => originalPlan?.name ?? originalService?.name ?? 'Item';
   String get itemId => originalPlan?.id ?? originalService?.id ?? '';
+
+  // Validation getters for step completion
+  bool get isDateTimeStepComplete {
+    if (optionsDefinition?['allowDateSelection'] == true &&
+        selectedDate == null) {
+      return false;
+    }
+    if (optionsDefinition?['allowTimeSelection'] == true &&
+        (selectedTime == null || selectedTime!.isEmpty)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool get isAttendeesStepComplete {
+    // At least one person should be attending (user or attendees)
+    if (!includeUserInBooking && selectedAttendees.isEmpty) {
+      return false;
+    }
+    return true;
+  }
+
+  bool get isPaymentDataValid {
+    // Check if payment amount is valid
+    if (totalPrice <= 0) {
+      return false;
+    }
+
+    // Check if attendee configuration is consistent
+    if (includeUserInBooking || selectedAttendees.isNotEmpty) {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool get canProceedToPayment {
+    return isDateTimeStepComplete &&
+        isAttendeesStepComplete &&
+        isPaymentDataValid;
+  }
+
+  // Enhanced validation for payment-confirmed scenarios
+  bool get canConfirmWithPayment {
+    // More lenient validation when payment is already processed
+    return isAttendeesStepComplete && // At least someone attending
+        totalPrice > 0; // Valid payment amount
+  }
+
+  // Detailed validation messages
+  List<String> get validationErrors {
+    final errors = <String>[];
+
+    // Date/Time validation
+    if (optionsDefinition?['allowDateSelection'] == true &&
+        selectedDate == null) {
+      errors.add('Please select a booking date');
+    }
+    if (optionsDefinition?['allowTimeSelection'] == true &&
+        (selectedTime == null || selectedTime!.isEmpty)) {
+      errors.add('Please select a booking time');
+    }
+
+    // Attendees validation
+    if (!includeUserInBooking && selectedAttendees.isEmpty) {
+      errors.add(
+          'At least one person must attend (include yourself or invite others)');
+    }
+
+    // Payment validation
+    if (totalPrice <= 0) {
+      errors.add('Invalid payment amount calculated');
+    }
+
+    return errors;
+  }
+
+  // Step-specific validation
+  bool isStepValid(int stepIndex) {
+    switch (stepIndex) {
+      case 0: // Details/Date/Time step
+        return isDateTimeStepComplete;
+      case 1: // Attendees/Configuration step
+        return isAttendeesStepComplete;
+      case 2: // Payment step
+        return canProceedToPayment;
+      default:
+        return false;
+    }
+  }
+
+  String? getStepValidationMessage(int stepIndex) {
+    switch (stepIndex) {
+      case 0:
+        if (!isDateTimeStepComplete) {
+          if (optionsDefinition?['allowDateSelection'] == true &&
+              selectedDate == null) {
+            return 'Please select a booking date';
+          }
+          if (optionsDefinition?['allowTimeSelection'] == true &&
+              (selectedTime == null || selectedTime!.isEmpty)) {
+            return 'Please select a booking time';
+          }
+        }
+        return null;
+      case 1:
+        if (!isAttendeesStepComplete) {
+          return 'Please ensure at least one person is attending';
+        }
+        return null;
+      case 2:
+        if (!canProceedToPayment) {
+          return validationErrors.isNotEmpty
+              ? validationErrors.first
+              : 'Complete all required fields';
+        }
+        return null;
+      default:
+        return null;
+    }
+  }
 
   OptionsConfigurationState copyWith({
     String? providerId,
@@ -108,6 +235,8 @@ class OptionsConfigurationState extends Equatable {
     bool? enableSharing,
     bool? shareWithAttendees,
     List<String>? additionalEmails,
+    bool? includeUserInBooking,
+    bool? payForAllAttendees,
     double? basePrice,
     double? addOnsPrice,
     double? totalPrice,
@@ -140,6 +269,8 @@ class OptionsConfigurationState extends Equatable {
       enableSharing: enableSharing ?? this.enableSharing,
       shareWithAttendees: shareWithAttendees ?? this.shareWithAttendees,
       additionalEmails: additionalEmails ?? this.additionalEmails,
+      includeUserInBooking: includeUserInBooking ?? this.includeUserInBooking,
+      payForAllAttendees: payForAllAttendees ?? this.payForAllAttendees,
       basePrice: basePrice ?? this.basePrice,
       addOnsPrice: addOnsPrice ?? this.addOnsPrice,
       totalPrice: totalPrice ?? this.totalPrice,
@@ -175,6 +306,8 @@ class OptionsConfigurationState extends Equatable {
         enableSharing,
         shareWithAttendees,
         additionalEmails,
+        includeUserInBooking,
+        payForAllAttendees,
         basePrice,
         addOnsPrice,
         totalPrice,

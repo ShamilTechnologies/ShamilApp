@@ -15,10 +15,8 @@ abstract class OptionsConfigurationRepository {
   /// Fetch existing reservations for a provider
   Future<List<ReservationModel>> fetchProviderReservations(String providerId);
 
-  /// Submit a new reservation based on configuration options
-  Future<String> submitReservation(ReservationModel reservation);
-
   /// Submit a new subscription based on configuration options
+  /// Note: Reservations should use ReservationRepository instead
   Future<String> submitSubscription(SubscriptionModel subscription);
 
   /// Fetch the current user's friends
@@ -54,6 +52,9 @@ abstract class OptionsConfigurationRepository {
     required String htmlContent,
     required DateTime sendTime,
   });
+
+  /// Check if a time slot is available for a provider
+  Future<bool> isTimeSlotAvailable(String providerId, DateTime dateTime);
 }
 
 class FirebaseOptionsConfigurationRepository
@@ -119,48 +120,6 @@ class FirebaseOptionsConfigurationRepository
       return reservations;
     } catch (e) {
       throw Exception('Error fetching reservations: $e');
-    }
-  }
-
-  @override
-  Future<String> submitReservation(ReservationModel reservation) async {
-    try {
-      // Validate user is logged in
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        throw Exception('User must be logged in to submit a reservation');
-      }
-
-      // Create a new document directly in the user's reservations subcollection
-      final docRef = _firestore
-          .collection(FirestorePaths.endUsers())
-          .doc(currentUser.uid)
-          .collection('reservations')
-          .doc(); // Generate a new ID
-
-      // Add the reservation data
-      await docRef.set({
-        ...reservation.toMapForCreate(),
-        'id': docRef.id, // Set the document ID
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      // Also add the reservation to the service provider's pending reservations list
-      await _firestore
-          .collection(FirestorePaths.serviceProviders())
-          .doc(reservation.providerId)
-          .collection('pendingReservations')
-          .doc(docRef.id)
-          .set({
-        'reservationId': docRef.id,
-        'userId': currentUser.uid,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
-      return docRef.id;
-    } catch (e) {
-      throw Exception('Error submitting reservation: $e');
     }
   }
 
@@ -317,11 +276,15 @@ class FirebaseOptionsConfigurationRepository
   @override
   Future<Map<String, dynamic>?> getProviderDetails(String providerId) async {
     try {
-      final providerDoc =
-          await _firestore.collection('providers').doc(providerId).get();
-      if (providerDoc.exists) {
-        return providerDoc.data();
+      final doc = await _firestore
+          .collection('service_providers')
+          .doc(providerId)
+          .get();
+
+      if (doc.exists) {
+        return doc.data();
       }
+
       return null;
     } catch (e) {
       print('Error fetching provider details: $e');
@@ -332,17 +295,13 @@ class FirebaseOptionsConfigurationRepository
   @override
   Future<String?> getUserEmail(String userId) async {
     try {
-      // Try to get from Firestore user profile first
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data();
-        if (userData != null && userData['email'] != null) {
-          return userData['email'] as String;
-        }
+      final doc = await _firestore.collection('users').doc(userId).get();
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        return data['email'] as String?;
       }
 
-      // If not found in Firestore, try with Auth service
-      // Note: This requires admin SDK in production, which we're simplifying here
       return null;
     } catch (e) {
       print('Error fetching user email: $e');
@@ -356,20 +315,9 @@ class FirebaseOptionsConfigurationRepository
     required String subject,
     required String htmlContent,
   }) async {
-    try {
-      // In a real implementation, this would connect to a backend service
-      // or Firebase Functions to handle the email sending
-      print('Sending confirmation emails to: ${recipients.join(', ')}');
-      print('Subject: $subject');
-      print('HTML content length: ${htmlContent.length} characters');
-
-      // Mock successful email sending
-      await Future.delayed(const Duration(milliseconds: 500));
-      return;
-    } catch (e) {
-      print('Error sending confirmation emails: $e');
-      rethrow;
-    }
+    // Implementation depends on your email service
+    // For now, just log the action
+    print('Sending booking confirmation emails to: $recipients');
   }
 
   @override
@@ -379,27 +327,14 @@ class FirebaseOptionsConfigurationRepository
     required String htmlContent,
     required DateTime sendTime,
   }) async {
-    try {
-      // In a real implementation, this would store the reminder in Firestore
-      // and use a cloud function with pub/sub to handle the scheduling
-      print('Scheduling reminder email for: $recipient');
-      print('Subject: $subject');
-      print('Send time: $sendTime');
+    // Implementation depends on your scheduled email service
+    // For now, just log the action
+    print('Scheduling reminder email for $recipient at $sendTime');
+  }
 
-      // Store the reminder in Firestore
-      await _firestore.collection('scheduledReminders').add({
-        'recipient': recipient,
-        'subject': subject,
-        'htmlContent': htmlContent,
-        'sendTime': Timestamp.fromDate(sendTime),
-        'status': 'scheduled',
-        'createdAt': Timestamp.now(),
-      });
-
-      return;
-    } catch (e) {
-      print('Error scheduling reminder email: $e');
-      rethrow;
-    }
+  @override
+  Future<bool> isTimeSlotAvailable(String providerId, DateTime dateTime) async {
+    // Implementation needed
+    throw UnimplementedError();
   }
 }

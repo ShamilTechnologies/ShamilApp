@@ -253,10 +253,42 @@ class UpdateSharingSettings extends OptionsConfigurationEvent {
 }
 
 class ConfirmConfiguration extends OptionsConfigurationEvent {
-  const ConfirmConfiguration();
+  final bool? paymentSuccessful;
+
+  const ConfirmConfiguration({this.paymentSuccessful});
 
   @override
-  List<Object?> get props => [];
+  List<Object?> get props => [paymentSuccessful];
+}
+
+// New event for updating total price when attendee count changes
+class UpdateTotalPrice extends OptionsConfigurationEvent {
+  final double totalPrice;
+
+  const UpdateTotalPrice({required this.totalPrice});
+
+  @override
+  List<Object?> get props => [totalPrice];
+}
+
+// New events for managing user self-inclusion
+class ToggleUserSelfInclusion extends OptionsConfigurationEvent {
+  final bool includeUser;
+
+  const ToggleUserSelfInclusion({required this.includeUser});
+
+  @override
+  List<Object?> get props => [includeUser];
+}
+
+// Event to update payment mode (individual vs pay for all)
+class UpdatePaymentMode extends OptionsConfigurationEvent {
+  final bool payForAll;
+
+  const UpdatePaymentMode({required this.payForAll});
+
+  @override
+  List<Object?> get props => [payForAll];
 }
 
 class ClearErrorMessage extends OptionsConfigurationEvent {

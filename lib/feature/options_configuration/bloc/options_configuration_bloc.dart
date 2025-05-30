@@ -1,5 +1,6 @@
 // lib/feature/options_configuration/bloc/options_configuration_bloc.dart
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,23 +10,24 @@ import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_configuration_event.dart';
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 import 'package:shamil_mobile_app/feature/subscription/data/subscription_model.dart';
-import 'package:shamil_mobile_app/feature/options_configuration/repository/options_configuration_repository.dart';
+import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
+import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
+import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
+import 'package:uuid/uuid.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'
     show OpeningHoursDay;
-import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/models/options_configuration_models.dart';
-import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
-import 'package:uuid/uuid.dart';
-import 'dart:math' as Math;
-import 'package:shamil_mobile_app/feature/reservation/services/calendar_integration_service.dart';
 import 'package:shamil_mobile_app/feature/reservation/services/email_template_service.dart';
 import 'package:shamil_mobile_app/feature/reservation/services/notification_service.dart';
+import 'package:shamil_mobile_app/feature/reservation/services/calendar_integration_service.dart';
+import 'package:flutter/foundation.dart';
 
 part 'options_configuration_state.dart';
 
 class OptionsConfigurationBloc
     extends Bloc<OptionsConfigurationEvent, OptionsConfigurationState> {
-  final OptionsConfigurationRepository repository;
+  final FirebaseDataOrchestrator firebaseDataOrchestrator;
+
   Map<String, OpeningHoursDay> operatingHours = {};
   List<ReservationModel> existingReservations = [];
   bool _isLoadingOperatingHours = false;
@@ -35,8 +37,9 @@ class OptionsConfigurationBloc
   final CalendarIntegrationService _calendarService =
       CalendarIntegrationService();
 
-  OptionsConfigurationBloc({required this.repository})
-      : super(OptionsConfigurationInitial()) {
+  OptionsConfigurationBloc({
+    required this.firebaseDataOrchestrator,
+  }) : super(OptionsConfigurationInitial()) {
     on<InitializeOptionsConfiguration>(_onInitializeOptionsConfiguration);
     on<DateSelected>(_onDateSelected);
     on<TimeSelected>(_onTimeSelected);
@@ -64,6 +67,9 @@ class OptionsConfigurationBloc
     on<UpdatePaymentMethod>(_onUpdatePaymentMethod);
     on<UpdateReminderSettings>(_onUpdateReminderSettings);
     on<UpdateSharingSettings>(_onUpdateSharingSettings);
+    on<UpdateTotalPrice>(_onUpdateTotalPrice);
+    on<ToggleUserSelfInclusion>(_onToggleUserSelfInclusion);
+    on<UpdatePaymentMode>(_onUpdatePaymentMode);
   }
 
   Future<void> _onInitializeOptionsConfiguration(
@@ -117,6 +123,8 @@ class OptionsConfigurationBloc
       selectedAddOns: initialSelectedAddOns,
       addOnsPrice: initialAddOnsPrice,
       selectedAttendees: const [],
+      includeUserInBooking: true, // Include user by default
+      payForAllAttendees: false, // Individual payments by default
       isLoading: false,
       canConfirm: _checkCanConfirm(
         options: event.optionsDefinition,
@@ -124,6 +132,7 @@ class OptionsConfigurationBloc
         selectedTime: null,
         groupSize: initialGroupSize,
         selectedAttendees: const [],
+        includeUser: true, // Pass user inclusion for validation
       ),
     ));
 
@@ -141,8 +150,8 @@ class OptionsConfigurationBloc
     emit(state.copyWith(isLoading: true));
 
     try {
-      final openingHoursData =
-          await repository.fetchProviderOperatingHours(event.providerId);
+      final openingHoursData = await firebaseDataOrchestrator
+          .fetchProviderOperatingHours(event.providerId);
       final Map<String, OpeningHoursDay> hours = {};
 
       openingHoursData.forEach((dayKey, dayData) {
@@ -178,8 +187,8 @@ class OptionsConfigurationBloc
     emit(state.copyWith(isLoading: true));
 
     try {
-      final reservations =
-          await repository.fetchProviderReservations(event.providerId);
+      final reservations = await firebaseDataOrchestrator
+          .fetchProviderReservations(event.providerId);
       existingReservations = reservations;
       emit(state.copyWith(isLoading: false));
     } catch (e) {
@@ -204,6 +213,7 @@ class OptionsConfigurationBloc
         selectedTime: null,
         groupSize: state.groupSize,
         selectedAttendees: state.selectedAttendees,
+        includeUser: state.includeUserInBooking,
       ),
       clearErrorMessage: true,
     ));
@@ -220,6 +230,7 @@ class OptionsConfigurationBloc
         selectedTime: event.selectedTime,
         groupSize: state.groupSize,
         selectedAttendees: state.selectedAttendees,
+        includeUser: state.includeUserInBooking,
       ),
       clearErrorMessage: true,
     ));
@@ -255,6 +266,7 @@ class OptionsConfigurationBloc
         selectedTime: state.selectedTime,
         groupSize: newGroupSize,
         selectedAttendees: state.selectedAttendees,
+        includeUser: state.includeUserInBooking,
       ),
       clearErrorMessage: true,
     ));
@@ -298,6 +310,7 @@ class OptionsConfigurationBloc
         selectedTime: state.selectedTime,
         groupSize: state.groupSize,
         selectedAttendees: state.selectedAttendees,
+        includeUser: state.includeUserInBooking,
       ),
       clearErrorMessage: true,
     ));
@@ -416,6 +429,7 @@ class OptionsConfigurationBloc
         selectedTime: state.selectedTime,
         groupSize: newGroupSize,
         selectedAttendees: newAttendees,
+        includeUser: state.includeUserInBooking,
       ),
       clearErrorMessage: true,
     ));
@@ -477,6 +491,7 @@ class OptionsConfigurationBloc
           selectedTime: state.selectedTime,
           groupSize: newGroupSize,
           selectedAttendees: updatedAttendees,
+          includeUser: state.includeUserInBooking,
         ),
         clearErrorMessage: true,
       ));
@@ -503,16 +518,33 @@ class OptionsConfigurationBloc
       return;
     }
 
-    if (!_checkCanConfirm(
+    // Enhanced validation for payment success scenario
+    // If payment has already been processed successfully, we should be more lenient on validation
+    bool isPaymentConfirmed = event.paymentSuccessful ?? false;
+
+    if (!isPaymentConfirmed) {
+      // Only perform strict validation if payment hasn't been confirmed yet
+      if (!_checkCanConfirm(
         options: state.optionsDefinition,
         selectedDate: state.selectedDate,
         selectedTime: state.selectedTime,
         groupSize: state.groupSize,
-        selectedAttendees: state.selectedAttendees)) {
-      emit(state.copyWith(
-          errorMessage: "Please complete all required options."));
+        selectedAttendees: state.selectedAttendees,
+        includeUser: state.includeUserInBooking,
+      )) {
+        emit(state.copyWith(
+            errorMessage: "Please complete all required options."));
+        return;
+      }
+
+      // If not payment confirmed, just validate without creating anything
+      emit(state.copyWith(canConfirm: true, clearErrorMessage: true));
       return;
     }
+
+    // Only create reservation/subscription when payment is confirmed
+    print(
+        '🎉 Payment confirmed, creating ${state.originalService != null ? 'reservation' : 'subscription'}...');
 
     // Set loading state
     emit(state.copyWith(isLoading: true, clearErrorMessage: true));
@@ -529,29 +561,51 @@ class OptionsConfigurationBloc
 
       // Process submission based on whether it's a service or plan
       if (state.originalService != null) {
-        // Create reservation model
-        final reservation = _createReservationFromState(state, currentUser);
+        print('📝 Creating reservation model...');
+        // Create reservation using proper repository
+        final reservation =
+            await _createReservationFromState(state, currentUser);
         newReservation = reservation;
-        confirmationId = await repository.submitReservation(reservation);
+
+        print(
+            '📡 Calling reservation backend with reservation ID: ${reservation.id}');
+        print(
+            '📊 Reservation details: ${reservation.serviceName}, ${reservation.totalPrice} EGP, ${reservation.attendees.length} attendees');
+
+        // Use the centralized createReservation method directly
+        confirmationId =
+            await firebaseDataOrchestrator.createReservation(reservation);
+        newReservation = reservation.copyWith(id: confirmationId);
+
+        print('✅ Reservation created successfully with ID: $confirmationId');
 
         // Add to calendar if enabled
         if (state.addToCalendar && state.selectedDate != null) {
+          print('📅 Adding reservation to calendar...');
           await _addToCalendar(reservation);
         }
 
         // Handle sharing if enabled
         if (state.enableSharing) {
+          print('📧 Handling booking sharing...');
           await _handleBookingSharing(reservation);
         }
 
         // Schedule reminders if enabled
         if (state.enableReminders && state.reminderTimes.isNotEmpty) {
+          print('⏰ Scheduling reminders...');
           await _scheduleReminders(reservation, state.reminderTimes);
         }
       } else if (state.originalPlan != null) {
-        // Create subscription model
+        print('📝 Creating subscription model...');
+        // Create subscription using proper repository (when available)
         final subscription = _createSubscriptionFromState(state, currentUser);
-        confirmationId = await repository.submitSubscription(subscription);
+
+        print('📡 Calling subscription backend...');
+        // For now, use the configuration repository until subscription repository is available
+        confirmationId =
+            await firebaseDataOrchestrator.submitSubscription(subscription);
+        print('✅ Subscription created successfully with ID: $confirmationId');
 
         // Handle subscription-specific actions
       } else {
@@ -575,6 +629,10 @@ class OptionsConfigurationBloc
         confirmationId: confirmationId,
       ));
     } catch (e) {
+      print('💥 Error during configuration confirmation: $e');
+      print('📍 Error type: ${e.runtimeType}');
+      print('🔍 Stack trace: ${StackTrace.current}');
+
       emit(state.copyWith(
         isLoading: false,
         errorMessage: "Failed to submit configuration: ${e.toString()}",
@@ -586,8 +644,8 @@ class OptionsConfigurationBloc
   Future<void> _handleBookingSharing(ReservationModel reservation) async {
     try {
       // Get provider name
-      final providerData =
-          await repository.getProviderDetails(reservation.providerId);
+      final providerData = await firebaseDataOrchestrator
+          .getProviderDetails(reservation.providerId);
       final providerName =
           providerData?['name'] as String? ?? 'Service Provider';
 
@@ -602,7 +660,8 @@ class OptionsConfigurationBloc
 
       // Add host's email if available
       if (reservation.userId.isNotEmpty) {
-        final userEmail = await repository.getUserEmail(reservation.userId);
+        final userEmail =
+            await firebaseDataOrchestrator.getUserEmail(reservation.userId);
         if (userEmail != null && userEmail.isNotEmpty) {
           recipients.add(userEmail);
         }
@@ -614,7 +673,7 @@ class OptionsConfigurationBloc
           if (attendee.userId != reservation.userId) {
             // Skip host
             final attendeeEmail =
-                await repository.getUserEmail(attendee.userId);
+                await firebaseDataOrchestrator.getUserEmail(attendee.userId);
             if (attendeeEmail != null && attendeeEmail.isNotEmpty) {
               recipients.add(attendeeEmail);
             }
@@ -629,7 +688,7 @@ class OptionsConfigurationBloc
 
       // Send confirmation emails
       if (recipients.isNotEmpty) {
-        await repository.sendBookingConfirmationEmails(
+        await firebaseDataOrchestrator.sendBookingConfirmationEmails(
           recipients: recipients,
           subject: "Booking Confirmation: ${reservation.serviceName}",
           htmlContent: emailHtml,
@@ -649,8 +708,8 @@ class OptionsConfigurationBloc
       final sortedReminderTimes = List<int>.from(reminderTimes)..sort();
 
       // Get provider name
-      final providerData =
-          await repository.getProviderDetails(reservation.providerId);
+      final providerData = await firebaseDataOrchestrator
+          .getProviderDetails(reservation.providerId);
       final providerName =
           providerData?['name'] as String? ?? 'Service Provider';
 
@@ -675,7 +734,8 @@ class OptionsConfigurationBloc
         // Get host's email
         String? userEmail;
         if (reservation.userId.isNotEmpty) {
-          userEmail = await repository.getUserEmail(reservation.userId);
+          userEmail =
+              await firebaseDataOrchestrator.getUserEmail(reservation.userId);
         }
 
         if (userEmail != null && userEmail.isNotEmpty) {
@@ -688,12 +748,12 @@ class OptionsConfigurationBloc
             // Only schedule if reminder time is in the future
             if (reminderTime.isAfter(DateTime.now())) {
               // Schedule email reminder
-              await repository.scheduleReminderEmail(
+              await firebaseDataOrchestrator.scheduleReminderEmail(
                 recipient: userEmail,
                 subject:
                     "Reminder: Your Booking for ${reservation.serviceName}",
                 htmlContent: emailHtml,
-                sendTime: reminderTime,
+                scheduledFor: reminderTime,
               );
 
               // Also schedule local notification on the device if permissions granted
@@ -714,12 +774,19 @@ class OptionsConfigurationBloc
     }
   }
 
-  ReservationModel _createReservationFromState(
-      OptionsConfigurationState state, User currentUser) {
+  Future<ReservationModel> _createReservationFromState(
+      OptionsConfigurationState state, User currentUser) async {
     // Parse time string to TimeOfDay
-    final timeParts = state.selectedTime?.split(':') ?? ['0', '0'];
-    final hours = int.tryParse(timeParts[0]) ?? 0;
+    final timeParts = state.selectedTime?.split(':') ?? ['10', '0'];
+    int hours = int.tryParse(timeParts[0]) ?? 10;
     final minutes = int.tryParse(timeParts[1]) ?? 0;
+
+    // Handle AM/PM format
+    if (state.selectedTime?.contains('PM') == true && hours != 12) {
+      hours += 12;
+    } else if (state.selectedTime?.contains('AM') == true && hours == 12) {
+      hours = 0;
+    }
 
     // Combine date and time
     final dateTime = state.selectedDate != null
@@ -737,27 +804,82 @@ class OptionsConfigurationBloc
         (state.optionsDefinition?['defaultDurationMinutes'] as int?) ??
         60;
 
-    // Build attendees list ensuring current user is included
-    List<AttendeeModel> finalAttendees = [...state.selectedAttendees];
+    // Get provider details to fetch governorate ID
+    String governorateId = '';
+    try {
+      print('🌍 Fetching provider details for governorate ID...');
+      final providerData =
+          await firebaseDataOrchestrator.getProviderDetails(state.providerId);
 
-    // Make sure at least one attendee is marked as host
-    bool hasHost = finalAttendees.any((att) => att.isHost == true);
-    if (!hasHost && finalAttendees.isNotEmpty) {
-      // Make the first user the host
-      var firstAttendee = finalAttendees.first;
-      finalAttendees = [
-        AttendeeModel(
-          userId: firstAttendee.userId,
-          name: firstAttendee.name,
-          type: firstAttendee.type,
-          status: firstAttendee.status,
-          paymentStatus: firstAttendee.paymentStatus,
-          amountToPay: firstAttendee.amountToPay,
-          amountPaid: firstAttendee.amountPaid,
-          isHost: true, // Set as host
-        ),
-        ...finalAttendees.skip(1)
-      ];
+      if (providerData != null) {
+        // Use the enhanced provider details method which already handles multiple governorate field names
+        governorateId = providerData['governorateId'] as String? ??
+            providerData['governorate_id'] as String? ??
+            (providerData['location']
+                as Map<String, dynamic>?)?['governorateId'] as String? ??
+            (providerData['location']
+                as Map<String, dynamic>?)?['governorate_id'] as String? ??
+            (providerData['address'] as Map<String, dynamic>?)?['governorateId']
+                as String? ??
+            (providerData['address']
+                as Map<String, dynamic>?)?['governorate_id'] as String? ??
+            providerData['city'] as String? ??
+            providerData['governorate'] as String? ??
+            '';
+
+        print('🏛️ Resolved governorate ID: $governorateId');
+
+        if (governorateId.isEmpty) {
+          print('⚠️ Warning: No governorate ID found in provider data');
+          print('📍 Available fields: ${providerData.keys.toList()}');
+          // Use a more descriptive fallback
+          governorateId = 'unspecified-governorate';
+        }
+      } else {
+        print('❌ Error: Provider data is null');
+        governorateId = 'unknown-governorate';
+      }
+    } catch (e) {
+      print('❌ Error fetching provider details: $e');
+      governorateId =
+          'error-governorate'; // Fallback value with error indication
+    }
+
+    // Build attendees list in the correct format - ALWAYS include current user as host
+    List<AttendeeModel> finalAttendees = [];
+
+    // Always add current user as the host attendee (matching Firebase structure)
+    if (state.includeUserInBooking) {
+      finalAttendees.add(AttendeeModel(
+        userId: currentUser.uid,
+        name: currentUser.displayName ?? 'User',
+        type: 'self', // Matches Firebase structure
+        status: 'confirmed', // Host is always confirmed
+        paymentStatus: PaymentStatus.pending, // Will be updated after payment
+        isHost: true, // Mark as host
+        amountToPay: state.payForAllAttendees
+            ? state.totalPrice
+            : (state.totalPrice / (state.selectedAttendees.length + 1)),
+        amountPaid: 0.0,
+      ));
+    }
+
+    // Add other attendees with correct format
+    for (var attendee in state.selectedAttendees) {
+      finalAttendees.add(AttendeeModel(
+        userId: attendee.userId,
+        name: attendee.name,
+        type: attendee.type, // Should be 'friend', 'family', or 'guest'
+        status: 'confirmed', // Attendees added by host are confirmed
+        paymentStatus: state.payForAllAttendees
+            ? PaymentStatus.hosted
+            : PaymentStatus.pending,
+        isHost: false, // Only current user is host
+        amountToPay: state.payForAllAttendees
+            ? 0.0
+            : (state.totalPrice / (state.selectedAttendees.length + 1)),
+        amountPaid: 0.0,
+      ));
     }
 
     // Prepare venue booking details if available
@@ -781,31 +903,36 @@ class OptionsConfigurationBloc
       };
     }
 
-    // Create payment details including the selected payment method
+    // Create payment details matching Firebase structure
     Map<String, dynamic> paymentDetails = {
-      'method': state.paymentMethod,
-      'status': PaymentStatus.pending.name, // Start with pending status
+      'method': state.paymentMethod ??
+          'creditCard', // Default to creditCard to match structure
+      'status': 'pending', // Use string to match Firebase structure
     };
 
-    // Create reservation
+    // Generate reservation ID
+    final reservationId = _uuid.v4();
+
+    // Create reservation matching the exact Firebase structure
     return ReservationModel(
-      id: Uuid().v4(),
+      id: reservationId,
       userId: currentUser.uid,
       userName: currentUser.displayName ?? 'User',
       providerId: state.providerId,
-      governorateId: '', // Will be filled by backend
-      type: ReservationType.serviceBased,
-      groupSize: state.groupSize,
-      serviceId: state.originalService?.id,
-      serviceName: state.originalService?.name,
+      governorateId: governorateId, // Now properly populated
+      type: ReservationType.serviceBased, // Maps to "service-based"
+      groupSize: finalAttendees.length, // Use actual attendee count
+      serviceId: state.originalService?.id ?? '',
+      serviceName: state.originalService?.name ?? 'Service',
       durationMinutes: durationMinutes,
       reservationStartTime: Timestamp.fromDate(dateTime),
-      status: ReservationStatus.pending,
-      paymentStatus: PaymentStatus.pending.name, // Use string representation
+      status: ReservationStatus.pending, // Maps to "pending"
+      paymentStatus: 'pending', // Use string to match Firebase structure
       paymentDetails: paymentDetails,
       notes: state.notes,
       attendees: finalAttendees,
       createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
       totalPrice: state.totalPrice,
       selectedAddOnsList: state.selectedAddOns.entries
           .where((entry) => entry.value == true)
@@ -816,13 +943,12 @@ class OptionsConfigurationBloc
           'VenueBookingType.fullVenue',
       reservedCapacity: state.venueBookingConfig?.selectedCapacity,
       isCommunityVisible: false, // Default to private
+      queueBased: false, // Not queue-based since created through configuration
       typeSpecificData: {
         'venueBookingDetails': venueBookingDetails,
         'costSplitDetails': costSplitDetails,
-        'addToCalendar': state.addToCalendar,
+        'addToCalendar': state.addToCalendar ?? false,
       },
-      // Include cost split details if available
-      costSplitDetails: costSplitDetails,
     );
   }
 
@@ -937,6 +1063,7 @@ class OptionsConfigurationBloc
     required String? selectedTime,
     required int groupSize,
     required List<AttendeeModel> selectedAttendees,
+    required bool includeUser,
   }) {
     if (options == null) return true;
 
@@ -1013,12 +1140,15 @@ class OptionsConfigurationBloc
   ) async {
     try {
       emit(state.copyWith(loadingFriends: true, clearErrorMessage: true));
-      final friends = await repository.fetchCurrentUserFriends();
+      debugPrint('🔍 Loading current user friends...');
+      final friends = await firebaseDataOrchestrator.fetchCurrentUserFriends();
+      debugPrint('✅ Fetched ${friends.length} friends: $friends');
       emit(state.copyWith(
         availableFriends: friends,
         loadingFriends: false,
       ));
     } catch (e) {
+      debugPrint('❌ Error loading friends: $e');
       emit(state.copyWith(
         errorMessage: 'Error loading friends: $e',
         loadingFriends: false,
@@ -1032,12 +1162,17 @@ class OptionsConfigurationBloc
   ) async {
     try {
       emit(state.copyWith(loadingFamilyMembers: true, clearErrorMessage: true));
-      final familyMembers = await repository.fetchCurrentUserFamilyMembers();
+      debugPrint('🔍 Loading current user family members...');
+      final familyMembers =
+          await firebaseDataOrchestrator.fetchCurrentUserFamilyMembers();
+      debugPrint(
+          '✅ Fetched ${familyMembers.length} family members: $familyMembers');
       emit(state.copyWith(
         availableFamilyMembers: familyMembers,
         loadingFamilyMembers: false,
       ));
     } catch (e) {
+      debugPrint('❌ Error loading family members: $e');
       emit(state.copyWith(
         errorMessage: 'Error loading family members: $e',
         loadingFamilyMembers: false,
@@ -1115,6 +1250,7 @@ class OptionsConfigurationBloc
           selectedTime: state.selectedTime,
           groupSize: newGroupSize,
           selectedAttendees: updatedAttendees,
+          includeUser: true,
         ),
       ));
     } catch (e) {
@@ -1195,6 +1331,7 @@ class OptionsConfigurationBloc
           selectedTime: state.selectedTime,
           groupSize: newGroupSize,
           selectedAttendees: updatedAttendees,
+          includeUser: true,
         ),
       ));
     } catch (e) {
@@ -1291,6 +1428,7 @@ class OptionsConfigurationBloc
           selectedTime: state.selectedTime,
           groupSize: newGroupSize,
           selectedAttendees: updatedAttendees,
+          includeUser: true,
         ),
       ));
     } catch (e) {
@@ -1329,7 +1467,7 @@ class OptionsConfigurationBloc
         // If switching to partial capacity, set a default
         if (updatedConfig.selectedCapacity == null) {
           // Set a default capacity value (minimum group size or 2)
-          final defaultCapacity = Math.max(state.groupSize, 2);
+          final defaultCapacity = math.max(state.groupSize, 2);
           updatedConfig = updatedConfig.copyWith(
             selectedCapacity: defaultCapacity,
           );
@@ -1358,6 +1496,7 @@ class OptionsConfigurationBloc
           selectedTime: state.selectedTime,
           groupSize: newGroupSize,
           selectedAttendees: state.selectedAttendees,
+          includeUser: true,
         ),
       ));
 
@@ -1431,6 +1570,7 @@ class OptionsConfigurationBloc
           selectedTime: state.selectedTime,
           groupSize: newGroupSize,
           selectedAttendees: state.selectedAttendees,
+          includeUser: true,
         ),
       ));
 
@@ -1689,8 +1829,8 @@ class OptionsConfigurationBloc
       final calendarId = calendars.first.id;
 
       // Get provider details for the event
-      final providerData =
-          await repository.getProviderDetails(reservation.providerId);
+      final providerData = await firebaseDataOrchestrator
+          .getProviderDetails(reservation.providerId);
       final providerName =
           providerData?['name'] as String? ?? 'Service Provider';
       final locationAddress = providerData?['address'] as String?;
@@ -1757,5 +1897,79 @@ class OptionsConfigurationBloc
       additionalEmails: event.additionalEmails,
       clearErrorMessage: true,
     ));
+  }
+
+  Future<void> _onUpdateTotalPrice(
+    UpdateTotalPrice event,
+    Emitter<OptionsConfigurationState> emit,
+  ) async {
+    emit(state.copyWith(
+      totalPrice: event.totalPrice,
+    ));
+  }
+
+  void _onToggleUserSelfInclusion(
+    ToggleUserSelfInclusion event,
+    Emitter<OptionsConfigurationState> emit,
+  ) {
+    if (state is OptionsConfigurationInitial) return;
+
+    // Recalculate total price based on user inclusion
+    final newTotalPrice = _calculateTotalPriceWithUserInclusion(
+      includeUser: event.includeUser,
+      payForAll: state.payForAllAttendees,
+    );
+
+    emit(state.copyWith(
+      includeUserInBooking: event.includeUser,
+      totalPrice: newTotalPrice,
+      clearErrorMessage: true,
+    ));
+  }
+
+  void _onUpdatePaymentMode(
+    UpdatePaymentMode event,
+    Emitter<OptionsConfigurationState> emit,
+  ) {
+    if (state is OptionsConfigurationInitial) return;
+
+    // Recalculate total price based on payment mode
+    final newTotalPrice = _calculateTotalPriceWithUserInclusion(
+      includeUser: state.includeUserInBooking,
+      payForAll: event.payForAll,
+    );
+
+    emit(state.copyWith(
+      payForAllAttendees: event.payForAll,
+      totalPrice: newTotalPrice,
+      clearErrorMessage: true,
+    ));
+  }
+
+  // Helper method to calculate total price considering user inclusion and payment mode
+  double _calculateTotalPriceWithUserInclusion({
+    required bool includeUser,
+    required bool payForAll,
+  }) {
+    final basePrice = state.basePrice;
+    final addOnsPrice = state.addOnsPrice;
+    final selectedAttendees = state.selectedAttendees;
+
+    // Calculate total people count
+    int totalPeople = selectedAttendees.length;
+    if (includeUser) totalPeople += 1;
+
+    // Calculate price based on payment mode
+    if (payForAll) {
+      // User pays for everyone
+      return (totalPeople * basePrice) + addOnsPrice;
+    } else {
+      // Individual payments - user only pays if included
+      if (includeUser) {
+        return basePrice + (addOnsPrice / (totalPeople > 0 ? totalPeople : 1));
+      } else {
+        return 0.0; // User pays nothing if not attending
+      }
+    }
   }
 }

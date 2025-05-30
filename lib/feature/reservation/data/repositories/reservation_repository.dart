@@ -6,6 +6,7 @@ import 'package:flutter/material.dart'; // Required for TimeOfDay
 // For debugPrint
 import 'package:intl/intl.dart'; // Required for DateFormat
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'; // Updated import path
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// Abstract interface for reservation data operations.
 abstract class ReservationRepository {
@@ -697,33 +698,85 @@ class FirebaseReservationRepository implements ReservationRepository {
 
   // --- Updated createReservationOnBackend ---
 
-  // Override the existing createReservationOnBackend to include new fields defaults
-  @override
+  /// Calls the backend function to create a new reservation (for non-queue types).
   Future<Map<String, dynamic>> createReservationOnBackend(
       Map<String, dynamic> payload) async {
-    // Ensure necessary fields have defaults if not provided by the BLoC state
-    // (Though the BLoC state should ideally provide all needed fields)
-    payload.putIfAbsent('isFullVenueReservation', () => false);
-    payload.putIfAbsent('isCommunityVisible', () => false);
+    try {
+      print(
+          'FirebaseReservationRepository: Creating reservation directly in Firestore...');
+      print('Payload: $payload');
 
-    // If reservedCapacity isn't explicitly set (e.g., for non-venue types),
-    // default it based on groupSize if available.
-    if (!payload.containsKey('reservedCapacity') &&
-        payload.containsKey('groupSize')) {
-      payload['reservedCapacity'] = payload['groupSize'];
-    }
+      // Get current user
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User must be logged in to create reservation');
+      }
 
-    // Ensure governorateId is present (already checked in BLoC, but good fallback)
-    if (payload['governorateId'] == null ||
-        (payload['governorateId'] as String).isEmpty) {
+      // Generate reservation ID
+      final docRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('reservations')
+          .doc();
+
+      // Prepare the final payload with Firestore timestamps
+      final finalPayload = Map<String, dynamic>.from(payload);
+
+      // Convert millisecond timestamps back to Firestore Timestamps
+      if (finalPayload['reservationStartTime'] != null) {
+        finalPayload['reservationStartTime'] =
+            Timestamp.fromMillisecondsSinceEpoch(
+                finalPayload['reservationStartTime'] as int);
+      }
+      if (finalPayload['endTime'] != null) {
+        finalPayload['endTime'] = Timestamp.fromMillisecondsSinceEpoch(
+            finalPayload['endTime'] as int);
+      }
+      if (finalPayload['estimatedEntryTime'] != null) {
+        finalPayload['estimatedEntryTime'] =
+            Timestamp.fromMillisecondsSinceEpoch(
+                finalPayload['estimatedEntryTime'] as int);
+      }
+
+      // Add server timestamps and ID
+      finalPayload['id'] = docRef.id;
+      finalPayload['createdAt'] = FieldValue.serverTimestamp();
+      finalPayload['updatedAt'] = FieldValue.serverTimestamp();
+
+      // Write to Firestore
+      await docRef.set(finalPayload);
+
+      // Also add to provider's reservations for easier querying
+      await FirebaseFirestore.instance
+          .collection('service_providers')
+          .doc(payload['providerId'] as String)
+          .collection('reservations')
+          .doc(docRef.id)
+          .set({
+        'reservationId': docRef.id,
+        'userId': currentUser.uid,
+        'userName': payload['userName'],
+        'serviceName': payload['serviceName'],
+        'reservationStartTime': finalPayload['reservationStartTime'],
+        'status': payload['status'],
+        'totalPrice': payload['totalPrice'],
+        'groupSize': payload['groupSize'],
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ Reservation created successfully with ID: ${docRef.id}');
+
+      return {
+        'success': true,
+        'reservationId': docRef.id,
+        'message': 'Reservation created successfully'
+      };
+    } catch (e) {
+      print('❌ Error creating reservation: $e');
       return {
         'success': false,
-        'error':
-            'Internal error: Missing location context (Governorate ID) in final payload.'
+        'error': 'Failed to create reservation: ${e.toString()}'
       };
     }
-
-    // Call the Cloud Function with the potentially augmented payload
-    return await _callFunction('createReservation', payload);
   }
 }

@@ -142,7 +142,9 @@ Future<void> main() async {
         ),
         // Temporary: Keep old repositories for screens not yet migrated
         Provider<UserRepository>(
-          create: (_) => FirebaseUserRepository(),
+          create: (context) => FirebaseUserRepository(
+            orchestrator: context.read<FirebaseDataOrchestrator>(),
+          ),
         ),
         Provider<CommunityRepository>(
           create: (_) => CommunityRepositoryImpl(),

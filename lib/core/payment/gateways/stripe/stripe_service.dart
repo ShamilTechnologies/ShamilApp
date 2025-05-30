@@ -41,6 +41,8 @@ class StripeService {
   /// Create or get existing customer in Stripe
   Future<String> _ensureCustomerExists(PaymentCustomer customer) async {
     try {
+      debugPrint('🔍 Checking if customer exists: ${customer.email}');
+      
       // Try to get existing customer by email
       final searchResponse = await _makeApiCall(
         'GET',
@@ -56,10 +58,12 @@ class StripeService {
 
       if (customers.isNotEmpty) {
         final existingCustomer = customers.first;
-        debugPrint('Found existing Stripe customer: ${existingCustomer['id']}');
+        debugPrint('✅ Found existing Stripe customer: ${existingCustomer['id']}');
         return existingCustomer['id'];
       }
 
+      debugPrint('➕ Creating new Stripe customer for: ${customer.email}');
+      
       // Create new customer if none exists
       final createResponse = await _makeApiCall(
         'POST',
@@ -75,10 +79,10 @@ class StripeService {
       );
 
       final customerData = json.decode(createResponse.body);
-      debugPrint('Created new Stripe customer: ${customerData['id']}');
+      debugPrint('✅ Created new Stripe customer: ${customerData['id']}');
       return customerData['id'];
     } catch (e) {
-      debugPrint('Error ensuring customer exists: $e');
+      debugPrint('❌ Error ensuring customer exists: $e');
       // Return the original customer ID and let Stripe handle the error
       return customer.id;
     }
@@ -96,8 +100,12 @@ class StripeService {
     _ensureInitialized();
 
     try {
+      debugPrint(
+          '🔄 Creating payment intent for ${customer.email} (\$${amount.toStringAsFixed(2)} ${currency.name})');
+
       // Ensure customer exists in Stripe
       final stripeCustomerId = await _ensureCustomerExists(customer);
+      debugPrint('✅ Stripe customer ID: $stripeCustomerId');
 
       // Create payment intent on server
       final paymentIntent = await _createPaymentIntent(
@@ -115,12 +123,14 @@ class StripeService {
         },
       );
 
-      // Confirm payment with Stripe SDK
+      debugPrint('✅ Payment intent created: ${paymentIntent['id']}');
+
+      // Don't confirm payment here - let the UI handle it
       final result = await _confirmPayment(paymentIntent);
 
       return PaymentResponse(
         id: result['id'] ?? '',
-        status: _mapStripeStatus(result['status'] ?? 'failed'),
+        status: _mapStripeStatus(result['status'] ?? 'requires_payment_method'),
         amount: amount,
         currency: currency,
         gateway: PaymentGateway.stripe,
@@ -129,6 +139,7 @@ class StripeService {
         timestamp: DateTime.now(),
       );
     } catch (e) {
+      debugPrint('❌ Payment intent creation error: $e');
       return _handleError(e, amount, currency);
     }
   }
@@ -187,6 +198,22 @@ class StripeService {
     _ensureInitialized();
 
     try {
+      // Skip lookup for temporary or demo customer IDs
+      if (customerId.startsWith('temp_') ||
+          customerId.startsWith('user_') ||
+          customerId == 'current_user_id' ||
+          customerId.isEmpty) {
+        debugPrint(
+            'Skipping saved payment methods for temporary/demo customer: $customerId');
+        return [];
+      }
+
+      // Validate that we have a real customer ID
+      if (customerId.length < 10) {
+        debugPrint('Customer ID too short, likely invalid: $customerId');
+        return [];
+      }
+
       // Try to get customer by Firebase UID first, then by Stripe customer ID
       String stripeCustomerId = customerId;
 
@@ -203,12 +230,22 @@ class StripeService {
         final searchData = json.decode(searchResponse.body);
         final customers = searchData['data'] as List;
 
+        bool customerFound = false;
         for (final customer in customers) {
           final metadata = customer['metadata'] as Map<String, dynamic>?;
           if (metadata?['firebase_uid'] == customerId) {
             stripeCustomerId = customer['id'];
+            customerFound = true;
+            debugPrint(
+                'Found Stripe customer $stripeCustomerId for Firebase UID $customerId');
             break;
           }
+        }
+
+        // If customer not found by Firebase UID, return empty list
+        if (!customerFound) {
+          debugPrint('No Stripe customer found for Firebase UID: $customerId');
+          return [];
         }
       }
 
@@ -221,11 +258,22 @@ class StripeService {
       final data = json.decode(response.body);
       final paymentMethods = data['data'] as List;
 
+      debugPrint(
+          'Found ${paymentMethods.length} saved payment methods for customer $stripeCustomerId');
+
       return paymentMethods
           .map((pm) => PaymentMethodData.fromStripe(pm))
           .toList();
+    } on StripeServiceException catch (e) {
+      // Handle specific Stripe errors gracefully
+      if (e.code == 'resource_missing') {
+        debugPrint('Customer not found in Stripe: $customerId');
+        return [];
+      }
+      debugPrint('Stripe error fetching saved payment methods: ${e.message}');
+      return [];
     } catch (e) {
-      debugPrint('Error fetching saved payment methods: $e');
+      debugPrint('General error fetching saved payment methods: $e');
       return [];
     }
   }
@@ -290,6 +338,26 @@ class StripeService {
       },
     );
 
+    if (response.statusCode >= 400) {
+      debugPrint(
+          '❌ Stripe API error (${response.statusCode}): ${response.body}');
+
+      try {
+        final errorData = json.decode(response.body);
+        throw StripeServiceException(
+          errorData['error']['message'] ?? 'Unknown Stripe error',
+          code: errorData['error']['code'],
+          statusCode: response.statusCode,
+        );
+      } catch (e) {
+        // If JSON parsing fails, throw with raw response
+        throw StripeServiceException(
+          'API Error: ${response.body}',
+          statusCode: response.statusCode,
+        );
+      }
+    }
+
     return json.decode(response.body);
   }
 
@@ -350,12 +418,23 @@ class StripeService {
     }
 
     if (response.statusCode >= 400) {
-      final errorData = json.decode(response.body);
-      throw StripeServiceException(
-        errorData['error']['message'] ?? 'Unknown Stripe error',
-        code: errorData['error']['code'],
-        statusCode: response.statusCode,
-      );
+      debugPrint(
+          '❌ Stripe API error (${response.statusCode}): ${response.body}');
+
+      try {
+        final errorData = json.decode(response.body);
+        throw StripeServiceException(
+          errorData['error']['message'] ?? 'Unknown Stripe error',
+          code: errorData['error']['code'],
+          statusCode: response.statusCode,
+        );
+      } catch (e) {
+        // If JSON parsing fails, throw with raw response
+        throw StripeServiceException(
+          'API Error: ${response.body}',
+          statusCode: response.statusCode,
+        );
+      }
     }
 
     return response;

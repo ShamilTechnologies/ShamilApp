@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 import 'package:gap/gap.dart';
+import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 import '../../models/payment_models.dart';
 import '../../gateways/stripe/stripe_service.dart';
 
@@ -50,10 +50,9 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
   bool _saveCard = false;
 
   // Card form controllers
-  final TextEditingController _cardNumberController = TextEditingController();
-  final TextEditingController _expiryController = TextEditingController();
-  final TextEditingController _cvcController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final stripe.CardFormEditController _cardController =
+      stripe.CardFormEditController();
 
   // Form validation
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -63,6 +62,10 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
   void initState() {
     super.initState();
     _initializeAnimations();
+
+    // Set initial card form visibility based on showSavedMethods
+    _showCardForm = !widget.showSavedMethods;
+
     if (widget.showSavedMethods) {
       _loadSavedPaymentMethods();
     }
@@ -89,6 +92,16 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
   }
 
   Future<void> _loadSavedPaymentMethods() async {
+    // Only load saved methods for authenticated users (real Firebase UIDs)
+    // Skip for temporary customer IDs to avoid Stripe API errors
+    if (widget.customer.id.startsWith('temp_') ||
+        widget.customer.id.startsWith('user_') ||
+        widget.customer.id == 'current_user_id') {
+      debugPrint(
+          'Skipping saved payment methods for temporary/demo customer: ${widget.customer.id}');
+      return;
+    }
+
     try {
       final methods = await _stripeService.getSavedPaymentMethods(
         customerId: widget.customer.id,
@@ -102,6 +115,7 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
         });
       }
     } catch (e) {
+      debugPrint('Error loading saved payment methods: $e');
       // Silently handle error - user can still enter new card
     }
   }
@@ -119,21 +133,15 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
         // Use saved payment method
         await _processWithSavedMethod();
       } else {
-        // Validate card form first
-        if (!_formKey.currentState!.validate()) {
-          setState(() {
-            _isLoading = false;
-            _errorMessage = 'Please fill in all card details correctly';
-          });
-          return;
-        }
-
         // Process with new card
         await _processWithNewCard();
       }
 
+      // If we reach here, payment was successful
+      debugPrint('🎉 Payment flow completed successfully');
       widget.onPaymentSuccess();
     } catch (e) {
+      debugPrint('❌ Payment flow failed: $e');
       setState(() {
         _errorMessage = e.toString();
       });
@@ -148,34 +156,128 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
   }
 
   Future<void> _processWithSavedMethod() async {
-    // Implementation for saved payment method
-    // For now, simulate success
-    await Future.delayed(const Duration(seconds: 2));
+    if (_selectedSavedMethod == null) {
+      throw Exception('No saved payment method selected');
+    }
+
+    try {
+      // Create payment intent
+      final createResponse = await _stripeService.createReservationPayment(
+        reservationId: 'reservation_${DateTime.now().millisecondsSinceEpoch}',
+        amount: widget.amount.amount,
+        currency: widget.amount.currency,
+        customer: widget.customer,
+        description: widget.description,
+        metadata: widget.metadata,
+      );
+
+      if (!createResponse.isSuccessful) {
+        throw Exception(
+            createResponse.errorMessage ?? 'Failed to create payment intent');
+      }
+
+      // Confirm payment with saved payment method
+      final confirmResult = await stripe.Stripe.instance.confirmPayment(
+        paymentIntentClientSecret:
+            createResponse.gatewayResponse?['client_secret'],
+        data: stripe.PaymentMethodParams.cardFromMethodId(
+          paymentMethodData: stripe.PaymentMethodDataCardFromMethod(
+            paymentMethodId: _selectedSavedMethod!.id,
+          ),
+        ),
+      );
+
+      if (confirmResult.status != stripe.PaymentIntentsStatus.Succeeded) {
+        throw Exception(
+            'Payment confirmation failed with status: ${confirmResult.status}');
+      }
+
+      debugPrint('Payment successful with saved method: ${confirmResult.id}');
+    } catch (e) {
+      debugPrint('Saved payment method error: $e');
+      rethrow;
+    }
   }
 
   Future<void> _processWithNewCard() async {
-    // Create payment intent
-    final response = await _stripeService.createReservationPayment(
-      reservationId: 'reservation_${DateTime.now().millisecondsSinceEpoch}',
-      amount: widget.amount.amount,
-      currency: widget.amount.currency,
-      customer: widget.customer,
-      description: widget.description,
-      metadata: widget.metadata,
-    );
+    try {
+      // First validate the form thoroughly
+      if (!_formKey.currentState!.validate()) {
+        throw Exception('Please fill in all card details correctly');
+      }
 
-    if (!response.isSuccessful) {
-      throw Exception(response.errorMessage ?? 'Payment failed');
+      final name = _nameController.text.trim();
+      if (name.isEmpty) {
+        throw Exception('Please enter the cardholder name');
+      }
+
+      // Debug current card state before validation
+      debugPrint('🔍 Pre-payment validation:');
+      debugPrint('   - Using Payment Sheet (no card form validation needed)');
+      debugPrint('   - Cardholder name: $name');
+
+      debugPrint('📝 Proceeding with payment processing');
+      debugPrint('   - Cardholder: $name');
+
+      // Create payment intent first
+      final createResponse = await _stripeService.createReservationPayment(
+        reservationId: 'reservation_${DateTime.now().millisecondsSinceEpoch}',
+        amount: widget.amount.amount,
+        currency: widget.amount.currency,
+        customer: widget.customer,
+        description: widget.description,
+        metadata: widget.metadata,
+      );
+
+      // Check if payment intent was created successfully (should be pending, not completed)
+      if (createResponse.isFailed) {
+        final errorMsg =
+            createResponse.errorMessage ?? 'Failed to create payment intent';
+        debugPrint('❌ Payment intent creation failed: $errorMsg');
+        throw Exception(errorMsg);
+      }
+
+      final clientSecret = createResponse.gatewayResponse?['client_secret'];
+      if (clientSecret == null) {
+        debugPrint(
+            '❌ No client secret in response: ${createResponse.gatewayResponse}');
+        throw Exception('No client secret received from payment intent');
+      }
+
+      debugPrint('✅ Payment intent created: ${createResponse.id}');
+      debugPrint(
+          '🔐 Client secret received: ${clientSecret.substring(0, 20)}...');
+      debugPrint('�� Attempting payment with Stripe Payment Sheet');
+
+      // Initialize payment sheet with billing details
+      await stripe.Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: stripe.SetupPaymentSheetParameters(
+          paymentIntentClientSecret: clientSecret,
+          merchantDisplayName: 'Shamil App',
+          billingDetails: stripe.BillingDetails(
+            name: name,
+            email: widget.customer.email,
+            phone: widget.customer.phone,
+          ),
+          style: ThemeMode.system,
+        ),
+      );
+
+      // Present the payment sheet for user to complete payment
+      await stripe.Stripe.instance.presentPaymentSheet();
+
+      debugPrint('✅ Payment completed successfully via Payment Sheet');
+    } catch (e) {
+      debugPrint('💳 Payment error: $e');
+      rethrow;
     }
   }
 
   @override
   void dispose() {
     _animationController.dispose();
-    _cardNumberController.dispose();
-    _expiryController.dispose();
-    _cvcController.dispose();
     _nameController.dispose();
+    _cardController.dispose();
     super.dispose();
   }
 
@@ -186,6 +288,7 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
       child: SlideTransition(
         position: _slideAnimation,
         child: Container(
+          height: MediaQuery.of(context).size.height * 0.8,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: const BorderRadius.only(
@@ -202,6 +305,7 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
             ],
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               _buildHeader(),
               Expanded(
@@ -211,6 +315,7 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildAmountCard(),
                         const Gap(24),
@@ -528,78 +633,39 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
           ),
           const Gap(16),
 
-          // Card number
-          _buildTextField(
-            controller: _cardNumberController,
-            label: 'Card Number',
-            hint: '1234 5678 9012 3456',
-            prefixIcon: CupertinoIcons.creditcard,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              _CardNumberInputFormatter(),
-            ],
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Please enter card number';
-              }
-              if (value!.replaceAll(' ', '').length < 16) {
-                return 'Card number must be 16 digits';
-              }
-              return null;
-            },
-          ),
-          const Gap(16),
-
-          // Expiry and CVC
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField(
-                  controller: _expiryController,
-                  label: 'MM/YY',
-                  hint: '12/25',
-                  prefixIcon: CupertinoIcons.calendar,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    _ExpiryDateInputFormatter(),
-                  ],
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Required';
-                    }
-                    if (value!.length < 5) {
-                      return 'Invalid date';
-                    }
-                    return null;
-                  },
+          // Simple card input message
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  CupertinoIcons.creditcard,
+                  color: Colors.blue.shade600,
+                  size: 24,
                 ),
-              ),
-              const Gap(16),
-              Expanded(
-                child: _buildTextField(
-                  controller: _cvcController,
-                  label: 'CVC',
-                  hint: '123',
-                  prefixIcon: CupertinoIcons.lock,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(3),
-                  ],
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Required';
-                    }
-                    if (value!.length < 3) {
-                      return 'Invalid CVC';
-                    }
-                    return null;
-                  },
+                const Gap(8),
+                Text(
+                  'Card details will be collected securely',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
                 ),
-              ),
-            ],
+                const Gap(4),
+                Text(
+                  'Stripe will handle card collection during payment',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.blue.shade600,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
 
           if (widget.allowSaving) ...[
