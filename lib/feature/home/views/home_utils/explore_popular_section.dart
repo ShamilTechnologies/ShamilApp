@@ -7,6 +7,7 @@ import 'package:gap/gap.dart';
 // Import the display model and the reusable card widget
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 import 'package:shamil_mobile_app/feature/home/widgets/service_provider_card.dart';
+import 'package:shamil_mobile_app/core/navigation/service_provider_navigation.dart'; // Global navigation system
 // Import navigation helper if needed for "See All"
 // Import a potential screen for listing all popular items
 // import 'package:shamil_mobile_app/feature/list_views/all_popular_screen.dart'; // Example
@@ -148,6 +149,11 @@ class ExplorePopularSection extends StatelessWidget {
               return ServiceProviderCard(
                 provider: provider,
                 heroTagPrefix: heroTagPrefix, // Pass the prefix
+                onTap: ServiceProviderNavigation.createProviderCardNavigation(
+                  context,
+                  provider: provider,
+                  heroTagPrefix: heroTagPrefix,
+                ),
               );
             },
           ),

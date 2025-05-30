@@ -8,6 +8,7 @@ import 'package:gap/gap.dart'; // For spacing
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 // Import the reusable card widget
 import 'package:shamil_mobile_app/feature/home/widgets/service_provider_card.dart';
+import 'package:shamil_mobile_app/core/navigation/service_provider_navigation.dart'; // Global navigation system
 // Import navigation helper
 // Import placeholder screen for "See All" (Create this screen later)
 // import 'package:shamil_mobile_app/feature/home/views/all_recommended_screen.dart';
@@ -152,6 +153,11 @@ class ExploreRecommendedSection extends StatelessWidget {
               return ServiceProviderCard(
                 provider: provider,
                 heroTagPrefix: heroTagPrefix, // Pass the prefix
+                onTap: ServiceProviderNavigation.createProviderCardNavigation(
+                  context,
+                  provider: provider,
+                  heroTagPrefix: heroTagPrefix,
+                ),
               );
             },
           ),

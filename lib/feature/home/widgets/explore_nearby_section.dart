@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 import 'package:shamil_mobile_app/feature/home/widgets/service_provider_card.dart';
-import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
+import 'package:shamil_mobile_app/core/navigation/service_provider_navigation.dart'; // Global navigation system
 // Import ServiceProviderModel if your cards expect the full model
 // import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 
@@ -40,17 +40,11 @@ class ExploreNearbySection extends StatelessWidget {
             child: ServiceProviderCard(
               provider: provider,
               heroTagPrefix: "nearby",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ServiceProviderDetailScreen(
-                      providerId: provider.id,
-                      heroTag: 'nearby_${provider.id}',
-                    ),
-                  ),
-                );
-              },
+              onTap: ServiceProviderNavigation.createProviderCardNavigation(
+                context,
+                provider: provider,
+                heroTagPrefix: "nearby",
+              ),
               // If your ServiceProviderCard expects the full ServiceProviderModel,
               // you'll need to adjust the type of nearbyProviders and how it's passed.
             ),

@@ -10,8 +10,6 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_display_mod
 // Import placeholder image data and helper
 import 'package:shamil_mobile_app/core/constants/image_constants.dart'; // Contains transparentImageData
 import 'package:shamil_mobile_app/core/widgets/placeholders.dart'; // Use shared placeholder builder
-// Import Detail Screen for Navigation
-import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
 import 'package:gap/gap.dart'; // Use Gap for spacing
 import 'package:shamil_mobile_app/feature/home/views/bloc/home_bloc.dart'; // For dispatching favorite toggle
 

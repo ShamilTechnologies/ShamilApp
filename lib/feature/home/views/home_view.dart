@@ -22,10 +22,12 @@ import 'package:shimmer/shimmer.dart'; // Needed for helper shimmer widgets
 import 'package:provider/provider.dart'; // Import Provider
 import 'package:shamil_mobile_app/core/navigation/navigation_notifier.dart'; // Import Notifier
 import 'package:shamil_mobile_app/feature/access/views/access_code_view.dart';
-import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
+// REMOVED: import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
 import 'package:shamil_mobile_app/feature/home/views/notifications/notifications_view.dart';
 import 'package:shamil_mobile_app/feature/reservation/presentation/pages/queue_reservation_page.dart';
+import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
+import 'package:shamil_mobile_app/feature/providers/view/modern_providers_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -45,6 +47,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _updateUserDataFromAuthBloc(context.read<AuthBloc>().state);
@@ -69,6 +72,35 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // Helper method to create navigation callback
+  VoidCallback _createNavigationCallback(
+      ServiceProviderDisplayModel provider, String heroTagPrefix) {
+    return () async {
+      try {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BlocProvider.value(
+              value: BlocProvider.of<FavoritesBloc>(context),
+              child: ServiceProviderDetailScreen(
+                providerId: provider.id,
+                heroTag: '${heroTagPrefix}_${provider.id}',
+                initialProviderData: provider,
+              ),
+            ),
+          ),
+        );
+      } catch (e) {
+        debugPrint('Navigation error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error opening provider details: $e')),
+          );
+        }
+      }
+    };
   }
 
   void _updateUserDataFromAuthBloc(AuthState authState) {
@@ -216,20 +248,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 child: ServiceProviderCard(
                   provider: provider,
                   heroTagPrefix: heroTagPrefix,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => BlocProvider.value(
-                          value: BlocProvider.of<FavoritesBloc>(context),
-                          child: ServiceProviderDetailScreen(
-                            providerId: provider.id,
-                            heroTag: '${heroTagPrefix}_${provider.id}',
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                  onTap: _createNavigationCallback(provider, heroTagPrefix),
                 ),
               );
             },
@@ -509,21 +528,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           child: ServiceProviderCard(
                             provider: provider,
                             heroTagPrefix: "nearby",
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => BlocProvider.value(
-                                    value:
-                                        BlocProvider.of<FavoritesBloc>(context),
-                                    child: ServiceProviderDetailScreen(
-                                      providerId: provider.id,
-                                      heroTag: 'nearby_${provider.id}',
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                            onTap:
+                                _createNavigationCallback(provider, "nearby"),
                           ),
                         );
                       },
@@ -635,20 +641,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               return ServiceProviderCard(
                 provider: provider,
                 heroTagPrefix: "search_result",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => BlocProvider.value(
-                        value: BlocProvider.of<FavoritesBloc>(context),
-                        child: ServiceProviderDetailScreen(
-                          providerId: provider.id,
-                          heroTag: 'search_result_${provider.id}',
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                onTap: _createNavigationCallback(provider, "search_result"),
               );
             },
           ),
@@ -722,14 +715,49 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void _navigateToSeeAll(
       String title, List<ServiceProviderDisplayModel>? providers) {
     if (providers == null || providers.isEmpty) return;
-    print("Navigate to See All: $title");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text("Navigate to 'See All: $title' (Not Implemented)"),
-          duration: const Duration(seconds: 2)),
-    );
-    // TODO: Implement actual navigation to a generic list screen
-    // Navigator.push(context, MaterialPageRoute(builder: (_) => AllProvidersScreen(title: title, providers: providers)));
+
+    // Direct navigation to modern providers screen
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BlocProvider.value(
+            value: BlocProvider.of<FavoritesBloc>(context),
+            child: ModernProvidersScreen(
+              initialCategory: _mapSectionTitleToCategory(title),
+              initialCity: (_currentCity != "All Cities") ? _currentCity : null,
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('See All navigation error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening providers list: $e')),
+        );
+      }
+    }
+  }
+
+  // Helper method to map section titles to categories
+  String? _mapSectionTitleToCategory(String title) {
+    switch (title.toLowerCase()) {
+      case 'fitness & gym':
+      case 'fitness':
+        return 'Fitness';
+      case 'sports':
+        return 'Sports';
+      case 'entertainment':
+        return 'Entertainment';
+      case 'health & wellness':
+      case 'health':
+        return 'Health';
+      case 'events':
+        return 'Events';
+      default:
+        return null; // Show all categories
+    }
   }
 
   void setStateIfMounted(VoidCallback fn) {
