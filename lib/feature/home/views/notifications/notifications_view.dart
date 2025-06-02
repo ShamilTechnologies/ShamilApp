@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
 
 class NotificationsView extends StatefulWidget {
-  const NotificationsView({Key? key}) : super(key: key);
+  const NotificationsView({super.key});
 
   @override
   State<NotificationsView> createState() => _NotificationsViewState();

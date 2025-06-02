@@ -70,7 +70,9 @@ class OpeningHoursDay extends Equatable {
           hour < 0 ||
           hour > 23 ||
           minute < 0 ||
-          minute > 59) return null;
+          minute > 59) {
+        return null;
+      }
       return TimeOfDay(hour: hour, minute: minute);
     }
 

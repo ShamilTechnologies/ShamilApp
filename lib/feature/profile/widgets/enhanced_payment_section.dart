@@ -208,7 +208,7 @@ class _EnhancedPaymentSectionState extends State<EnhancedPaymentSection>
   }
 
   Widget _buildLoadingState() {
-    return Container(
+    return SizedBox(
       height: 120,
       child: const Center(
         child: Column(

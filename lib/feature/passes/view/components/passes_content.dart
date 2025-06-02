@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
@@ -14,13 +16,56 @@ import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shamil_mobile_app/feature/reservation/presentation/pages/queue_reservation_page.dart';
 
-class PassesContent extends StatelessWidget {
+class PassesContent extends StatefulWidget {
   final PassType passType;
 
   const PassesContent({
-    Key? key,
+    super.key,
     required this.passType,
-  }) : super(key: key);
+  });
+
+  @override
+  State<PassesContent> createState() => _PassesContentState();
+}
+
+class _PassesContentState extends State<PassesContent>
+    with TickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOut,
+    ));
+
+    _slideAnimation = Tween<double>(
+      begin: 30.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOut,
+    ));
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,40 +85,36 @@ class PassesContent extends StatelessWidget {
       },
       builder: (context, state) {
         if (state is MyPassesInitial || state is MyPassesLoading) {
-          return _buildLoadingShimmer();
+          return _buildPremiumLoadingShimmer();
         }
 
         if (state is MyPassesLoaded) {
-          // Use a default filter if the current one is null
           final currentFilter = state.currentFilter ?? PassFilter.all;
-
-          final items = passType == PassType.reservation
+          final items = widget.passType == PassType.reservation
               ? state.filteredReservations
               : state.filteredSubscriptions;
 
           if (items.isEmpty) {
-            // Check if we have any items before filtering
-            final allItems = passType == PassType.reservation
+            final allItems = widget.passType == PassType.reservation
                 ? state.reservations
                 : state.subscriptions;
 
             if (allItems.isEmpty) {
-              return _buildEmptyState(context);
+              return _buildPremiumEmptyState(context);
             } else {
-              // If we have items but filter caused empty result, show filter empty state
-              return _buildFilterEmptyState(context, currentFilter);
+              return _buildPremiumFilterEmptyState(context, currentFilter);
             }
           }
 
-          return passType == PassType.reservation
-              ? _buildReservationList(
+          return widget.passType == PassType.reservation
+              ? _buildPremiumReservationList(
                   context, state.filteredReservations, currentFilter)
-              : _buildSubscriptionList(
+              : _buildPremiumSubscriptionList(
                   context, state.filteredSubscriptions, currentFilter);
         }
 
         if (state is MyPassesError) {
-          return _buildErrorState(context, state.message);
+          return _buildPremiumErrorState(context, state.message);
         }
 
         return const SizedBox.shrink();
@@ -81,264 +122,661 @@ class PassesContent extends StatelessWidget {
     );
   }
 
-  // UI builders
-  Widget _buildLoadingShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: SingleChildScrollView(
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: 3,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemBuilder: (context, index) {
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Container(
-                height: passType == PassType.reservation ? 180 : 220,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header with status
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          width: 200,
-                          height: 24,
-                          color: Colors.white,
-                        ),
-                        Container(
-                          width: 80,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Gap(18),
-                    // Content box
-                    Container(
-                      width: double.infinity,
-                      height: 80,
+  Widget _buildPremiumLoadingShimmer() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Premium filter chips shimmer
+          SizedBox(
+            height: 45,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: 4,
+              itemBuilder: (context, index) {
+                return Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  child: Shimmer.fromColors(
+                    baseColor: Colors.white.withOpacity(0.1),
+                    highlightColor: Colors.white.withOpacity(0.3),
+                    child: Container(
+                      width: 90,
+                      height: 36,
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withOpacity(0.15),
+                            Colors.white.withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    // Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Container(width: 80, height: 36, color: Colors.white),
-                        const Gap(8),
-                        Container(width: 80, height: 36, color: Colors.white),
-                      ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const Gap(20),
+
+          // Premium cards shimmer
+          Expanded(
+            child: ListView.builder(
+              itemCount: 3,
+              itemBuilder: (context, index) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: Shimmer.fromColors(
+                    baseColor: Colors.white.withOpacity(0.1),
+                    highlightColor: Colors.white.withOpacity(0.3),
+                    child: Container(
+                      height: 180,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withOpacity(0.15),
+                            Colors.white.withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumEmptyState(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _slideAnimation.value),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Premium icon container
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          colors: [
+                            AppColors.primaryColor.withOpacity(0.3),
+                            AppColors.primaryColor.withOpacity(0.1),
+                            Colors.transparent,
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Container(
+                        margin: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withOpacity(0.2),
+                              Colors.white.withOpacity(0.1),
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 2,
+                          ),
+                        ),
+                        child: Icon(
+                          widget.passType == PassType.reservation
+                              ? Icons.event_note_rounded
+                              : Icons.card_membership_rounded,
+                          color: Colors.white,
+                          size: 40,
+                        ),
+                      ),
+                    ),
+                    const Gap(24),
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Colors.white, Color(0xFFB8BCC8)],
+                      ).createShader(bounds),
+                      child: Text(
+                        widget.passType == PassType.reservation
+                            ? 'No Reservations Yet'
+                            : 'No Subscriptions Yet',
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const Gap(12),
+                    Text(
+                      widget.passType == PassType.reservation
+                          ? 'Book your first service to see your reservations here'
+                          : 'Subscribe to a plan to see your subscriptions here',
+                      style: AppTextStyle.getbodyStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const Gap(32),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryColor,
+                            AppColors.tealColor,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryColor.withOpacity(0.4),
+                            blurRadius: 15,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.of(context).pop();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 28, vertical: 14),
+                            child: Text(
+                              widget.passType == PassType.reservation
+                                  ? 'Browse Services'
+                                  : 'Browse Plans',
+                              style: AppTextStyle.getbodyStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            );
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.primaryColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              passType == PassType.reservation
-                  ? CupertinoIcons.calendar
-                  : CupertinoIcons.creditcard,
-              color: AppColors.primaryColor,
-              size: 48,
-            ),
-          ),
-          const Gap(20),
-          Text(
-            passType == PassType.reservation
-                ? 'No Reservations Yet'
-                : 'No Subscriptions Yet',
-            style: AppTextStyle.getTitleStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Gap(12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              passType == PassType.reservation
-                  ? 'Book your first service to see your reservations here'
-                  : 'Subscribe to a plan to see your subscriptions here',
-              style: AppTextStyle.getbodyStyle(
-                color: AppColors.secondaryText,
-                fontSize: 16,
+  Widget _buildPremiumFilterEmptyState(
+      BuildContext context, PassFilter currentFilter) {
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _slideAnimation.value),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(40),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withOpacity(0.2),
+                            Colors.white.withOpacity(0.1),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.filter_list_off_rounded,
+                        color: Colors.white.withOpacity(0.8),
+                        size: 48,
+                      ),
+                    ),
+                    const Gap(24),
+                    Text(
+                      'No Results Found',
+                      style: AppTextStyle.getTitleStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Gap(12),
+                    Text(
+                      'No ${widget.passType == PassType.reservation ? 'reservations' : 'subscriptions'} match the current filter.',
+                      style: AppTextStyle.getbodyStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const Gap(32),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withOpacity(0.2),
+                            Colors.white.withOpacity(0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            context
+                                .read<MyPassesBloc>()
+                                .add(const ChangePassFilter(PassFilter.all));
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                            child: Text(
+                              'Show All',
+                              style: AppTextStyle.getbodyStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              textAlign: TextAlign.center,
             ),
           ),
-          const Gap(32),
-          CustomButton(
-            onPressed: () {
-              // Navigate to explore page to browse services/plans
-              Navigator.of(context).pop();
-            },
-            text: passType == PassType.reservation
-                ? 'Browse Services'
-                : 'Browse Plans',
-            width: 220,
-            height: 50,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildErrorState(BuildContext context, String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            CupertinoIcons.exclamationmark_triangle,
-            color: AppColors.redColor,
-            size: 48,
-          ),
-          const Gap(16),
-          Text(
-            passType == PassType.reservation
-                ? 'Error Loading Reservations'
-                : 'Error Loading Subscriptions',
-            style: AppTextStyle.getTitleStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
+  Widget _buildPremiumErrorState(BuildContext context, String message) {
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _slideAnimation.value),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(40),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.red.withOpacity(0.3),
+                            Colors.red.withOpacity(0.1),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.red.withOpacity(0.5),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.error_outline_rounded,
+                        color: Colors.red.withOpacity(0.8),
+                        size: 48,
+                      ),
+                    ),
+                    const Gap(24),
+                    Text(
+                      widget.passType == PassType.reservation
+                          ? 'Error Loading Reservations'
+                          : 'Error Loading Subscriptions',
+                      style: AppTextStyle.getTitleStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Gap(12),
+                    Text(
+                      message,
+                      style: AppTextStyle.getbodyStyle(
+                        color: Colors.white.withOpacity(0.7),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const Gap(32),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Colors.red, Color(0xFFD32F2F)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.4),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            context
+                                .read<MyPassesBloc>()
+                                .add(const LoadMyPasses());
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 32, vertical: 16),
+                            child: Text(
+                              'Try Again',
+                              style: AppTextStyle.getbodyStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          const Gap(8),
-          Text(
-            message,
-            style: AppTextStyle.getbodyStyle(
-              color: AppColors.secondaryText,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const Gap(24),
-          CustomButton(
-            onPressed: () {
-              context.read<MyPassesBloc>().add(const LoadMyPasses());
-            },
-            text: 'Try Again',
-            width: 200,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildReservationList(BuildContext context,
+  Widget _buildPremiumReservationList(BuildContext context,
       List<ReservationModel> reservations, PassFilter currentFilter) {
-    // Upcoming and past sections are now handled by the bloc's filtered lists
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        context.read<MyPassesBloc>().add(const RefreshMyPasses());
-      },
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Filter chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               children: [
-                _buildFilterChip(context, 'All',
-                    currentFilter == PassFilter.all, PassFilter.all),
-                _buildFilterChip(context, 'Upcoming',
-                    currentFilter == PassFilter.upcoming, PassFilter.upcoming),
-                _buildFilterChip(
-                    context,
-                    'Completed',
-                    currentFilter == PassFilter.completed,
-                    PassFilter.completed),
-                _buildFilterChip(
-                    context,
-                    'Cancelled',
-                    currentFilter == PassFilter.cancelled,
-                    PassFilter.cancelled),
+                // Premium filter chips
+                _buildPremiumFilterChips(context, currentFilter, true),
+                const Gap(20),
+
+                // Premium reservation cards
+                Expanded(
+                  child: RefreshIndicator(
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    color: AppColors.primaryColor,
+                    onRefresh: () async {
+                      HapticFeedback.lightImpact();
+                      context.read<MyPassesBloc>().add(const RefreshMyPasses());
+                    },
+                    child: ListView.builder(
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      itemCount: reservations.length,
+                      itemBuilder: (context, index) {
+                        return AnimatedBuilder(
+                          animation: _animationController,
+                          builder: (context, child) {
+                            final delay = index * 0.1;
+                            final animationValue =
+                                (_animationController.value - delay)
+                                    .clamp(0.0, 1.0);
+
+                            return Transform.translate(
+                              offset: Offset(0, (1 - animationValue) * 30),
+                              child: Opacity(
+                                opacity: animationValue,
+                                child: _buildPremiumReservationCard(
+                                    context, reservations[index]),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-          const Gap(16),
-
-          // Reservation cards
-          ...reservations.map(
-              (reservation) => _buildReservationCard(context, reservation)),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildSubscriptionList(BuildContext context,
+  Widget _buildPremiumSubscriptionList(BuildContext context,
       List<SubscriptionModel> subscriptions, PassFilter currentFilter) {
-    // Active and inactive sections are now handled by the bloc's filtered lists
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        context.read<MyPassesBloc>().add(const RefreshMyPasses());
-      },
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Filter chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               children: [
-                _buildFilterChip(context, 'All',
-                    currentFilter == PassFilter.all, PassFilter.all),
-                _buildFilterChip(context, 'Active',
-                    currentFilter == PassFilter.active, PassFilter.active),
-                _buildFilterChip(context, 'Expired',
-                    currentFilter == PassFilter.expired, PassFilter.expired),
-                _buildFilterChip(
-                    context,
-                    'Cancelled',
-                    currentFilter == PassFilter.cancelled,
-                    PassFilter.cancelled),
+                // Premium filter chips
+                _buildPremiumFilterChips(context, currentFilter, false),
+                const Gap(20),
+
+                // Premium subscription cards
+                Expanded(
+                  child: RefreshIndicator(
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    color: AppColors.primaryColor,
+                    onRefresh: () async {
+                      HapticFeedback.lightImpact();
+                      context.read<MyPassesBloc>().add(const RefreshMyPasses());
+                    },
+                    child: ListView.builder(
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      itemCount: subscriptions.length,
+                      itemBuilder: (context, index) {
+                        return AnimatedBuilder(
+                          animation: _animationController,
+                          builder: (context, child) {
+                            final delay = index * 0.1;
+                            final animationValue =
+                                (_animationController.value - delay)
+                                    .clamp(0.0, 1.0);
+
+                            return Transform.translate(
+                              offset: Offset(0, (1 - animationValue) * 30),
+                              child: Opacity(
+                                opacity: animationValue,
+                                child: _buildPremiumSubscriptionCard(
+                                    context, subscriptions[index]),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-          const Gap(16),
+        );
+      },
+    );
+  }
 
-          // Subscription cards
-          ...subscriptions.map(
-              (subscription) => _buildSubscriptionCard(context, subscription)),
-        ],
+  Widget _buildPremiumFilterChips(
+      BuildContext context, PassFilter currentFilter, bool isReservation) {
+    final filters = isReservation
+        ? [
+            _FilterData(PassFilter.all, 'All', Icons.apps_rounded),
+            _FilterData(
+                PassFilter.upcoming, 'Upcoming', Icons.schedule_rounded),
+            _FilterData(
+                PassFilter.completed, 'Completed', Icons.check_circle_rounded),
+            _FilterData(
+                PassFilter.cancelled, 'Cancelled', Icons.cancel_rounded),
+          ]
+        : [
+            _FilterData(PassFilter.all, 'All', Icons.apps_rounded),
+            _FilterData(
+                PassFilter.active, 'Active', Icons.check_circle_rounded),
+            _FilterData(
+                PassFilter.expired, 'Expired', Icons.access_time_rounded),
+            _FilterData(
+                PassFilter.cancelled, 'Cancelled', Icons.cancel_rounded),
+          ];
+
+    return SizedBox(
+      height: 45,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: filters.length,
+        itemBuilder: (context, index) {
+          final filter = filters[index];
+          final isSelected = currentFilter == filter.value;
+
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              context.read<MyPassesBloc>().add(ChangePassFilter(filter.value));
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: isSelected
+                    ? LinearGradient(
+                        colors: [
+                          AppColors.primaryColor,
+                          AppColors.tealColor,
+                        ],
+                      )
+                    : LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.15),
+                          Colors.white.withOpacity(0.05),
+                        ],
+                      ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.primaryColor.withOpacity(0.5)
+                      : Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+                boxShadow: [
+                  if (isSelected)
+                    BoxShadow(
+                      color: AppColors.primaryColor.withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        filter.icon,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const Gap(6),
+                      Text(
+                        filter.label,
+                        style: AppTextStyle.getbodyStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildReservationCard(
+  Widget _buildPremiumReservationCard(
       BuildContext context, ReservationModel reservation) {
     final isPending = reservation.status == ReservationStatus.pending;
     final isConfirmed = reservation.status == ReservationStatus.confirmed;
@@ -347,31 +785,31 @@ class PassesContent extends StatelessWidget {
             reservation.status == ReservationStatus.cancelledByProvider;
     final isCompleted = reservation.status == ReservationStatus.completed;
 
-    // Status info
+    // Status info with premium colors
     Color statusColor;
     String statusText;
     IconData statusIcon;
 
     if (isPending) {
-      statusColor = const Color(0xFFFAAD14); // Orange
+      statusColor = const Color(0xFFFFB74D);
       statusText = 'Pending';
-      statusIcon = CupertinoIcons.clock;
+      statusIcon = Icons.schedule_rounded;
     } else if (isConfirmed) {
-      statusColor = const Color(0xFF52C41A); // Green
+      statusColor = const Color(0xFF66BB6A);
       statusText = 'Confirmed';
-      statusIcon = CupertinoIcons.checkmark_circle;
+      statusIcon = Icons.check_circle_rounded;
     } else if (isCancelled) {
-      statusColor = const Color(0xFFFF4D4F); // Red
+      statusColor = const Color(0xFFEF5350);
       statusText = 'Cancelled';
-      statusIcon = CupertinoIcons.xmark_circle;
+      statusIcon = Icons.cancel_rounded;
     } else if (isCompleted) {
-      statusColor = const Color(0xFF1890FF); // Blue
+      statusColor = const Color(0xFF42A5F5);
       statusText = 'Completed';
-      statusIcon = CupertinoIcons.checkmark_seal;
+      statusIcon = Icons.check_circle_outline_rounded;
     } else {
       statusColor = Colors.grey;
       statusText = 'Unknown';
-      statusIcon = CupertinoIcons.question_circle;
+      statusIcon = Icons.help_outline_rounded;
     }
 
     // Date/Time formatting
@@ -382,667 +820,877 @@ class PassesContent extends StatelessWidget {
     final formattedTime =
         dateTime != null ? DateFormat('h:mm a').format(dateTime) : 'No time';
 
-    // Determine provider name from typeSpecificData if available
-    final providerName =
-        reservation.typeSpecificData?['providerName'] as String? ?? '';
-
-    // Get price and currency from typeSpecificData or directly from totalPrice
+    // Get price and currency
     final price = reservation.totalPrice;
-    final currency = 'EGP'; // Default currency
+    final currency = 'EGP';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            spreadRadius: 0,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: statusColor.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            // Status indicator at top
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      statusColor,
-                      statusColor.withOpacity(0.7),
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                ),
-              ),
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
             ),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with service name and status
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        reservation.serviceName ?? 'Service Reservation',
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Gap(12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            statusColor.withOpacity(0.8),
+                            statusColor.withOpacity(0.6),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withOpacity(0.4),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            statusIcon,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          const Gap(4),
+                          Text(
+                            statusText,
+                            style: AppTextStyle.getbodyStyle(
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const Gap(16),
 
-            // Main content
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with service name and status
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // Date and time info with premium styling
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
                     children: [
                       Expanded(
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                CupertinoIcons.calendar,
-                                color: AppColors.primaryColor,
-                                size: 20,
-                              ),
-                            ),
-                            const Gap(12),
-                            Expanded(
-                              child: Text(
-                                reservation.serviceName ??
-                                    'Service Reservation',
-                                style: AppTextStyle.getTitleStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Gap(8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              statusIcon,
-                              size: 14,
-                              color: statusColor,
-                            ),
-                            const Gap(4),
-                            Text(
-                              statusText,
-                              style: AppTextStyle.getSmallStyle(
-                                color: statusColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Gap(20),
-
-                  // Details box
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.grey.withOpacity(0.1),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(
-                                    CupertinoIcons.calendar,
-                                    size: 16,
-                                    color: AppColors.secondaryText,
-                                  ),
-                                  const Gap(8),
-                                  Text(
-                                    formattedDate,
-                                    style: AppTextStyle.getSmallStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Gap(8),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    CupertinoIcons.clock,
-                                    size: 16,
-                                    color: AppColors.secondaryText,
-                                  ),
-                                  const Gap(8),
-                                  Text(
-                                    formattedTime,
-                                    style: AppTextStyle.getSmallStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (providerName.isNotEmpty) ...[
-                                const Gap(8),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      CupertinoIcons.location,
-                                      size: 16,
-                                      color: AppColors.secondaryText,
-                                    ),
-                                    const Gap(8),
-                                    Expanded(
-                                      child: Text(
-                                        providerName,
-                                        style: AppTextStyle.getSmallStyle(
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.tealColor.withOpacity(0.3),
+                                    AppColors.tealColor.withOpacity(0.1),
                                   ],
                                 ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppColors.primaryColor.withOpacity(0.3),
-                              width: 2,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.calendar_today_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            '$currency ${price?.toStringAsFixed(2) ?? '0.00'}',
-                            style: AppTextStyle.getTitleStyle(
-                              fontSize: 16,
-                              color: AppColors.primaryColor,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Queue information for queue-based reservations
-                  if (reservation.queueBased && isConfirmed)
-                    _buildQueueInfo(reservation),
-
-                  const Gap(16),
-
-                  // Button row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      if (reservation.queueBased &&
-                          isConfirmed &&
-                          reservation.queueStatus != null)
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            // Navigate to queue details screen
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => QueueReservationPage(
-                                  providerId: reservation.providerId,
-                                  governorateId: reservation.governorateId,
-                                  serviceId: reservation.serviceId,
-                                  serviceName: reservation.serviceName,
-                                  queueReservationId:
-                                      reservation.queueStatus?.id,
+                            const Gap(8),
+                            Expanded(
+                              child: Text(
+                                formattedDate,
+                                style: AppTextStyle.getbodyStyle(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            );
-                          },
-                          icon: const Icon(CupertinoIcons.person_3_fill,
-                              size: 16),
-                          label: const Text('View Queue'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primaryColor,
-                            side:
-                                const BorderSide(color: AppColors.primaryColor),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
                             ),
-                          ),
+                          ],
                         ),
-                      if (reservation.queueBased &&
-                          isConfirmed &&
-                          reservation.queueStatus != null)
-                        const Gap(8),
-                      if ((isPending || isConfirmed) &&
-                          !isCancelled &&
-                          !isCompleted)
-                        OutlinedButton(
-                          onPressed: () {
-                            _showCancelConfirmation(context, reservation.id);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.redColor,
-                            side: const BorderSide(color: AppColors.redColor),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                      ),
+                      const Gap(12),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.accentColor.withOpacity(0.3),
+                                    AppColors.accentColor.withOpacity(0.1),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.access_time_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          child: const Text('Cancel'),
-                        ),
-                      const Gap(8),
-                      Container(
-                        width: 100, // Fixed width to avoid infinite constraints
-                        child: ElevatedButton(
-                          onPressed: () {
-                            _showReservationDetails(context, reservation);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                            const Gap(8),
+                            Expanded(
+                              child: Text(
+                                formattedTime,
+                                style: AppTextStyle.getbodyStyle(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
-                          child: const Text('Details'),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+
+                // Queue information if available
+                if (reservation.queueBased &&
+                    isConfirmed &&
+                    reservation.queueStatus != null)
+                  _buildPremiumQueueInfo(reservation),
+
+                const Gap(16),
+
+                // Price and actions with premium styling
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryColor.withOpacity(0.8),
+                            AppColors.tealColor.withOpacity(0.8),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '$currency ${price?.toStringAsFixed(2) ?? '0.00'}',
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if ((isPending || isConfirmed) &&
+                              !isCancelled &&
+                              !isCompleted)
+                            Flexible(
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.red.withOpacity(0.8),
+                                      Colors.red.withOpacity(0.6),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () {
+                                      HapticFeedback.mediumImpact();
+                                      _showCancelConfirmation(
+                                          context, reservation.id);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                      child: Text(
+                                        'Cancel',
+                                        style: AppTextStyle.getbodyStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          Flexible(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(0.2),
+                                    Colors.white.withOpacity(0.1),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(10),
+                                  onTap: () {
+                                    HapticFeedback.lightImpact();
+                                    _showReservationDetails(
+                                        context, reservation);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 8),
+                                    child: Text(
+                                      'Details',
+                                      style: AppTextStyle.getbodyStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSubscriptionCard(
+  Widget _buildPremiumSubscriptionCard(
       BuildContext context, SubscriptionModel subscription) {
-    // Determine subscription status
     final status = subscription.status.toLowerCase();
     final isActive = status == 'active';
     final isPending = status == 'pending';
     final isCancelled = status == 'cancelled';
     final isExpired = status == 'expired';
-    final isPaymentFailed = status == 'payment_failed';
 
-    // Status styling
+    // Status styling with premium colors
     Color statusColor;
     String statusText;
     IconData statusIcon;
 
     if (isActive) {
-      statusColor = const Color(0xFF52C41A); // Green
+      statusColor = const Color(0xFF66BB6A);
       statusText = 'Active';
-      statusIcon = CupertinoIcons.checkmark_circle;
+      statusIcon = Icons.check_circle_rounded;
     } else if (isPending) {
-      statusColor = const Color(0xFFFAAD14); // Orange
+      statusColor = const Color(0xFFFFB74D);
       statusText = 'Pending';
-      statusIcon = CupertinoIcons.clock;
+      statusIcon = Icons.schedule_rounded;
     } else if (isCancelled) {
-      statusColor = const Color(0xFFFF4D4F); // Red
+      statusColor = const Color(0xFFEF5350);
       statusText = 'Cancelled';
-      statusIcon = CupertinoIcons.xmark_circle;
+      statusIcon = Icons.cancel_rounded;
     } else if (isExpired) {
-      statusColor = const Color(0xFFFAAD14); // Orange
+      statusColor = const Color(0xFFFF8A65);
       statusText = 'Expired';
-      statusIcon = CupertinoIcons.timer;
-    } else if (isPaymentFailed) {
-      statusColor = const Color(0xFFFF4D4F); // Red
-      statusText = 'Payment Failed';
-      statusIcon = CupertinoIcons.exclamationmark_circle;
+      statusIcon = Icons.access_time_rounded;
     } else {
       statusColor = Colors.grey;
       statusText = 'Unknown';
-      statusIcon = CupertinoIcons.question_circle;
+      statusIcon = Icons.help_outline_rounded;
     }
+
+    // Format dates
+    final startDate = subscription.startDate.toDate();
+    final expiryDate = subscription.expiryDate.toDate();
+    final formattedStartDate = DateFormat('MMM d, yyyy').format(startDate);
+    final formattedExpiryDate = DateFormat('MMM d, yyyy').format(expiryDate);
 
     // Calculate progress for active subscriptions
     double progressValue = 0.0;
     int daysRemaining = 0;
 
     if (isActive) {
-      final startDate = subscription.startDate.toDate();
-      final expiryDate = subscription.expiryDate.toDate();
       final now = DateTime.now();
-
       final totalDuration = expiryDate.difference(startDate).inDays;
       final elapsedDuration = now.difference(startDate).inDays;
 
       if (totalDuration > 0) {
         progressValue = elapsedDuration / totalDuration;
-        // Clamp progress value between 0 and 1
         progressValue = progressValue.clamp(0.0, 1.0);
         daysRemaining = expiryDate.difference(now).inDays;
       }
     }
 
-    // Format dates
-    final startDate = subscription.startDate.toDate();
-    final expiryDate = subscription.expiryDate.toDate();
-
-    final formattedStartDate = DateFormat('MMM d, yyyy').format(startDate);
-    final formattedExpiryDate = DateFormat('MMM d, yyyy').format(expiryDate);
-
-    // Get provider name from the provider repository or use a default
-    final providerName =
-        ''; // This would come from a provider repository lookup
-
-    // Use pricePaid for the price and default currency
     final price = subscription.pricePaid;
-    final currency = 'EGP'; // Default currency
+    final currency = 'EGP';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            spreadRadius: 0,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: statusColor.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            // Status indicator at top
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      statusColor,
-                      statusColor.withOpacity(0.7),
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                ),
-              ),
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
             ),
-
-            // Main content
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with plan name and status
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                CupertinoIcons.creditcard,
-                                color: AppColors.primaryColor,
-                                size: 20,
-                              ),
-                            ),
-                            const Gap(12),
-                            Expanded(
-                              child: Text(
-                                subscription.planName,
-                                style: AppTextStyle.getTitleStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with plan name and status
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        subscription.planName,
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Gap(12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            statusColor.withOpacity(0.8),
+                            statusColor.withOpacity(0.6),
                           ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withOpacity(0.4),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            statusIcon,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          const Gap(4),
+                          Text(
+                            statusText,
+                            style: AppTextStyle.getbodyStyle(
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const Gap(16),
+
+                // Period with premium styling
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.tealColor.withOpacity(0.3),
+                              AppColors.tealColor.withOpacity(0.1),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.date_range_rounded,
+                          size: 14,
+                          color: Colors.white,
                         ),
                       ),
                       const Gap(8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              statusIcon,
-                              size: 14,
-                              color: statusColor,
-                            ),
-                            const Gap(4),
-                            Text(
-                              statusText,
-                              style: AppTextStyle.getSmallStyle(
-                                color: statusColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                      Expanded(
+                        child: Text(
+                          '$formattedStartDate - $formattedExpiryDate',
+                          style: AppTextStyle.getbodyStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.9),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const Gap(20),
+                ),
 
-                  // Details box
+                // Progress indicator for active subscriptions
+                if (isActive) ...[
+                  const Gap(16),
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        colors: [
+                          statusColor.withOpacity(0.2),
+                          statusColor.withOpacity(0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Colors.grey.withOpacity(0.1),
+                        color: statusColor.withOpacity(0.3),
                         width: 1,
                       ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Period
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Period',
-                              style: AppTextStyle.getSmallStyle(
-                                color: AppColors.secondaryText,
+                              'Progress',
+                              style: AppTextStyle.getbodyStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.8),
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             Text(
-                              '$formattedStartDate - $formattedExpiryDate',
-                              style: AppTextStyle.getSmallStyle(
-                                fontWeight: FontWeight.w500,
+                              '$daysRemaining days remaining',
+                              style: AppTextStyle.getbodyStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.8),
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
                         const Gap(8),
-
-                        // Provider
-                        if (providerName.isNotEmpty) ...[
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Provider',
-                                style: AppTextStyle.getSmallStyle(
-                                  color: AppColors.secondaryText,
-                                ),
-                              ),
-                              Text(
-                                providerName,
-                                style: AppTextStyle.getSmallStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: LinearProgressIndicator(
+                              value: progressValue,
+                              backgroundColor: Colors.transparent,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(statusColor),
+                            ),
                           ),
-                          const Gap(8),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
 
-                        // Billing
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                const Gap(16),
+
+                // Price and actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryColor.withOpacity(0.8),
+                            AppColors.tealColor.withOpacity(0.8),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '$currency ${price.toStringAsFixed(2)}',
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (isActive || isPending)
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              'Billing',
-                              style: AppTextStyle.getSmallStyle(
-                                color: AppColors.secondaryText,
+                            Flexible(
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.red.withOpacity(0.8),
+                                      Colors.red.withOpacity(0.6),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () {
+                                      HapticFeedback.mediumImpact();
+                                      _showCancelConfirmationDialog(
+                                          context, subscription.id, false);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                      child: Text(
+                                        'Cancel',
+                                        style: AppTextStyle.getbodyStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                            Text(
-                              '$currency ${price.toStringAsFixed(2)} / ${subscription.billingCycle ?? 'month'}',
-                              style: AppTextStyle.getSmallStyle(
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primaryColor,
+                            Flexible(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.white.withOpacity(0.2),
+                                      Colors.white.withOpacity(0.1),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () {
+                                      HapticFeedback.lightImpact();
+                                      // Show details
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 8),
+                                      child: Text(
+                                        'View',
+                                        style: AppTextStyle.getbodyStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ],
                         ),
-
-                        // Progress indicator for active subscriptions
-                        if (isActive) ...[
-                          const Gap(16),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: progressValue,
-                              backgroundColor: Colors.grey.withOpacity(0.2),
-                              color: statusColor,
-                              minHeight: 10,
-                            ),
-                          ),
-                          const Gap(8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Usage',
-                                style: AppTextStyle.getSmallStyle(
-                                  color: AppColors.secondaryText,
-                                ),
-                              ),
-                              Text(
-                                '$daysRemaining days remaining',
-                                style: AppTextStyle.getSmallStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  // Action buttons
-                  if (isActive || isPending)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                // Show details
-                              },
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.primaryColor,
-                                side: const BorderSide(
-                                    color: AppColors.primaryColor),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 16),
-                              ),
-                              child: const Text('View'),
-                            ),
-                          ),
-                          const Gap(12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                // Show cancel confirmation dialog
-                                _showCancelConfirmationDialog(
-                                    context, subscription.id, false);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.redColor,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 16),
-                              ),
-                              child: const Text('Cancel'),
-                            ),
-                          ),
-                        ],
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Premium queue info widget
+  Widget _buildPremiumQueueInfo(ReservationModel reservation) {
+    if (!reservation.queueBased || reservation.queueStatus == null) {
+      return const SizedBox.shrink();
+    }
+
+    final queueStatus = reservation.queueStatus!;
+    Color statusColor = AppColors.primaryColor;
+
+    switch (queueStatus.status) {
+      case 'waiting':
+        statusColor = const Color(0xFFFFB74D);
+        break;
+      case 'processing':
+        statusColor = const Color(0xFF66BB6A);
+        break;
+      case 'completed':
+        statusColor = const Color(0xFF42A5F5);
+        break;
+      case 'cancelled':
+        statusColor = const Color(0xFFEF5350);
+        break;
+    }
+
+    String formattedTime = 'Unknown';
+    try {
+      formattedTime =
+          DateFormat('h:mm a').format(queueStatus.estimatedEntryTime);
+    } catch (e) {
+      // Use default value if formatting fails
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            statusColor.withOpacity(0.2),
+            statusColor.withOpacity(0.1),
           ],
         ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: statusColor.withOpacity(0.4),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Queue Position',
+                style: AppTextStyle.getbodyStyle(
+                  fontSize: 12,
+                  color: Colors.white.withOpacity(0.8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Gap(6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      statusColor.withOpacity(0.8),
+                      statusColor.withOpacity(0.6),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '#${queueStatus.position}',
+                  style: AppTextStyle.getTitleStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'Estimated Time',
+                style: AppTextStyle.getbodyStyle(
+                  fontSize: 12,
+                  color: Colors.white.withOpacity(0.8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Gap(6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.2),
+                      Colors.white.withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  formattedTime,
+                  style: AppTextStyle.getTitleStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1136,293 +1784,6 @@ class PassesContent extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-
-  Widget _buildFilterChip(
-      BuildContext context, String label, bool isSelected, PassFilter filter) {
-    final isActive = label == 'Active' || label == 'Upcoming';
-    final isAll = label == 'All';
-    final isPast = label == 'Completed';
-    final isCancelled = label == 'Cancelled';
-
-    Color chipColor;
-    if (isActive) {
-      chipColor = const Color(0xFF52C41A);
-    } else if (isPast) {
-      chipColor = const Color(0xFF1890FF);
-    } else if (isCancelled) {
-      chipColor = const Color(0xFFFF4D4F);
-    } else {
-      chipColor = AppColors.primaryColor;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        child: FilterChip(
-          selected: isSelected,
-          onSelected: (selected) {
-            // Apply the filter if it's not already selected
-            if (selected && !isSelected) {
-              // Use BlocProvider.of instead of context.read for better error handling
-              final bloc = BlocProvider.of<MyPassesBloc>(context);
-              if (bloc.state is MyPassesLoaded) {
-                bloc.add(ChangePassFilter(filter));
-              }
-            }
-          },
-          backgroundColor: Colors.white,
-          selectedColor: chipColor.withOpacity(0.15),
-          checkmarkColor: chipColor,
-          labelStyle: AppTextStyle.getSmallStyle(
-            color: isSelected ? chipColor : AppColors.secondaryText,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          ),
-          label: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isActive && isSelected)
-                Icon(CupertinoIcons.calendar_badge_plus,
-                    size: 14, color: chipColor)
-              else if (isPast && isSelected)
-                Icon(CupertinoIcons.checkmark_circle,
-                    size: 14, color: chipColor)
-              else if (isCancelled && isSelected)
-                Icon(CupertinoIcons.xmark_circle, size: 14, color: chipColor)
-              else if (isAll && isSelected)
-                Icon(CupertinoIcons.layers_alt, size: 14, color: chipColor),
-              if (isSelected) const Gap(4),
-              Text(label),
-            ],
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(50),
-            side: BorderSide(
-              color: isSelected ? chipColor : Colors.grey.withOpacity(0.15),
-              width: 1.5,
-            ),
-          ),
-          elevation: isSelected ? 0 : 0,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          showCheckmark: false,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterEmptyState(BuildContext context, PassFilter filter) {
-    String filterText = '';
-    Color filterColor;
-
-    // Determine filter text and color based on pass type and filter
-    if (passType == PassType.reservation) {
-      if (filter == PassFilter.upcoming) {
-        filterText = 'upcoming';
-        filterColor = const Color(0xFF52C41A); // Green
-      } else if (filter == PassFilter.completed) {
-        filterText = 'completed';
-        filterColor = const Color(0xFF1890FF); // Blue
-      } else {
-        filterText = 'cancelled';
-        filterColor = const Color(0xFFFF4D4F); // Red
-      }
-    } else {
-      if (filter == PassFilter.active) {
-        filterText = 'active';
-        filterColor = const Color(0xFF52C41A); // Green
-      } else if (filter == PassFilter.expired) {
-        filterText = 'expired';
-        filterColor = const Color(0xFFFAAD14); // Orange
-      } else {
-        filterText = 'cancelled';
-        filterColor = const Color(0xFFFF4D4F); // Red
-      }
-    }
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: filterColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              filter == PassFilter.upcoming || filter == PassFilter.active
-                  ? CupertinoIcons.calendar_badge_plus
-                  : filter == PassFilter.completed ||
-                          filter == PassFilter.expired
-                      ? CupertinoIcons.checkmark_circle
-                      : CupertinoIcons.xmark_circle,
-              color: filterColor,
-              size: 48,
-            ),
-          ),
-          const Gap(20),
-          Text(
-            'No ${filterText} ${passType == PassType.reservation ? 'reservations' : 'subscriptions'}',
-            style: AppTextStyle.getTitleStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Gap(12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              'Try selecting a different filter to view your other passes',
-              style: AppTextStyle.getbodyStyle(
-                color: AppColors.secondaryText,
-                fontSize: 16,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const Gap(32),
-          CustomButton(
-            onPressed: () {
-              // Reset filter to 'All'
-              final bloc = BlocProvider.of<MyPassesBloc>(context);
-              bloc.add(const ChangePassFilter(PassFilter.all));
-            },
-            text: 'Show All Passes',
-            width: 220,
-            height: 50,
-            color: filterColor,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Add a method to display queue information
-  Widget _buildQueueInfo(ReservationModel reservation) {
-    if (!reservation.queueBased || reservation.queueStatus == null) {
-      return const SizedBox.shrink();
-    }
-
-    final queueStatus = reservation.queueStatus!;
-    Color statusColor;
-    IconData statusIcon;
-
-    switch (queueStatus.status) {
-      case 'waiting':
-        statusColor = Colors.orange;
-        statusIcon = CupertinoIcons.time;
-        break;
-      case 'processing':
-        statusColor = Colors.green;
-        statusIcon = CupertinoIcons.arrow_right_circle_fill;
-        break;
-      case 'completed':
-        statusColor = Colors.blue;
-        statusIcon = CupertinoIcons.checkmark_circle_fill;
-        break;
-      case 'cancelled':
-        statusColor = Colors.red;
-        statusIcon = CupertinoIcons.xmark_circle_fill;
-        break;
-      case 'no_show':
-        statusColor = Colors.grey;
-        statusIcon = CupertinoIcons.person_crop_circle_badge_xmark;
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusIcon = CupertinoIcons.question_circle;
-    }
-
-    // Safely format the estimated entry time
-    String formattedTime = 'Unknown';
-    try {
-      if (queueStatus.estimatedEntryTime != null) {
-        formattedTime = queueStatus.estimatedEntryTime
-            .toLocal()
-            .toString()
-            .substring(11, 16);
-      }
-    } catch (e) {
-      // Use default value if formatting fails
-      print('Error formatting time: $e');
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(statusIcon, color: statusColor, size: 18),
-              const Gap(8),
-              Text(
-                'Queue Status: ${queueStatus.status?.toUpperCase() ?? "UNKNOWN"}',
-                style: AppTextStyle.getTitleStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: statusColor,
-                ),
-              ),
-            ],
-          ),
-          const Gap(8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Position: #${queueStatus.position}',
-                    style: AppTextStyle.getbodyStyle(
-                      fontSize: 12,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                  const Gap(4),
-                  Text(
-                    'People ahead: ${queueStatus.peopleAhead}',
-                    style: AppTextStyle.getbodyStyle(
-                      fontSize: 12,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Estimated time:',
-                    style: AppTextStyle.getbodyStyle(
-                      fontSize: 12,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                  const Gap(4),
-                  Text(
-                    formattedTime,
-                    style: AppTextStyle.getTitleStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
@@ -1753,4 +2114,13 @@ class PassesContent extends StatelessWidget {
         return Colors.grey;
     }
   }
+}
+
+// Helper class for filter data
+class _FilterData {
+  final PassFilter value;
+  final String label;
+  final IconData icon;
+
+  _FilterData(this.value, this.label, this.icon);
 }

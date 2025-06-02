@@ -3,7 +3,7 @@ import 'package:shamil_mobile_app/feature/reservation/data/repositories/queue_re
 import 'package:shamil_mobile_app/shared/utils/logger.dart';
 
 class ReminderSettingsPage extends StatefulWidget {
-  const ReminderSettingsPage({Key? key}) : super(key: key);
+  const ReminderSettingsPage({super.key});
 
   @override
   _ReminderSettingsPageState createState() => _ReminderSettingsPageState();
@@ -247,7 +247,7 @@ class _ReminderSettingsPageState extends State<ReminderSettingsPage> {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
 
                   // Add new reminder button
                   if (_reminderTimes.length < 5) // Limit to 5 reminders

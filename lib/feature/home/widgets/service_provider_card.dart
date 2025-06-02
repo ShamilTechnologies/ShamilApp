@@ -3,13 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart'; // For CupertinoIcons.heart/heart_fill
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 // Import placeholder image data and helper
-import 'package:shamil_mobile_app/core/constants/image_constants.dart'; // Contains transparentImageData
-import 'package:shamil_mobile_app/core/widgets/placeholders.dart'; // Use shared placeholder builder
+// Contains transparentImageData
+// Use shared placeholder builder
 import 'package:gap/gap.dart'; // Use Gap for spacing
 import 'package:shamil_mobile_app/feature/home/views/bloc/home_bloc.dart'; // For dispatching favorite toggle
 

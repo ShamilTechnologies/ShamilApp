@@ -1,9 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shamil_mobile_app/feature/community/bloc/community_event.dart';
 import 'package:shamil_mobile_app/feature/community/bloc/community_state.dart';
-import 'package:shamil_mobile_app/feature/community/models/community_event_model.dart';
-import 'package:shamil_mobile_app/feature/community/models/group_host_model.dart';
-import 'package:shamil_mobile_app/feature/community/models/tournament_model.dart';
 import 'package:shamil_mobile_app/feature/community/repository/community_repository.dart';
 
 class CommunityBloc extends Bloc<CommunityEvent, CommunityState> {

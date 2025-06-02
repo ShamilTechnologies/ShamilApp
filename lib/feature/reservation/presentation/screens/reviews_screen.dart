@@ -14,14 +14,14 @@ class ReviewsScreen extends StatefulWidget {
   final VoidCallback? onAddReview;
 
   const ReviewsScreen({
-    Key? key,
+    super.key,
     required this.providerId,
     this.serviceId,
     required this.reviews,
     this.onEdit,
     this.onDelete,
     this.onAddReview,
-  }) : super(key: key);
+  });
 
   @override
   State<ReviewsScreen> createState() => _ReviewsScreenState();

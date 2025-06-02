@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart'; // For AppColors if needed
+// For AppColors if needed
 
 // Import the UPDATED ServiceProviderModel
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';

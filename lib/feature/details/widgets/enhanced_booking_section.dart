@@ -215,7 +215,7 @@ class _EnhancedBookingSectionState extends State<EnhancedBookingSection>
           if (widget.provider.bookableServices.isNotEmpty)
             ...widget.provider.bookableServices
                 .map((service) => _buildServiceTile(service))
-                .toList()
+                
           else
             _buildNoServicesMessage(),
 
@@ -229,7 +229,7 @@ class _EnhancedBookingSectionState extends State<EnhancedBookingSection>
             const Gap(AppTheme.spacingM),
             ...widget.provider.subscriptionPlans
                 .map((plan) => _buildPlanTile(plan))
-                .toList(),
+                ,
           ],
         ],
       ),
@@ -682,7 +682,7 @@ class _EnhancedBookingSectionState extends State<EnhancedBookingSection>
       context,
       '/options_configuration',
       arguments: {
-        'providerId': widget.provider?.id,
+        'providerId': widget.provider.id,
         'service': widget.selectedService,
         'plan': widget.selectedPlan,
       },

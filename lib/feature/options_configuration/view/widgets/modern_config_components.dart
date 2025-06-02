@@ -1044,7 +1044,7 @@ class ModernPreferencesPanel extends StatelessWidget {
             onChanged: (newValue) {
               // Handle preference change
             },
-            activeColor: AppColors.primaryColor,
+            activeTrackColor: AppColors.primaryColor,
           ),
         ],
       ),

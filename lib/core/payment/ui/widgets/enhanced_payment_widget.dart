@@ -56,7 +56,7 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
 
   // Form validation
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  bool _isCardValid = false;
+  final bool _isCardValid = false;
 
   @override
   void initState() {

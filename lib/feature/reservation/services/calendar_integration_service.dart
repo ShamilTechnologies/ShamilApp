@@ -14,7 +14,7 @@ class CalendarIntegrationService {
     try {
       // Try device_calendar plugin's permission request first
       final permissions = await _deviceCalendarPlugin.requestPermissions();
-      final bool hasPermissions = permissions?.isSuccess ?? false;
+      final bool hasPermissions = permissions.isSuccess ?? false;
 
       // If that fails and we're on Android, try permission_handler as fallback
       if (!hasPermissions && Platform.isAndroid) {
@@ -38,8 +38,8 @@ class CalendarIntegrationService {
   Future<List<Calendar>> getAvailableCalendars() async {
     try {
       final calendarsResult = await _deviceCalendarPlugin.retrieveCalendars();
-      if (calendarsResult?.isSuccess ?? false) {
-        final calendars = calendarsResult?.data ?? <Calendar>[];
+      if (calendarsResult.isSuccess ?? false) {
+        final calendars = calendarsResult.data ?? <Calendar>[];
 
         // Log calendars for debugging
         if (calendars.isEmpty) {
@@ -54,7 +54,7 @@ class CalendarIntegrationService {
         return calendars;
       } else {
         debugPrint(
-            'Failed to retrieve calendars: ${calendarsResult?.errors?.join(", ")}');
+            'Failed to retrieve calendars: ${calendarsResult.errors.join(", ")}');
       }
       return <Calendar>[];
     } catch (e) {
@@ -133,7 +133,7 @@ class CalendarIntegrationService {
         return true;
       } else {
         debugPrint(
-            'Failed to create calendar event: ${result?.errors?.join(", ")}');
+            'Failed to create calendar event: ${result?.errors.join(", ")}');
         return false;
       }
     } catch (e) {
@@ -148,7 +148,7 @@ class CalendarIntegrationService {
     try {
       final result =
           await _deviceCalendarPlugin.deleteEvent(calendarId, eventId);
-      return result?.isSuccess ?? false;
+      return result.isSuccess ?? false;
     } catch (e) {
       debugPrint('Error removing calendar event: $e');
       return false;

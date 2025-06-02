@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
-import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart'; // Keep for dialogs
+// Keep for dialogs
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 import 'package:shamil_mobile_app/feature/details/widgets/attendee_section.dart';
 import 'package:shamil_mobile_app/feature/details/widgets/dynamic_reservation_form.dart';

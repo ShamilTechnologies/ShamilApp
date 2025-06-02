@@ -13,9 +13,9 @@ class CostSplitSection extends StatefulWidget {
   final OptionsConfigurationState state;
 
   const CostSplitSection({
-    Key? key,
+    super.key,
     required this.state,
-  }) : super(key: key);
+  });
 
   @override
   State<CostSplitSection> createState() => _CostSplitSectionState();
@@ -202,17 +202,17 @@ class _CostSplitSectionState extends State<CostSplitSection> {
             }
           },
           style: ButtonStyle(
-            backgroundColor: MaterialStateProperty.resolveWith<Color?>(
+            backgroundColor: WidgetStateProperty.resolveWith<Color?>(
               (states) {
-                if (states.contains(MaterialState.selected)) {
+                if (states.contains(WidgetState.selected)) {
                   return AppColors.primaryColor;
                 }
                 return null;
               },
             ),
-            foregroundColor: MaterialStateProperty.resolveWith<Color?>(
+            foregroundColor: WidgetStateProperty.resolveWith<Color?>(
               (states) {
-                if (states.contains(MaterialState.selected)) {
+                if (states.contains(WidgetState.selected)) {
                   return Colors.white;
                 }
                 return AppColors.primaryColor;
@@ -587,7 +587,7 @@ class _CostSplitSectionState extends State<CostSplitSection> {
               ],
             ),
           );
-        }).toList(),
+        }),
 
         // Payment status summary
         const Gap(16),

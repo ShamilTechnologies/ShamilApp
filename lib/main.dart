@@ -31,14 +31,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 // *** Import Repositories ***
-import 'package:shamil_mobile_app/feature/social/repository/social_repository.dart';
 // ACTION: Import SubscriptionRepository when created
 // import 'package:shamil_mobile_app/feature/subscription/repository/subscription_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
 import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart';
-import 'package:shamil_mobile_app/core/constants/app_constants.dart';
 import 'package:shamil_mobile_app/core/services/notification_service.dart';
 // Import Community Repository
 import 'package:shamil_mobile_app/feature/community/repository/community_repository.dart';
@@ -47,7 +44,6 @@ import 'package:shamil_mobile_app/feature/community/repository/community_reposit
 import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
 
 // Payment system imports
-import 'package:shamil_mobile_app/core/payment/payment_orchestrator.dart';
 import 'package:shamil_mobile_app/core/payment/bloc/payment_bloc.dart';
 import 'package:shamil_mobile_app/core/payment/integration_example_simple.dart';
 import 'package:shamil_mobile_app/feature/payments/views/payments_screen.dart';

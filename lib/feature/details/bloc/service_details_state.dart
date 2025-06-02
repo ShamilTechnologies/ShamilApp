@@ -209,20 +209,14 @@ class ServiceDetailsError extends ServiceDetailsLoaded {
   ServiceDetailsError({
     required this.message,
     ServiceProviderModel? providerDetails,
-    List<PlanModel> plans = const [],
-    List<ServiceModel> services = const [],
-    bool isFavorite = false,
-    PlanModel? selectedPlan,
-    ServiceModel? selectedService,
-    ReservationDetails? reservationDetails,
+    super.plans = const [],
+    super.services = const [],
+    super.isFavorite = false,
+    super.selectedPlan,
+    super.selectedService,
+    super.reservationDetails,
   }) : super(
           providerDetails: providerDetails ?? ServiceProviderModel.empty,
-          plans: plans,
-          services: services,
-          isFavorite: isFavorite,
-          selectedPlan: selectedPlan,
-          selectedService: selectedService,
-          reservationDetails: reservationDetails,
         );
 
   @override

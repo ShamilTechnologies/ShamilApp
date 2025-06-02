@@ -93,6 +93,7 @@ abstract class SocialRepository {
 class FirebaseSocialRepository implements SocialRepository {
   final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
       region: 'us-central1'); // Ensure your region is correct
+  @override
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   CollectionReference _usersCollectionRef() =>
@@ -411,12 +412,14 @@ class FirebaseSocialRepository implements SocialRepository {
 
     final Map<String, AuthModel> combinedResults = {};
     for (var doc in nameSnapshot.docs) {
-      if (doc.id != currentUserId)
+      if (doc.id != currentUserId) {
         combinedResults[doc.id] = AuthModel.fromFirestore(doc);
+      }
     }
     for (var doc in usernameSnapshot.docs) {
-      if (doc.id != currentUserId)
+      if (doc.id != currentUserId) {
         combinedResults[doc.id] = AuthModel.fromFirestore(doc);
+      }
     }
 
     final List<UserSearchResultWithStatus> resultsWithStatus = [];

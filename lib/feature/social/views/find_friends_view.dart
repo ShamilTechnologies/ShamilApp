@@ -7,7 +7,6 @@ import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as app_text_style;
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
-import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/core/widgets/placeholders.dart';
 

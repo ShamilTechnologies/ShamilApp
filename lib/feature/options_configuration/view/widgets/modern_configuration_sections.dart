@@ -882,8 +882,6 @@ class _ModernDateTimeSelectionState extends State<ModernDateTimeSelection>
       final selectedDate = widget.state.selectedDate!;
       final providerId = widget.state.providerId;
 
-      if (providerId == null) return [];
-
       // Fetch slots with capacity information
       final orchestrator = FirebaseDataOrchestrator();
       final slotsWithCapacity =
@@ -940,22 +938,20 @@ class _ModernDateTimeSelectionState extends State<ModernDateTimeSelection>
 
   void _debugOperatingHours() async {
     final providerId = widget.state.providerId;
-    if (providerId != null) {
-      final orchestrator = FirebaseDataOrchestrator();
-      await orchestrator.debugProviderOperatingHours(providerId);
+    final orchestrator = FirebaseDataOrchestrator();
+    await orchestrator.debugProviderOperatingHours(providerId);
 
-      // Show a snackbar to indicate debug info was logged
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Debug info logged to console'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
+    // Show a snackbar to indicate debug info was logged
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Debug info logged to console'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
-  }
+    }
 }
 
 /// Modern Attendee Selection Widget - Redesigned for better UX
@@ -1553,7 +1549,7 @@ class _ModernAttendeeSelectionState extends State<ModernAttendeeSelection>
             margin: const EdgeInsets.only(bottom: 12),
             child: _buildAttendeeCard(attendee, index),
           );
-        }).toList(),
+        }),
       ],
     );
   }
@@ -1943,7 +1939,7 @@ class ModernPreferencesSection extends StatelessWidget {
           CupertinoSwitch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.primaryColor,
+            activeTrackColor: AppColors.primaryColor,
           ),
         ],
       ),

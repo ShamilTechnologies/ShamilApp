@@ -12,9 +12,9 @@ class VenueBookingSection extends StatefulWidget {
   final OptionsConfigurationState state;
 
   const VenueBookingSection({
-    Key? key,
+    super.key,
     required this.state,
-  }) : super(key: key);
+  });
 
   @override
   State<VenueBookingSection> createState() => _VenueBookingSectionState();
@@ -397,7 +397,7 @@ class _VenueBookingSectionState extends State<VenueBookingSection> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Dynamic price (${usedCapacity} people):",
+                "Dynamic price ($usedCapacity people):",
                 style: AppTextStyle.getTitleStyle(fontSize: 14),
               ),
               Text(

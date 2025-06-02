@@ -48,12 +48,13 @@ class QueueStatus extends Equatable {
 
   factory QueueStatus.fromMap(Map<String, dynamic> map) {
     // Helper function to safely convert timestamps
-    DateTime _safeDateTime(dynamic value) {
+    DateTime safeDateTime(dynamic value) {
       if (value == null) return DateTime.now();
       if (value is Timestamp) return value.toDate();
       if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
-      if (value is num)
+      if (value is num) {
         return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+      }
       if (value is DateTime) return value;
       return DateTime.now();
     }
@@ -62,7 +63,7 @@ class QueueStatus extends Equatable {
       id: map['id'] as String? ?? '',
       position: map['position'] as int? ?? 0,
       status: map['status'] as String? ?? 'waiting',
-      estimatedEntryTime: _safeDateTime(map['estimatedEntryTime']),
+      estimatedEntryTime: safeDateTime(map['estimatedEntryTime']),
       peopleAhead: map['peopleAhead'] as int? ?? 0,
     );
   }
@@ -432,12 +433,13 @@ class ReservationModel extends Equatable {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
     // Helper function to safely convert timestamps from Firestore data
-    Timestamp? _safeTimestamp(dynamic value) {
+    Timestamp? safeTimestamp(dynamic value) {
       if (value == null) return null;
       if (value is Timestamp) return value;
       if (value is int) return Timestamp.fromMillisecondsSinceEpoch(value);
-      if (value is num)
+      if (value is num) {
         return Timestamp.fromMillisecondsSinceEpoch(value.toInt());
+      }
       return null;
     }
 
@@ -489,19 +491,19 @@ class ReservationModel extends Equatable {
       serviceName: data['serviceName'] as String?,
       durationMinutes: (data['durationMinutes'] as num?)?.toInt(),
       // Handle legacy 'dateTime' field if 'reservationStartTime' is missing - use safe timestamp conversion
-      reservationStartTime: _safeTimestamp(data['reservationStartTime']) ??
-          _safeTimestamp(data['dateTime']),
-      endTime: _safeTimestamp(data['endTime']),
+      reservationStartTime: safeTimestamp(data['reservationStartTime']) ??
+          safeTimestamp(data['dateTime']),
+      endTime: safeTimestamp(data['endTime']),
       status: reservationStatusFromString(data['status'] as String?),
       paymentStatus: data['paymentStatus'] as String?, // Kept based on snippet
       paymentDetails: data['paymentDetails'] as Map<String, dynamic>?,
       notes: data['notes'] as String?,
       typeSpecificData: data['typeSpecificData'] as Map<String, dynamic>?,
       queuePosition: (data['queuePosition'] as num?)?.toInt(),
-      estimatedEntryTime: _safeTimestamp(data['estimatedEntryTime']),
-      createdAt: _safeTimestamp(data['createdAt']) ??
+      estimatedEntryTime: safeTimestamp(data['estimatedEntryTime']),
+      createdAt: safeTimestamp(data['createdAt']) ??
           Timestamp.now(), // Fallback needed?
-      updatedAt: _safeTimestamp(data['updatedAt']),
+      updatedAt: safeTimestamp(data['updatedAt']),
       attendees: parsedAttendees,
       reservationCode: data['reservationCode'] as String?,
       totalPrice: (data['totalPrice'] as num?)?.toDouble(),
@@ -603,10 +605,12 @@ class ReservationModel extends Equatable {
     final map = <String, dynamic>{};
     if (newStatus != null) map['status'] = newStatus.statusString;
     if (newPaymentStatus != null) map['paymentStatus'] = newPaymentStatus;
-    if (newCostSplitDetails != null)
+    if (newCostSplitDetails != null) {
       map['costSplitDetails'] = newCostSplitDetails;
-    if (newCommunityVisibility != null)
+    }
+    if (newCommunityVisibility != null) {
       map['isCommunityVisible'] = newCommunityVisibility;
+    }
     // Handle category/description updates carefully based on visibility
     if (newHostingCategory != null) {
       map['hostingCategory'] = newHostingCategory;
@@ -617,14 +621,17 @@ class ReservationModel extends Equatable {
     } else if (newCommunityVisibility == false)
       map['hostingDescription'] = FieldValue.delete(); // Remove if not visible
 
-    if (updatedAttendees != null)
+    if (updatedAttendees != null) {
       map['attendees'] = updatedAttendees.map((a) => a.toMap()).toList();
+    }
     if (newPaymentDetails != null) map['paymentDetails'] = newPaymentDetails;
     if (newNotes != null) map['notes'] = newNotes;
-    if (newTypeSpecificData != null)
+    if (newTypeSpecificData != null) {
       map['typeSpecificData'] = newTypeSpecificData;
-    if (updatedJoinRequests != null)
+    }
+    if (updatedJoinRequests != null) {
       map['joinRequests'] = updatedJoinRequests; // Update the requests list
+    }
 
     // Always include updatedAt on updates
     map['updatedAt'] = FieldValue.serverTimestamp();

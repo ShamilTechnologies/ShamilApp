@@ -11,9 +11,9 @@ class SharingSettingsSection extends StatefulWidget {
   final OptionsConfigurationState state;
 
   const SharingSettingsSection({
-    Key? key,
+    super.key,
     required this.state,
-  }) : super(key: key);
+  });
 
   @override
   State<SharingSettingsSection> createState() => _SharingSettingsSectionState();

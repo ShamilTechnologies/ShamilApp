@@ -10,7 +10,7 @@ import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
 
 class TournamentsTab extends StatefulWidget {
-  const TournamentsTab({Key? key}) : super(key: key);
+  const TournamentsTab({super.key});
 
   @override
   State<TournamentsTab> createState() => _TournamentsTabState();

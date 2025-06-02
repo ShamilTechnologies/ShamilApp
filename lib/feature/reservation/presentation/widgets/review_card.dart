@@ -11,11 +11,11 @@ class ReviewCard extends StatelessWidget {
   final VoidCallback? onDelete;
 
   const ReviewCard({
-    Key? key,
+    super.key,
     required this.review,
     this.onEdit,
     this.onDelete,
-  }) : super(key: key);
+  });
 
   String _formatDate(Timestamp timestamp) {
     final date = timestamp.toDate();

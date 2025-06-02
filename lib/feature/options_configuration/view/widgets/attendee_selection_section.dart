@@ -15,9 +15,9 @@ class AttendeeSelectionSection extends StatefulWidget {
   final OptionsConfigurationState state;
 
   const AttendeeSelectionSection({
-    Key? key,
+    super.key,
     required this.state,
-  }) : super(key: key);
+  });
 
   @override
   State<AttendeeSelectionSection> createState() =>
@@ -264,10 +264,10 @@ class _AttendeeSelectionSectionState extends State<AttendeeSelectionSection> {
               backgroundImage: user.profilePicUrl != null
                   ? NetworkImage(user.profilePicUrl!)
                   : null,
+              radius: 20,
               child: user.profilePicUrl == null
                   ? const Icon(CupertinoIcons.person_fill)
                   : null,
-              radius: 20,
             ),
             const SizedBox(width: 12),
 
@@ -393,10 +393,10 @@ class _AttendeeSelectionSectionState extends State<AttendeeSelectionSection> {
                 backgroundImage: friend.profilePicUrl != null
                     ? NetworkImage(friend.profilePicUrl!)
                     : null,
+                radius: 20,
                 child: friend.profilePicUrl == null
                     ? const Icon(CupertinoIcons.person_fill)
                     : null,
-                radius: 20,
               ),
               const SizedBox(width: 12),
 
@@ -488,10 +488,10 @@ class _AttendeeSelectionSectionState extends State<AttendeeSelectionSection> {
                 backgroundImage: familyMember.profilePicUrl != null
                     ? NetworkImage(familyMember.profilePicUrl!)
                     : null,
+                radius: 20,
                 child: familyMember.profilePicUrl == null
                     ? const Icon(CupertinoIcons.person_fill)
                     : null,
-                radius: 20,
               ),
               const SizedBox(width: 12),
 

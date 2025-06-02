@@ -10,10 +10,10 @@ class PaymentProcessor extends StatefulWidget {
   final Function(PaymentStatus, String) onPaymentComplete;
 
   const PaymentProcessor({
-    Key? key,
+    super.key,
     required this.reservation,
     required this.onPaymentComplete,
-  }) : super(key: key);
+  });
 
   @override
   State<PaymentProcessor> createState() => _PaymentProcessorState();

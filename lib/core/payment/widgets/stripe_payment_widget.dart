@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_stripe/flutter_stripe.dart' as stripe
     hide PaymentMethod;
 import 'package:flutter_bloc/flutter_bloc.dart';

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:gap/gap.dart';
-import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
 // Import shared constants/helpers
 import 'package:shamil_mobile_app/core/constants/image_constants.dart';

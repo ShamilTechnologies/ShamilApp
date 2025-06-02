@@ -58,7 +58,7 @@ class EmailTemplateService {
 
       for (var addOn in reservation.selectedAddOnsList!) {
         addOnsSection += '''
-          <li>${addOn}</li>
+          <li>$addOn</li>
         ''';
       }
 
@@ -108,7 +108,7 @@ class EmailTemplateService {
     <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; color: #333; background-color: #f4f4f4;">
       <div style="max-width: 600px; margin: 0 auto; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
         <!-- Header -->
-        <div style="background-color: ${primaryColor}; padding: 20px; text-align: center; color: white;">
+        <div style="background-color: $primaryColor; padding: 20px; text-align: center; color: white;">
           ${logoUrl != null ? '<img src="$logoUrl" alt="Logo" style="max-height: 60px; margin-bottom: 15px;">' : ''}
           <h1 style="margin: 0; font-size: 24px;">Booking Confirmation</h1>
         </div>
@@ -129,18 +129,18 @@ class EmailTemplateService {
                 <p style="margin: 10px 0 0; color: #555;">
                   <strong>Confirmation ID:</strong> ${reservation.id}<br>
                   <strong>Service:</strong> ${reservation.serviceName ?? 'Not specified'}<br>
-                  <strong>Provider:</strong> ${providerName}<br>
-                  <strong>Date:</strong> ${formattedDate}<br>
-                  <strong>Time:</strong> ${formattedTime}<br>
+                  <strong>Provider:</strong> $providerName<br>
+                  <strong>Date:</strong> $formattedDate<br>
+                  <strong>Time:</strong> $formattedTime<br>
                   <strong>Group Size:</strong> ${reservation.groupSize}
                 </p>
               </td>
             </tr>
             
-            ${attendeeSection}
-            ${addOnsSection}
-            ${notesSection}
-            ${paymentSection}
+            $attendeeSection
+            $addOnsSection
+            $notesSection
+            $paymentSection
             
             <!-- Venue Details -->
             ${_getVenueDetailsSection(reservation)}
@@ -159,7 +159,7 @@ class EmailTemplateService {
         </div>
         
         <!-- Footer -->
-        <div style="background-color: ${accentColor}; color: white; padding: 15px; text-align: center; font-size: 14px;">
+        <div style="background-color: $accentColor; color: white; padding: 15px; text-align: center; font-size: 14px;">
           <p style="margin: 0 0 10px;">
             For any questions or changes, please contact us at:<br>
             <a href="mailto:support@shamil.app" style="color: white; text-decoration: underline;">support@shamil.app</a>
@@ -209,7 +209,7 @@ class EmailTemplateService {
     <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; color: #333; background-color: #f4f4f4;">
       <div style="max-width: 600px; margin: 0 auto; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
         <!-- Header -->
-        <div style="background-color: ${primaryColor}; padding: 20px; text-align: center; color: white;">
+        <div style="background-color: $primaryColor; padding: 20px; text-align: center; color: white;">
           <h1 style="margin: 0; font-size: 24px;">Booking Reminder</h1>
         </div>
         
@@ -219,7 +219,7 @@ class EmailTemplateService {
             Dear ${_getReservationUserName(reservation)},
           </p>
           <p style="font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            This is a reminder that your booking is coming up in <strong>${reminderTimeText}</strong>. Here are the details:
+            This is a reminder that your booking is coming up in <strong>$reminderTimeText</strong>. Here are the details:
           </p>
           
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -227,9 +227,9 @@ class EmailTemplateService {
               <td style="padding: 15px; background-color: #f9f9f9; border-radius: 5px;">
                 <p style="margin: 0; color: #555;">
                   <strong>Service:</strong> ${reservation.serviceName ?? 'Not specified'}<br>
-                  <strong>Provider:</strong> ${providerName}<br>
-                  <strong>Date:</strong> ${formattedDate}<br>
-                  <strong>Time:</strong> ${formattedTime}<br>
+                  <strong>Provider:</strong> $providerName<br>
+                  <strong>Date:</strong> $formattedDate<br>
+                  <strong>Time:</strong> $formattedTime<br>
                   <strong>Confirmation ID:</strong> ${reservation.id}
                 </p>
               </td>

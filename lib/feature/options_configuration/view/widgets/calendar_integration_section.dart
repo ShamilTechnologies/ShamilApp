@@ -11,9 +11,9 @@ class CalendarIntegrationSection extends StatelessWidget {
   final OptionsConfigurationState state;
 
   const CalendarIntegrationSection({
-    Key? key,
+    super.key,
     required this.state,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

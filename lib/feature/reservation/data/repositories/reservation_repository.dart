@@ -699,6 +699,7 @@ class FirebaseReservationRepository implements ReservationRepository {
   // --- Updated createReservationOnBackend ---
 
   /// Calls the backend function to create a new reservation (for non-queue types).
+  @override
   Future<Map<String, dynamic>> createReservationOnBackend(
       Map<String, dynamic> payload) async {
     try {

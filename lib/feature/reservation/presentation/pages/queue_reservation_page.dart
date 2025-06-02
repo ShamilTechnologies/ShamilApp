@@ -14,13 +14,13 @@ class QueueReservationPage extends StatefulWidget {
   final String? queueReservationId;
 
   const QueueReservationPage({
-    Key? key,
+    super.key,
     required this.providerId,
     this.governorateId,
     this.serviceId,
     this.serviceName,
     this.queueReservationId,
-  }) : super(key: key);
+  });
 
   @override
   _QueueReservationPageState createState() => _QueueReservationPageState();

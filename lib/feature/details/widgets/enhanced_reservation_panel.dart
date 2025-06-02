@@ -32,7 +32,7 @@ class _EnhancedReservationPanelState extends State<EnhancedReservationPanel> {
   late DateTime _selectedDate;
   String? _selectedTimeSlot;
   bool _showCommunityOptions = false;
-  bool _showSplitOptions = false;
+  final bool _showSplitOptions = false;
   bool _showAttendeeOptions = false;
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
@@ -433,7 +433,7 @@ class _EnhancedReservationPanelState extends State<EnhancedReservationPanel> {
                   },
                 ),
               );
-            }).toList(),
+            }),
             
             const Gap(16),
           ],

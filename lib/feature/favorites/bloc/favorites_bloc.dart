@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
 
 // Events

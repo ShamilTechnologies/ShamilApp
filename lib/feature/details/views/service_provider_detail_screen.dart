@@ -22,7 +22,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:dots_indicator/dots_indicator.dart';
 
-import 'package:shamil_mobile_app/core/ui/theme/app_theme.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
@@ -40,8 +39,7 @@ import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/view/modern_options_configuration_screen.dart';
 import 'package:shamil_mobile_app/feature/details/widgets/options_bottom_sheet.dart'
     as options_sheet;
-
-import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
+import 'package:shamil_mobile_app/feature/details/views/provider_services_screen.dart';
 
 class ServiceProviderDetailScreen extends StatefulWidget {
   final String providerId;
@@ -61,10 +59,79 @@ class ServiceProviderDetailScreen extends StatefulWidget {
 }
 
 class _ServiceProviderDetailScreenState
-    extends State<ServiceProviderDetailScreen> {
+    extends State<ServiceProviderDetailScreen> with TickerProviderStateMixin {
   int _carouselCurrentIndex = 0;
   final ScrollController _scrollController = ScrollController();
-  // bool _showFullDescription = false; // Can be managed by ExpansionTile
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
+  // Enhanced animation controllers for premium design
+  late AnimationController _heroAnimationController;
+  late AnimationController _contentAnimationController;
+  late AnimationController _floatingButtonController;
+  late Animation<double> _heroAnimation;
+  late Animation<double> _contentAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _floatingButtonAnimation;
+  late Animation<double> _scaleAnimation;
+
+  final List<String> _pages = ['Overview', 'Services', 'Contact'];
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialize premium animation controllers
+    _heroAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+    _contentAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _floatingButtonController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    // Premium animations setup
+    _heroAnimation = CurvedAnimation(
+      parent: _heroAnimationController,
+      curve: Curves.easeOutCubic,
+    );
+    _contentAnimation = CurvedAnimation(
+      parent: _contentAnimationController,
+      curve: Curves.easeOutQuart,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _contentAnimationController,
+      curve: Curves.easeOutCubic,
+    ));
+    _floatingButtonAnimation = CurvedAnimation(
+      parent: _floatingButtonController,
+      curve: Curves.elasticOut,
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _floatingButtonController,
+      curve: Curves.elasticOut,
+    ));
+
+    // Start premium animations with staggered timing
+    _heroAnimationController.forward();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _contentAnimationController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) _floatingButtonController.forward();
+    });
+  }
 
   Future<void> _launchUrlHelper(
       BuildContext context, String? urlString, String actionType) async {
@@ -112,7 +179,6 @@ class _ServiceProviderDetailScreenState
 
   void _showBookingOptionsSheet(
       BuildContext parentContext, ServiceProviderModel provider) {
-    // final theme = Theme.of(parentContext); // Not used directly here now
     if (!provider.canBookOrSubscribeOnline) {
       showGlobalSnackBar(parentContext,
           "Online booking/subscription not available for this provider.",
@@ -122,60 +188,81 @@ class _ServiceProviderDetailScreenState
 
     HapticFeedback.mediumImpact();
     showModalBottomSheet(
-      context:
-          parentContext, // Use parentContext which has all the necessary BLoCs
+      context: parentContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       elevation: 0,
+      enableDrag: true,
+      isDismissible: true,
       builder: (sheetBuilderContext) {
-        // sheetBuilderContext is new and local
         return MultiBlocProvider(
-          // Provide BLoCs needed by OptionsBottomSheetContent
           providers: [
-            // FavoritesBloc is already available via parentContext.read or BlocProvider.of
-            // SocialBloc is already available via parentContext.read or BlocProvider.of
             if (provider.hasSubscriptionsEnabled)
               BlocProvider<SubscriptionBloc>(
-                  create: (_) => SubscriptionBloc(
-                      // Assuming SubscriptionRepository and AuthBloc are globally available or passed if needed
-                      // authBloc: parentContext.read<AuthBloc>(),
-                      // repository: parentContext.read<SubscriptionRepository>(),
-                      )
-                    ..add(ResetSubscriptionFlow())),
+                  create: (_) =>
+                      SubscriptionBloc()..add(ResetSubscriptionFlow())),
             if (provider.hasReservationsEnabled)
               BlocProvider<ReservationBloc>(
                   create: (_) => ReservationBloc(
                         provider: provider,
-                        reservationRepository: parentContext.read<
-                            ReservationRepository>(), // Read existing repo
-                        // authBloc: parentContext.read<AuthBloc>(),
+                        reservationRepository:
+                            parentContext.read<ReservationRepository>(),
                       )..add(ResetReservationFlow(provider: provider))),
           ],
           child: DraggableScrollableSheet(
-            initialChildSize: 0.75,
+            initialChildSize: 0.8,
             minChildSize: 0.5,
             maxChildSize: 0.95,
             expand: false,
-            builder: (BuildContext
-                    scrollableSheetContext, // Use this distinct context
+            builder: (BuildContext scrollableSheetContext,
                 ScrollController scrollController) {
               return Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(scrollableSheetContext).colorScheme.surface,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(24.0)),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white,
+                      Colors.white.withOpacity(0.98),
+                    ],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(28),
+                    topRight: Radius.circular(28),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      spreadRadius: -5,
-                      offset: const Offset(0, -5),
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 24,
+                      spreadRadius: -4,
+                      offset: const Offset(0, -8),
                     )
                   ],
                 ),
-                child: options_sheet.OptionsBottomSheetContent(
-                  provider: provider,
-                  scrollController: scrollController,
+                child: Column(
+                  children: [
+                    // Premium Handle
+                    Container(
+                      margin: const EdgeInsets.only(top: 16),
+                      width: 48,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryColor,
+                            AppColors.secondaryColor
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    Expanded(
+                      child: options_sheet.OptionsBottomSheetContent(
+                        provider: provider,
+                        scrollController: scrollController,
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -209,12 +296,9 @@ class _ServiceProviderDetailScreenState
       MaterialPageRoute(
           builder: (_) => MultiBlocProvider(
                 providers: [
-                  // Forward BLoCs that OptionsConfigurationScreen might need
                   BlocProvider.value(
                       value: BlocProvider.of<SocialBloc>(context)),
-                  BlocProvider.value(
-                      value: BlocProvider.of<AuthBloc>(
-                          context)), // If AuthBloc is needed
+                  BlocProvider.value(value: BlocProvider.of<AuthBloc>(context)),
                 ],
                 child: ModernOptionsConfigurationScreen(
                   providerId: provider.id,
@@ -231,8 +315,7 @@ class _ServiceProviderDetailScreenState
       ServiceProviderModel detailedProvider) {
     Map<String, dynamic> optionsDef =
         Map<String, dynamic>.from(bookableService.configData ?? {});
-    final String serviceTypeKey =
-        bookableService.type.typeString; // Ensure typeString is available
+    final String serviceTypeKey = bookableService.type.typeString;
     final generalTypeConfig =
         detailedProvider.reservationTypeConfigs?[serviceTypeKey];
 
@@ -300,7 +383,6 @@ class _ServiceProviderDetailScreenState
       optionsDef.putIfAbsent('allowQuantitySelection', () => false);
     } else if (bookableService.type == ReservationType.group &&
         bookableService.capacity == null) {
-      // Group but no capacity -> default
       optionsDef.putIfAbsent('allowQuantitySelection', () => true);
       optionsDef.putIfAbsent(
           'quantityDetails',
@@ -324,8 +406,7 @@ class _ServiceProviderDetailScreenState
       id: bookableService.id,
       providerId: providerId,
       name: bookableService.name,
-      description: bookableService
-          .description, // Removed ?? '' as it's not nullable in BookableService
+      description: bookableService.description,
       price: bookableService.price ?? 0.0,
       priceType: optionsDef['priceType'] as String? ?? 'fixed',
       currency: detailedProvider.address['country'] == 'EG' ? 'EGP' : 'USD',
@@ -341,8 +422,6 @@ class _ServiceProviderDetailScreenState
       String providerId,
       ServiceProviderModel detailedProvider) {
     Map<String, dynamic> optionsDef = {};
-    // If SubscriptionPlan model gets a `configData` field, parse it here:
-    // optionsDef = Map<String, dynamic>.from(subscriptionPlan.configData ?? {});
 
     optionsDef.putIfAbsent('allowDateSelection', () => true);
     optionsDef.putIfAbsent('customizableNotes',
@@ -370,7 +449,6 @@ class _ServiceProviderDetailScreenState
             ? '${subscriptionPlan.intervalCount} years'
             : 'Yearly';
         break;
-      // default: billingCycleDisplay = 'Per Cycle'; // Default case not needed if all enum values covered
     }
 
     return PlanModel(
@@ -390,6 +468,10 @@ class _ServiceProviderDetailScreenState
   @override
   void dispose() {
     _scrollController.dispose();
+    _pageController.dispose();
+    _heroAnimationController.dispose();
+    _contentAnimationController.dispose();
+    _floatingButtonController.dispose();
     super.dispose();
   }
 
@@ -489,144 +571,107 @@ class _ServiceProviderDetailScreenState
           if (displayData == null &&
               isLoading &&
               state is! ServiceProviderDetailError) {
-            return _buildLoadingShimmer(theme, widget.heroTag);
+            return _buildPremiumLoadingScreen();
           }
           if (displayData == null && state is ServiceProviderDetailError) {
-            return _buildErrorWidget(theme, state.message, () {
+            return _buildPremiumErrorScreen(state.message, () {
               context.read<ServiceProviderDetailBloc>().add(
                   LoadServiceProviderDetails(providerId: widget.providerId));
             });
           }
 
           if (displayData != null) {
-            return Scaffold(
-              extendBodyBehindAppBar: true,
-              backgroundColor: Colors.transparent,
-              body: Stack(
-                children: [
-                  // Background gradient similar to home screen
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          AppColors.primaryColor,
-                          AppColors.primaryColor.withOpacity(0.95),
-                          AppColors.lightBackground,
-                        ],
-                        stops: const [0.0, 0.25, 0.5],
-                      ),
-                    ),
-                  ),
-
-                  // Main scrollable content
-                  CustomScrollView(
+            return Theme(
+              data: theme.copyWith(
+                pageTransitionsTheme: const PageTransitionsTheme(
+                  builders: <TargetPlatform, PageTransitionsBuilder>{
+                    TargetPlatform.android: ZoomPageTransitionsBuilder(),
+                    TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                  },
+                ),
+              ),
+              child: Scaffold(
+                backgroundColor: const Color(0xFFF8FAFC),
+                extendBodyBehindAppBar: true,
+                body: FadeTransition(
+                  opacity: _heroAnimation,
+                  child: NestedScrollView(
                     controller: _scrollController,
-                    physics: const BouncingScrollPhysics(),
-                    slivers: <Widget>[
-                      // Header with image/carousel
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: _ModernSliverProviderHeaderDelegate(
-                          parentContext: context,
-                          providerDisplayData: displayData,
-                          theme: theme,
-                          heroTag: widget.heroTag,
-                          isFavorite: isFavorite,
-                          headerImages: headerImages,
-                          carouselIndex: _carouselCurrentIndex,
-                          onCarouselPageChanged: (index, reason) {
-                            if (mounted) {
-                              setState(() {
-                                _carouselCurrentIndex = index;
-                              });
-                            }
-                          },
-                          onFavoriteToggle: () {
-                            HapticFeedback.mediumImpact();
-                            context
-                                .read<ServiceProviderDetailBloc>()
-                                .add(ToggleFavoriteStatus(
-                                  providerId: displayData!.id,
-                                  currentStatus: isFavorite,
-                                ));
-                          },
-                        ),
-                      ),
-
-                      // Main content with rounded corners
-                      SliverToBoxAdapter(
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            color: AppColors.lightBackground,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(24),
-                              topRight: Radius.circular(24),
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    headerSliverBuilder: (context, innerBoxIsScrolled) {
+                      return [
+                        SliverToBoxAdapter(
+                          child: Container(
+                            color: const Color(0xFFF8FAFC),
+                            padding: EdgeInsets.only(
+                              top: MediaQuery.of(context).padding.top +
+                                  16, // Status bar + padding
+                              left: 16,
+                              right: 16,
+                              bottom: 20,
                             ),
+                            child: _buildSquareHeroSection(
+                                headerImages, displayData!, isFavorite),
                           ),
-                          child: Column(
-                            children: [
-                              // Drag handle indicator
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(top: 12, bottom: 4),
-                                child: Container(
-                                  height: 5,
-                                  width: 40,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.withOpacity(0.3),
-                                    borderRadius: BorderRadius.circular(2.5),
+                        ),
+                      ];
+                    },
+                    body: Container(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                      ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: SlideTransition(
+                              position: _slideAnimation,
+                              child: FadeTransition(
+                                opacity: _contentAnimation,
+                                child: SingleChildScrollView(
+                                  physics: const ClampingScrollPhysics(),
+                                  child: Column(
+                                    children: [
+                                      const Gap(20), // Top spacing
+
+                                      // Premium Business Info Header
+                                      _buildPremiumBusinessHeader(
+                                          displayData, detailedProvider),
+
+                                      // Premium Quick Actions Bar
+                                      _buildPremiumQuickActions(
+                                          context, detailedProvider),
+
+                                      // Premium Main Content
+                                      _buildPremiumMainContent(context,
+                                          displayData, detailedProvider),
+
+                                      const Gap(
+                                          120), // Space for floating button
+                                    ],
                                   ),
                                 ),
                               ),
-
-                              // Loading/Error states
-                              if (isLoading && detailedProvider == null)
-                                const SizedBox(
-                                  height: 200,
-                                  child: Center(
-                                      child: CupertinoActivityIndicator(
-                                          radius: 15)),
-                                )
-                              else if (detailedProvider != null)
-                                _buildModernDetailContent(
-                                    context, theme, detailedProvider)
-                              else if (state is ServiceProviderDetailError)
-                                SizedBox(
-                                  height: 300,
-                                  child: _buildErrorWidget(theme, state.message,
-                                      () {
-                                    context
-                                        .read<ServiceProviderDetailBloc>()
-                                        .add(LoadServiceProviderDetails(
-                                            providerId: widget.providerId));
-                                  }),
-                                )
-                              else
-                                const SizedBox(
-                                  height: 200,
-                                  child: Center(
-                                      child: Text("Loading details...",
-                                          style: TextStyle(
-                                              color: AppColors.secondaryText))),
-                                ),
-
-                              // Bottom padding for floating button
-                              const SizedBox(height: 80),
-                            ],
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
+                ),
 
-                  // Modern floating booking button
-                  if (detailedProvider != null &&
-                      detailedProvider.canBookOrSubscribeOnline)
-                    _buildModernFloatingButton(
-                        context, theme, detailedProvider),
-                ],
+                // Premium Floating Action Button
+                floatingActionButton: detailedProvider != null &&
+                        detailedProvider.canBookOrSubscribeOnline
+                    ? ScaleTransition(
+                        scale: _scaleAnimation,
+                        child: _buildPremiumFloatingButton(
+                            context, detailedProvider),
+                      )
+                    : null,
+                floatingActionButtonLocation:
+                    FloatingActionButtonLocation.centerFloat,
               ),
             );
           }
@@ -638,660 +683,563 @@ class _ServiceProviderDetailScreenState
     );
   }
 
-  // Modern floating button with glass effect
-  Widget _buildModernFloatingButton(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    return Positioned(
-      bottom: 20,
-      left: 24,
-      right: 24,
+  // Square Hero Section
+  Widget _buildSquareHeroSection(List<String> headerImages,
+      ServiceProviderDisplayModel displayData, bool isFavorite) {
+    final bool noImagesAvailable = headerImages.isEmpty ||
+        (headerImages.length == 1 && headerImages.first.isEmpty);
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final containerSize = screenWidth - 32; // Account for left/right padding
+
+    return Hero(
+      tag: widget.heroTag,
       child: Container(
+        width: containerSize,
+        height: containerSize,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              spreadRadius: 0,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+              spreadRadius: -4,
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    theme.colorScheme.primary.withOpacity(0.9),
-                    theme.colorScheme.primary,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              height: 60,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _showBookingOptionsSheet(context, provider),
-                  borderRadius: BorderRadius.circular(30),
-                  child: Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          provider.getBookingButtonText,
-                          style: AppTextStyle.getButtonStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+        child: Stack(
+          children: [
+            // Main Image Container
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                child: noImagesAvailable
+                    ? Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              AppColors.primaryColor,
+                              AppColors.secondaryColor,
+                            ],
                           ),
                         ),
-                        const Gap(8),
-                        const Icon(
-                          CupertinoIcons.arrow_right_circle_fill,
-                          color: Colors.white,
+                      )
+                    : CarouselSlider.builder(
+                        itemCount: headerImages.length,
+                        itemBuilder: (context, index, realIndex) {
+                          final imageUrl = headerImages[index];
+                          if (imageUrl.isEmpty) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    AppColors.primaryColor,
+                                    AppColors.secondaryColor,
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          return CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            placeholder: (c, u) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    AppColors.primaryColor.withOpacity(0.3),
+                                    AppColors.secondaryColor.withOpacity(0.3),
+                                  ],
+                                ),
+                              ),
+                              child: Shimmer.fromColors(
+                                baseColor: Colors.white.withOpacity(0.1),
+                                highlightColor: Colors.white.withOpacity(0.3),
+                                child: Container(),
+                              ),
+                            ),
+                            errorWidget: (c, u, e) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    AppColors.primaryColor,
+                                    AppColors.secondaryColor,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        options: CarouselOptions(
+                          height: double.infinity,
+                          viewportFraction: 1.0,
+                          enableInfiniteScroll: headerImages.length > 1,
+                          autoPlay: headerImages.length > 1,
+                          autoPlayInterval: const Duration(seconds: 4),
+                          autoPlayAnimationDuration:
+                              const Duration(milliseconds: 800),
+                          autoPlayCurve: Curves.easeInOutQuad,
+                          onPageChanged: (index, reason) {
+                            if (mounted) {
+                              setState(() {
+                                _carouselCurrentIndex = index;
+                              });
+                            }
+                          },
+                          initialPage: _carouselCurrentIndex,
+                        ),
+                      ),
+              ),
+            ),
+
+            // Enhanced Gradient Overlay for text readability
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.4),
+                  ],
+                  stops: const [0.0, 0.6, 1.0],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+
+            // Floating Navigation Buttons (Top)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Floating Back Button
+                  _buildFloatingButton(
+                    child: const Icon(
+                      CupertinoIcons.chevron_left,
+                      color: AppColors.primaryText,
+                      size: 20,
+                    ),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.pop(context);
+                    },
+                  ),
+
+                  Row(
+                    children: [
+                      // Floating Like Button
+                      _buildFloatingButton(
+                        child: Icon(
+                          isFavorite
+                              ? CupertinoIcons.heart_fill
+                              : CupertinoIcons.heart,
+                          color:
+                              isFavorite ? Colors.red : AppColors.primaryText,
                           size: 20,
+                        ),
+                        onTap: () =>
+                            _handleFavoriteToggle(displayData, isFavorite),
+                      ),
+                      const Gap(8),
+                      // Floating Share Button
+                      _buildFloatingButton(
+                        child: const Icon(
+                          CupertinoIcons.share,
+                          color: AppColors.primaryText,
+                          size: 20,
+                        ),
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Photo Counter (only if multiple images) - moved to top
+            if (headerImages.length > 1)
+              Positioned(
+                top: 12,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primaryColor.withOpacity(0.9),
+                          AppColors.secondaryColor.withOpacity(0.9),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
+                    child: Text(
+                      "${_carouselCurrentIndex + 1}/${headerImages.length}",
+                      style: AppTextStyle.getSmallStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Business Info Row (bottom left - compact and adaptive)
+            Positioned(
+              bottom: 12,
+              left: 12,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width -
+                      180, // Ensure more right padding
+                ),
+                child: IntrinsicWidth(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primaryColor.withOpacity(0.4),
+                          AppColors.secondaryColor.withOpacity(0.3),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryColor.withOpacity(0.2),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Business Logo
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: displayData.businessLogoUrl != null &&
+                                      displayData.businessLogoUrl!.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: displayData.businessLogoUrl!,
+                                      fit: BoxFit.cover,
+                                      placeholder: (c, u) =>
+                                          _buildModernLogoBadgePlaceholder(
+                                              displayData),
+                                      errorWidget: (c, u, e) =>
+                                          _buildModernLogoBadgePlaceholder(
+                                              displayData),
+                                    )
+                                  : _buildModernLogoBadgePlaceholder(
+                                      displayData),
+                            ),
+                          ),
+
+                          const Gap(10),
+
+                          // Business Name and Category
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Business Name
+                                Text(
+                                  displayData.businessName,
+                                  style: AppTextStyle.getHeadlineTextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const Gap(3),
+                                // Business Category
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    displayData.businessCategory,
+                                    style: AppTextStyle.getSmallStyle(
+                                      color: AppColors.primaryColor,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  // Modern content layout for the details screen
-  Widget _buildModernDetailContent(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Business name and rating section
-          _buildModernHeaderInfo(theme, provider),
-
-          // Quick action buttons
-          if (provider.canBookOrSubscribeOnline)
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-              child: _buildModernActionButtons(context, theme, provider),
-            ),
-
-          // Modern details sections
-          _buildModernSection(
-            title: "About",
-            icon: CupertinoIcons.info_circle_fill,
-            content: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Text(
-                provider.businessDescription.isEmpty
-                    ? "No description provided."
-                    : provider.businessDescription,
-                style: AppTextStyle.getbodyStyle(
-                  color: AppColors.primaryText,
-                  height: 1.6,
-                ),
-              ),
-            ),
-          ),
-
-          // Business insights
-          if (provider.yearsInBusiness != null &&
-                  provider.yearsInBusiness! > 0 ||
-              provider.averageResponseTime != null)
-            _buildModernSection(
-              title: "Business Insights",
-              icon: CupertinoIcons.graph_circle_fill,
-              content: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (provider.yearsInBusiness != null &&
-                        provider.yearsInBusiness! > 0)
-                      _buildModernInfoRow(
-                        icon: CupertinoIcons.calendar,
-                        title: "In Business Since",
-                        value:
-                            "${DateTime.now().year - provider.yearsInBusiness!} (${provider.yearsInBusiness} Years)",
-                      ),
-                    if (provider.averageResponseTime != null)
-                      _buildModernInfoRow(
-                        icon: CupertinoIcons.clock_fill,
-                        title: "Avg. Response Time",
-                        value: provider.averageResponseTime!,
-                      ),
+            // Rating Badge (bottom right)
+            Positioned(
+              bottom: 12,
+              right: 12,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.amber, Colors.orange],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.amber.withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
                   ],
                 ),
-              ),
-            ),
-
-          // Amenities section
-          if (provider.amenities.isNotEmpty)
-            _buildModernSection(
-              title: "Facilities & Amenities",
-              icon: CupertinoIcons.star_circle_fill,
-              content: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: _buildModernFacilities(theme, provider.amenities),
-              ),
-            ),
-
-          // Services section
-          if (provider.bookableServices.isNotEmpty &&
-              provider.pricingModel != PricingModel.subscription)
-            _buildModernSection(
-              title: "Bookable Services",
-              icon: CupertinoIcons.calendar_badge_plus,
-              content: _buildModernServicesGrid(context, theme, provider),
-            ),
-
-          // Subscription section
-          if (provider.subscriptionPlans.isNotEmpty &&
-              provider.pricingModel != PricingModel.reservation)
-            _buildModernSection(
-              title: "Subscription Plans",
-              icon: CupertinoIcons.creditcard_fill,
-              content: _buildModernSubscriptionsList(context, theme, provider),
-            ),
-
-          // Location section
-          _buildModernSection(
-            title: "Location",
-            icon: CupertinoIcons.location_circle_fill,
-            content: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildModernInfoRow(
-                    icon: CupertinoIcons.location,
-                    title: "Address",
-                    value:
-                        "${provider.street ?? ''}${provider.street != null && (provider.city != null || provider.governorate != null) ? ', ' : ''}${provider.city ?? ''}${provider.city != null && provider.governorate != null ? ', ' : ''}${provider.governorate ?? ''}",
-                  ),
-                  const Gap(16),
-                  _buildModernMapCard(context, theme, provider),
-                ],
-              ),
-            ),
-          ),
-
-          // Hours section
-          if (provider.openingHours.isNotEmpty &&
-              provider.openingHours.values.any((day) => day.isOpen))
-            _buildModernSection(
-              title: "Hours",
-              icon: CupertinoIcons.clock_fill,
-              content: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: _buildModernOpeningHours(
-                    context, theme, provider.openingHours),
-              ),
-            ),
-
-          // Contact section
-          _buildModernSection(
-            title: "Contact",
-            icon: CupertinoIcons.phone_fill,
-            content: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (provider.primaryPhoneNumber != null)
-                    _buildModernContactButton(
-                      context: context,
-                      icon: CupertinoIcons.phone_fill,
-                      label: provider.primaryPhoneNumber!,
-                      action: () => _launchUrlHelper(
-                          context, provider.primaryPhoneNumber, "Call"),
-                    ),
-                  if (provider.primaryEmail != null)
-                    _buildModernContactButton(
-                      context: context,
-                      icon: CupertinoIcons.envelope_fill,
-                      label: provider.primaryEmail!,
-                      action: () => _launchUrlHelper(
-                          context, provider.primaryEmail, "Email"),
-                    ),
-                  if (provider.website != null)
-                    _buildModernContactButton(
-                      context: context,
-                      icon: CupertinoIcons.globe,
-                      label: provider.website!,
-                      action: () => _launchUrlHelper(
-                          context, provider.website, "Website"),
-                    ),
-                  if (provider.paymentMethodsAccepted != null &&
-                      provider.paymentMethodsAccepted!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: _buildModernInfoRow(
-                        icon: CupertinoIcons.money_dollar_circle_fill,
-                        title: "Payment Methods",
-                        value: provider.paymentMethodsAccepted!.join(', '),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Modern header with provider name and rating
-  Widget _buildModernHeaderInfo(
-      ThemeData theme, ServiceProviderModel provider) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Provider name
-          Text(
-            provider.businessName,
-            style: AppTextStyle.getHeadlineTextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-            ),
-          ),
-
-          const Gap(8),
-
-          // Rating and category
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       CupertinoIcons.star_fill,
-                      color: Colors.amber,
+                      color: Colors.white,
                       size: 14,
                     ),
                     const Gap(4),
                     Text(
-                      "${provider.rating.toStringAsFixed(1)} (${provider.ratingCount})",
-                      style: AppTextStyle.getSmallStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.amber.shade800,
+                      displayData.averageRating.toStringAsFixed(1),
+                      style: AppTextStyle.getTitleStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Gap(10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Floating Button with Shadow
+  Widget _buildFloatingButton({
+    required Widget child,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+            spreadRadius: -2,
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.8),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Center(child: child),
+        ),
+      ),
+    );
+  }
+
+  // Modern Logo Badge Placeholder
+  Widget _buildModernLogoBadgePlaceholder(
+      ServiceProviderDisplayModel displayData) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryColor,
+            AppColors.secondaryColor,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          displayData.businessName.substring(0, 1).toUpperCase(),
+          style: AppTextStyle.getTitleStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Premium Business Header (Location Only)
+  Widget _buildPremiumBusinessHeader(ServiceProviderDisplayModel displayData,
+      ServiceProviderModel? detailedProvider) {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            Colors.white.withOpacity(0.95),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: -2,
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.8),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: displayData.city.isNotEmpty
+            ? Container(
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  provider.category,
-                  style: AppTextStyle.getSmallStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryColor,
+                  color: AppColors.orangeColor.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.orangeColor.withOpacity(0.15),
+                    width: 1,
                   ),
                 ),
-              ),
-              if (provider.subCategory != null &&
-                  provider.subCategory!.isNotEmpty) ...[
-                const Gap(10),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    provider.subCategory!,
-                    style: AppTextStyle.getSmallStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.secondaryColor,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-
-          const Gap(8),
-
-          // Location row
-          Row(
-            children: [
-              const Icon(
-                CupertinoIcons.location_solid,
-                size: 16,
-                color: AppColors.secondaryText,
-              ),
-              const Gap(6),
-              Expanded(
-                child: Text(
-                  "${provider.city ?? ''}${provider.governorate != null && provider.city != null ? ', ' : ''}${provider.governorate ?? 'Location not specified'}",
-                  style: AppTextStyle.getSmallStyle(
-                    color: AppColors.secondaryText,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingShimmer(ThemeData theme, String heroTag) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.chevron_left, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Stack(
-        children: [
-          // Background gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.primaryColor,
-                  AppColors.primaryColor.withOpacity(0.95),
-                  AppColors.lightBackground,
-                ],
-                stops: const [0.0, 0.25, 0.5],
-              ),
-            ),
-          ),
-
-          Column(
-            children: [
-              // Header image shimmer
-              Shimmer.fromColors(
-                baseColor: Colors.grey[300]!,
-                highlightColor: Colors.grey[100]!,
-                child: Container(
-                  height: MediaQuery.of(context).size.width * (9 / 16) +
-                      MediaQuery.of(context).padding.top,
-                  width: double.infinity,
-                  color: Colors.white,
-                ),
-              ),
-
-              // Content shimmer
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: AppColors.lightBackground,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Drag handle
-                        Center(
-                          child: Container(
-                            height: 5,
-                            width: 40,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(2.5),
-                            ),
-                          ),
-                        ),
-                        const Gap(20),
-
-                        // Title shimmer
-                        Shimmer.fromColors(
-                          baseColor: Colors.grey[300]!,
-                          highlightColor: Colors.grey[100]!,
-                          child: Container(
-                            height: 28,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                        const Gap(12),
-
-                        // Rating shimmer
-                        Shimmer.fromColors(
-                          baseColor: Colors.grey[300]!,
-                          highlightColor: Colors.grey[100]!,
-                          child: Row(
-                            children: [
-                              Container(
-                                height: 24,
-                                width: 80,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              const Gap(12),
-                              Container(
-                                height: 24,
-                                width: 80,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Gap(20),
-
-                        // Content sections shimmer
-                        for (int i = 0; i < 4; i++) ...[
-                          Shimmer.fromColors(
-                            baseColor: Colors.grey[300]!,
-                            highlightColor: Colors.grey[100]!,
-                            child: Container(
-                              height: 24,
-                              width: 150,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                          const Gap(12),
-                          Shimmer.fromColors(
-                            baseColor: Colors.grey[300]!,
-                            highlightColor: Colors.grey[100]!,
-                            child: Container(
-                              height: 100,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                          ),
-                          const Gap(24),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorWidget(
-      ThemeData theme, String message, VoidCallback onRetry) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.chevron_left, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Stack(
-        children: [
-          // Background gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.primaryColor,
-                  AppColors.primaryColor.withOpacity(0.95),
-                  AppColors.lightBackground,
-                ],
-                stops: const [0.0, 0.25, 0.5],
-              ),
-            ),
-          ),
-
-          // Error content
-          Center(
-            child: Container(
-              width: double.infinity,
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.redColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.exclamationmark_circle,
-                      color: AppColors.redColor,
-                      size: 32,
-                    ),
-                  ),
-                  const Gap(16),
-                  Text(
-                    "Error Loading Details",
-                    style: AppTextStyle.getTitleStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Gap(8),
-                  Text(
-                    message,
-                    style: AppTextStyle.getbodyStyle(
-                      color: AppColors.secondaryText,
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const Gap(24),
-                  ElevatedButton(
-                    onPressed: onRetry,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryColor,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.orangeColor,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      elevation: 0,
+                      child: const Icon(
+                        CupertinoIcons.location_solid,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                     ),
-                    child: const Text("Try Again"),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+                    const Gap(12),
+                    Expanded(
+                      child: Text(
+                        displayData.city,
+                        style: AppTextStyle.getbodyStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : const SizedBox.shrink(),
       ),
     );
   }
 
-  // Modern action buttons
-  Widget _buildModernActionButtons(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    List<Widget> buttons = [];
+  // Premium Quick Actions
+  Widget _buildPremiumQuickActions(
+      BuildContext context, ServiceProviderModel? detailedProvider) {
+    if (detailedProvider == null) return const SizedBox.shrink();
 
-    if (provider.primaryPhoneNumber != null &&
-        provider.primaryPhoneNumber!.isNotEmpty) {
-      buttons.add(_buildModernActionButton(
+    List<Widget> actionCards = [];
+
+    if (detailedProvider.primaryPhoneNumber != null) {
+      actionCards.add(_buildPremiumActionCard(
         icon: CupertinoIcons.phone_fill,
         label: "Call",
         color: AppColors.greenColor,
-        onTap: () =>
-            _launchUrlHelper(context, provider.primaryPhoneNumber, "Call"),
+        onTap: () => _launchUrlHelper(
+            context, detailedProvider.primaryPhoneNumber, "Call"),
       ));
     }
 
-    if (provider.location != null) {
-      buttons.add(_buildModernActionButton(
+    if (detailedProvider.location != null) {
+      actionCards.add(_buildPremiumActionCard(
         icon: CupertinoIcons.map_fill,
         label: "Directions",
         color: AppColors.orangeColor,
         onTap: () {
-          final lat = provider.location!.latitude;
-          final lon = provider.location!.longitude;
+          final lat = detailedProvider.location!.latitude;
+          final lon = detailedProvider.location!.longitude;
           final url =
               'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
           _launchUrlHelper(context, url, "Map");
@@ -1299,206 +1247,647 @@ class _ServiceProviderDetailScreenState
       ));
     }
 
-    if (provider.website != null && provider.website!.isNotEmpty) {
-      buttons.add(_buildModernActionButton(
+    if (detailedProvider.website != null) {
+      actionCards.add(_buildPremiumActionCard(
         icon: CupertinoIcons.globe,
         label: "Website",
         color: AppColors.cyanColor,
-        onTap: () => _launchUrlHelper(context, provider.website, "Website"),
+        onTap: () =>
+            _launchUrlHelper(context, detailedProvider.website, "Website"),
       ));
     }
 
-    if (provider.primaryEmail != null && provider.primaryEmail!.isNotEmpty) {
-      buttons.add(_buildModernActionButton(
+    if (detailedProvider.primaryEmail != null) {
+      actionCards.add(_buildPremiumActionCard(
         icon: CupertinoIcons.envelope_fill,
         label: "Email",
         color: AppColors.purpleColor,
-        onTap: () => _launchUrlHelper(context, provider.primaryEmail, "Email"),
+        onTap: () =>
+            _launchUrlHelper(context, detailedProvider.primaryEmail, "Email"),
       ));
     }
 
-    if (buttons.isEmpty) return const SizedBox.shrink();
+    if (actionCards.isEmpty) return const SizedBox.shrink();
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: buttons,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: actionCards.map((card) => Expanded(child: card)).toList(),
+      ),
     );
   }
 
-  // Modern action button with icon
-  Widget _buildModernActionButton({
+  // Premium Action Card
+  Widget _buildPremiumActionCard({
     required IconData icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Icon(
-                icon,
-                color: color,
-                size: 22,
-              ),
-            ),
-          ),
-          const Gap(8),
-          Text(
-            label,
-            style: AppTextStyle.getSmallStyle(
-              color: AppColors.primaryText,
-              fontWeight: FontWeight.w500,
-            ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            Colors.white.withOpacity(0.95),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.15),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: -2,
           ),
         ],
+        border: Border.all(
+          color: color.withOpacity(0.2),
+          width: 1,
+        ),
       ),
-    );
-  }
-
-  // Modern section with heading
-  Widget _buildModernSection({
-    required String title,
-    required IconData icon,
-    required Widget content,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Icon(
-                    icon,
-                    color: AppColors.primaryColor,
-                    size: 16,
-                  ),
-                ),
-              ),
-              const Gap(12),
-              Text(
-                title,
-                style: AppTextStyle.getTitleStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Optional divider
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Divider(
-            height: 1,
-            thickness: 1,
-            color: Color(0xFFEEEEEE),
-          ),
-        ),
-        content,
-      ],
-    );
-  }
-
-  // Modern info row component
-  Widget _buildModernInfoRow({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppColors.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Icon(
-                icon,
-                color: AppColors.primaryColor,
-                size: 16,
-              ),
-            ),
-          ),
-          const Gap(12),
-          Expanded(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  title,
-                  style: AppTextStyle.getSmallStyle(
-                    color: AppColors.secondaryText,
-                    fontWeight: FontWeight.w500,
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        color,
+                        color.withOpacity(0.8),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      icon,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                 ),
-                const Gap(2),
+                const Gap(8),
                 Text(
-                  value,
-                  style: AppTextStyle.getbodyStyle(
+                  label,
+                  style: AppTextStyle.getSmallStyle(
                     color: AppColors.primaryText,
-                    height: 1.4,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
                   ),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // Premium Main Content
+  Widget _buildPremiumMainContent(
+      BuildContext context,
+      ServiceProviderDisplayModel displayData,
+      ServiceProviderModel? detailedProvider) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // About Section
+          if (detailedProvider?.businessDescription.isNotEmpty == true)
+            _buildPremiumSectionCard(
+              title: "About",
+              icon: CupertinoIcons.info_circle_fill,
+              iconColor: AppColors.primaryColor,
+              child: Text(
+                detailedProvider!.businessDescription,
+                style: AppTextStyle.getbodyStyle(
+                  color: AppColors.primaryText,
+                  height: 1.6,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+
+          const Gap(20),
+
+          // Services Section with Navigation
+          if (detailedProvider?.bookableServices.isNotEmpty == true ||
+              detailedProvider?.subscriptionPlans.isNotEmpty == true)
+            _buildPremiumServicesPreview(context, detailedProvider!),
+
+          const Gap(20),
+
+          // Amenities Section
+          if (detailedProvider?.amenities.isNotEmpty == true)
+            _buildPremiumSectionCard(
+              title: "Facilities & Amenities",
+              icon: CupertinoIcons.star_circle_fill,
+              iconColor: AppColors.secondaryColor,
+              child: _buildPremiumFacilities(detailedProvider!.amenities),
+            ),
+
+          const Gap(20),
+
+          // Hours Section
+          if (detailedProvider?.openingHours.isNotEmpty == true &&
+              detailedProvider!.openingHours.values.any((day) => day.isOpen))
+            _buildPremiumSectionCard(
+              title: "Opening Hours",
+              icon: CupertinoIcons.clock_fill,
+              iconColor: AppColors.accentColor,
+              child: _buildPremiumOpeningHours(
+                  context, detailedProvider.openingHours),
+            ),
+
+          const Gap(20),
+
+          // Contact Section
+          _buildPremiumContactSection(context, detailedProvider),
         ],
       ),
     );
   }
 
-  // Modern facilities chips
-  Widget _buildModernFacilities(ThemeData theme, List<String> amenities) {
+  // Premium Floating Button
+  Widget _buildPremiumFloatingButton(
+      BuildContext context, ServiceProviderModel provider) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      height: 64,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryColor.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+            spreadRadius: -2,
+          ),
+        ],
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primaryColor,
+              AppColors.secondaryColor,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              _navigateToServicesScreen(context, provider);
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        provider.pricingModel == PricingModel.reservation
+                            ? CupertinoIcons.calendar_badge_plus
+                            : provider.pricingModel == PricingModel.subscription
+                                ? CupertinoIcons.creditcard_fill
+                                : CupertinoIcons.star_circle_fill,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                  const Gap(12),
+                  Text(
+                    "View Services & Plans",
+                    style: AppTextStyle.getButtonStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Gap(12),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.arrow_right,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Navigate to Services Screen
+  void _navigateToServicesScreen(
+      BuildContext context, ServiceProviderModel provider) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProviderServicesScreen(provider: provider),
+      ),
+    );
+  }
+
+  // Fix the null safety issue
+  void _handleFavoriteToggle(
+      ServiceProviderDisplayModel? displayData, bool isFavorite) {
+    if (displayData?.id != null) {
+      HapticFeedback.mediumImpact();
+      context.read<ServiceProviderDetailBloc>().add(ToggleFavoriteStatus(
+            providerId: displayData!.id,
+            currentStatus: isFavorite,
+          ));
+    }
+  }
+
+  // Premium Section Card
+  Widget _buildPremiumSectionCard({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required Widget child,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            Colors.white.withOpacity(0.95),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: -4,
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.8),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Premium Section Header
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  iconColor.withOpacity(0.08),
+                  iconColor.withOpacity(0.02),
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [iconColor, iconColor.withOpacity(0.8)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: iconColor.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      icon,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                const Gap(16),
+                Text(
+                  title,
+                  style: AppTextStyle.getTitleStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Premium Section Content
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Premium Services Preview
+  Widget _buildPremiumServicesPreview(
+      BuildContext context, ServiceProviderModel provider) {
+    return _buildPremiumSectionCard(
+      title: "Services & Plans",
+      icon: CupertinoIcons.square_grid_2x2_fill,
+      iconColor: AppColors.primaryColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (provider.bookableServices.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryColor.withOpacity(0.1),
+                    AppColors.primaryColor.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.primaryColor.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.calendar_badge_plus,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                  const Gap(12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Bookable Services",
+                          style: AppTextStyle.getbodyStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Gap(2),
+                        Text(
+                          "${provider.bookableServices.length} services available",
+                          style: AppTextStyle.getSmallStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Gap(12),
+          ],
+          if (provider.subscriptionPlans.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.accentColor.withOpacity(0.1),
+                    AppColors.accentColor.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.accentColor.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.accentColor,
+                          AppColors.secondaryColor
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.creditcard_fill,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                  const Gap(12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Subscription Plans",
+                          style: AppTextStyle.getbodyStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Gap(2),
+                        Text(
+                          "${provider.subscriptionPlans.length} plans available",
+                          style: AppTextStyle.getSmallStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Gap(16),
+          ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primaryColor.withOpacity(0.1),
+                  AppColors.secondaryColor.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.primaryColor.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    CupertinoIcons.arrow_right_circle_fill,
+                    color: AppColors.primaryColor,
+                    size: 16,
+                  ),
+                  const Gap(8),
+                  Text(
+                    "View All Services & Plans",
+                    style: AppTextStyle.getbodyStyle(
+                      color: AppColors.primaryColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Premium Facilities
+  Widget _buildPremiumFacilities(List<String> amenities) {
     return Wrap(
       spacing: 8.0,
       runSpacing: 8.0,
       children: amenities.map((amenity) {
         final icon = AppIcons.getIconForAmenity(amenity);
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: AppColors.primaryColor.withOpacity(0.08),
+            gradient: LinearGradient(
+              colors: [
+                AppColors.secondaryColor.withOpacity(0.12),
+                AppColors.secondaryColor.withOpacity(0.06),
+              ],
+            ),
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.secondaryColor.withOpacity(0.25),
+              width: 1,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 14,
-                color: AppColors.primaryColor,
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: AppColors.secondaryColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Icon(
+                    icon,
+                    size: 12,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-              const Gap(6),
+              const Gap(8),
               Text(
                 amenity,
                 style: AppTextStyle.getSmallStyle(
                   color: AppColors.primaryText,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -1508,488 +1897,9 @@ class _ServiceProviderDetailScreenState
     );
   }
 
-  // Modern services grid
-  Widget _buildModernServicesGrid(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-      child: ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: provider.bookableServices.length,
-        itemBuilder: (context, index) {
-          final service = provider.bookableServices[index];
-          return _buildModernServiceCard(
-            context: context,
-            service: service,
-            provider: provider,
-            index: index,
-          );
-        },
-      ),
-    );
-  }
-
-  // Modern service card
-  Widget _buildModernServiceCard({
-    required BuildContext context,
-    required BookableService service,
-    required ServiceProviderModel provider,
-    required int index,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _navigateToOptionsConfiguration(
-            context,
-            service: service,
-            provider: provider,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Service name and arrow
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        service.name,
-                        style: AppTextStyle.getTitleStyle(
-                          color: AppColors.primaryText,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryColor.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          CupertinoIcons.chevron_right,
-                          color: AppColors.primaryColor,
-                          size: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (service.description.isNotEmpty) ...[
-                  const Gap(6),
-                  Text(
-                    service.description,
-                    style: AppTextStyle.getSmallStyle(
-                      color: AppColors.secondaryText,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-
-                const Gap(12),
-
-                // Service details chips
-                Row(
-                  children: [
-                    if (service.durationMinutes != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.secondaryColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              CupertinoIcons.clock_fill,
-                              size: 12,
-                              color: AppColors.secondaryColor,
-                            ),
-                            const Gap(4),
-                            Text(
-                              "${service.durationMinutes} min",
-                              style: AppTextStyle.getSmallStyle(
-                                color: AppColors.secondaryColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const Gap(8),
-                    if (service.price != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              CupertinoIcons.money_dollar_circle_fill,
-                              size: 12,
-                              color: AppColors.primaryColor,
-                            ),
-                            const Gap(4),
-                            Text(
-                              "EGP ${service.price!.toStringAsFixed(0)}",
-                              style: AppTextStyle.getSmallStyle(
-                                color: AppColors.primaryColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-
-                // Configuration button only
-                if (service.price != null && service.price! > 0) ...[
-                  const Gap(12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _navigateToOptionsConfiguration(
-                        context,
-                        service: service,
-                        provider: provider,
-                      ),
-                      icon: const Icon(
-                        CupertinoIcons.settings,
-                        size: 18,
-                      ),
-                      label: const Text('Configure & Book'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Modern subscriptions list
-  Widget _buildModernSubscriptionsList(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-      child: ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: provider.subscriptionPlans.length,
-        itemBuilder: (context, index) {
-          final plan = provider.subscriptionPlans[index];
-          return _buildModernSubscriptionCard(
-            context: context,
-            plan: plan,
-            provider: provider,
-          );
-        },
-      ),
-    );
-  }
-
-  // Modern subscription card
-  Widget _buildModernSubscriptionCard({
-    required BuildContext context,
-    required SubscriptionPlan plan,
-    required ServiceProviderModel provider,
-  }) {
-    final intervalStr =
-        "${plan.intervalCount > 1 ? '${plan.intervalCount} ' : ''}${plan.interval.name}${plan.intervalCount > 1 ? 's' : ''}";
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _navigateToOptionsConfiguration(
-            context,
-            planData: plan,
-            provider: provider,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Plan name and price
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            plan.name,
-                            style: AppTextStyle.getTitleStyle(
-                              color: AppColors.primaryText,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (plan.description.isNotEmpty) ...[
-                            const Gap(6),
-                            Text(
-                              plan.description,
-                              style: AppTextStyle.getSmallStyle(
-                                color: AppColors.secondaryText,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          "EGP ${plan.price.toStringAsFixed(0)}",
-                          style: AppTextStyle.getTitleStyle(
-                            color: AppColors.primaryColor,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          "/ $intervalStr",
-                          style: AppTextStyle.getSmallStyle(
-                            color: AppColors.secondaryText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
-                if (plan.features.isNotEmpty) ...[
-                  const Gap(16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: plan.features.map((feature) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.greenColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              CupertinoIcons.checkmark_circle_fill,
-                              size: 12,
-                              color: AppColors.greenColor,
-                            ),
-                            const Gap(4),
-                            Text(
-                              feature,
-                              style: AppTextStyle.getSmallStyle(
-                                color: AppColors.primaryText,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-
-                // Configuration button only
-                const Gap(16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _navigateToOptionsConfiguration(
-                      context,
-                      planData: plan,
-                      provider: provider,
-                    ),
-                    icon: const Icon(
-                      CupertinoIcons.settings,
-                      size: 18,
-                    ),
-                    label: const Text('Configure & Subscribe'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accentColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Modern map card
-  Widget _buildModernMapCard(
-      BuildContext context, ThemeData theme, ServiceProviderModel provider) {
-    return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Material(
-          color: Colors.transparent,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Container(
-                  color: AppColors.primaryColor.withOpacity(0.05),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          CupertinoIcons.map_fill,
-                          size: 40,
-                          color: AppColors.primaryColor.withOpacity(0.3),
-                        ),
-                        const Gap(8),
-                        Text(
-                          "Map View",
-                          style: AppTextStyle.getSmallStyle(
-                            color: AppColors.secondaryText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (provider.location != null)
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: SizedBox(
-                    width: 120,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        final lat = provider.location!.latitude;
-                        final lon = provider.location!.longitude;
-                        final url =
-                            'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
-                        _launchUrlHelper(context, url, "Map");
-                      },
-                      icon: const Icon(
-                        CupertinoIcons.arrow_up_right_square_fill,
-                        size: 14,
-                      ),
-                      label: const Text("Open Maps"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryColor,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        textStyle: AppTextStyle.getSmallStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Modern opening hours
-  Widget _buildModernOpeningHours(BuildContext context, ThemeData theme,
-      Map<String, OpeningHoursDay> hoursMap) {
+  // Premium Opening Hours
+  Widget _buildPremiumOpeningHours(
+      BuildContext context, Map<String, OpeningHoursDay> hoursMap) {
     final today = DateFormat('EEEE').format(DateTime.now()).toLowerCase();
     final daysOrder = [
       'monday',
@@ -2002,7 +1912,7 @@ class _ServiceProviderDetailScreenState
     ];
 
     return Column(
-      children: daysOrder.map((day) {
+      children: daysOrder.take(4).map((day) {
         final hours = hoursMap[day.toLowerCase()];
         final bool isToday = day == today;
         final String displayDay = day[0].toUpperCase() + day.substring(1);
@@ -2030,14 +1940,22 @@ class _ServiceProviderDetailScreenState
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
-            color: isToday
-                ? AppColors.primaryColor.withOpacity(0.08)
-                : Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            gradient: LinearGradient(
+              colors: isToday
+                  ? [
+                      AppColors.accentColor.withOpacity(0.15),
+                      AppColors.accentColor.withOpacity(0.05),
+                    ]
+                  : [
+                      Colors.grey.shade50,
+                      Colors.grey.shade100,
+                    ],
+            ),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isToday
-                  ? AppColors.primaryColor.withOpacity(0.2)
-                  : Colors.grey.withOpacity(0.1),
+                  ? AppColors.accentColor.withOpacity(0.3)
+                  : Colors.grey.shade200,
               width: 1,
             ),
           ),
@@ -2046,39 +1964,47 @@ class _ServiceProviderDetailScreenState
             children: [
               Row(
                 children: [
-                  if (isToday) ...[
+                  if (isToday)
                     Container(
                       width: 8,
                       height: 8,
+                      margin: const EdgeInsets.only(right: 8),
                       decoration: BoxDecoration(
-                        color: hours != null && hours.isOpen
-                            ? AppColors.greenColor
-                            : AppColors.redColor,
+                        color: AppColors.accentColor,
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const Gap(8),
-                  ],
                   Text(
                     displayDay,
                     style: AppTextStyle.getbodyStyle(
-                      fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isToday ? FontWeight.w700 : FontWeight.w600,
                       color: isToday
-                          ? AppColors.primaryColor
+                          ? AppColors.accentColor
                           : AppColors.primaryText,
+                      fontSize: 14,
                     ),
                   ),
                 ],
               ),
-              Text(
-                displayHours,
-                style: AppTextStyle.getbodyStyle(
-                  fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
                   color: (hours == null || !hours.isOpen)
-                      ? AppColors.redColor.withOpacity(0.7)
-                      : (isToday
-                          ? AppColors.primaryColor
-                          : AppColors.primaryText),
+                      ? AppColors.redColor.withOpacity(0.1)
+                      : AppColors.greenColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  displayHours,
+                  style: AppTextStyle.getbodyStyle(
+                    fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
+                    color: (hours == null || !hours.isOpen)
+                        ? AppColors.redColor
+                        : (isToday
+                            ? AppColors.accentColor
+                            : AppColors.primaryText),
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
@@ -2088,66 +2014,139 @@ class _ServiceProviderDetailScreenState
     );
   }
 
-  // Modern contact button
-  Widget _buildModernContactButton({
+  // Premium Contact Section
+  Widget _buildPremiumContactSection(
+      BuildContext context, ServiceProviderModel? detailedProvider) {
+    if (detailedProvider == null) return const SizedBox.shrink();
+
+    return _buildPremiumSectionCard(
+      title: "Contact Information",
+      icon: CupertinoIcons.phone_fill,
+      iconColor: AppColors.greenColor,
+      child: Column(
+        children: [
+          if (detailedProvider.primaryPhoneNumber != null)
+            _buildPremiumContactButton(
+              context: context,
+              icon: CupertinoIcons.phone_fill,
+              label: detailedProvider.primaryPhoneNumber!,
+              subtitle: "Tap to call",
+              color: AppColors.greenColor,
+              action: () => _launchUrlHelper(
+                  context, detailedProvider.primaryPhoneNumber, "Call"),
+            ),
+          if (detailedProvider.primaryEmail != null)
+            _buildPremiumContactButton(
+              context: context,
+              icon: CupertinoIcons.envelope_fill,
+              label: detailedProvider.primaryEmail!,
+              subtitle: "Tap to email",
+              color: AppColors.purpleColor,
+              action: () => _launchUrlHelper(
+                  context, detailedProvider.primaryEmail, "Email"),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumContactButton({
     required BuildContext context,
     required IconData icon,
     required String label,
+    required String subtitle,
+    required Color color,
     required VoidCallback action,
   }) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.08),
+            color.withOpacity(0.02),
+          ],
+        ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(
+          color: color.withOpacity(0.2),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: action,
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            action();
+          },
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      colors: [color, color.withOpacity(0.8)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Center(
                     child: Icon(
                       icon,
-                      color: AppColors.primaryColor,
-                      size: 20,
+                      color: Colors.white,
+                      size: 18,
                     ),
                   ),
                 ),
                 const Gap(16),
                 Expanded(
-                  child: Text(
-                    label,
-                    style: AppTextStyle.getbodyStyle(
-                      color: AppColors.primaryText,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: AppTextStyle.getbodyStyle(
+                          color: AppColors.primaryText,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const Gap(2),
+                      Text(
+                        subtitle,
+                        style: AppTextStyle.getSmallStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const Icon(
-                  CupertinoIcons.chevron_right,
-                  color: AppColors.secondaryText,
-                  size: 16,
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.chevron_right,
+                    color: AppColors.secondaryText,
+                    size: 16,
+                  ),
                 ),
               ],
             ),
@@ -2156,309 +2155,269 @@ class _ServiceProviderDetailScreenState
       ),
     );
   }
-}
 
-// Modern header delegate for the service provider detail screen
-class _ModernSliverProviderHeaderDelegate
-    extends SliverPersistentHeaderDelegate {
-  final BuildContext parentContext;
-  final ServiceProviderDisplayModel providerDisplayData;
-  final ThemeData theme;
-  final String heroTag;
-  final bool isFavorite;
-  final VoidCallback onFavoriteToggle;
-  final List<String> headerImages;
-  final int carouselIndex;
-  final Function(int index, CarouselPageChangedReason reason)
-      onCarouselPageChanged;
-
-  _ModernSliverProviderHeaderDelegate({
-    required this.parentContext,
-    required this.providerDisplayData,
-    required this.theme,
-    required this.heroTag,
-    required this.isFavorite,
-    required this.onFavoriteToggle,
-    required this.headerImages,
-    required this.carouselIndex,
-    required this.onCarouselPageChanged,
-  });
-
-  @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final double topSafeArea = MediaQuery.of(parentContext).padding.top;
-    final double currentExtent = maxExtent - shrinkOffset;
-    final double progress = (1.0 - currentExtent / maxExtent).clamp(0.0, 1.0);
-
-    // Opacity values for smooth transitions
-    final double imageOpacity = (1.0 - progress * 1.2).clamp(0.0, 1.0);
-    final double titleOpacity = (progress * 1.5 - 0.3).clamp(0.0, 1.0);
-
-    final bool noImagesAvailable = headerImages.isEmpty ||
-        (headerImages.length == 1 && headerImages.first.isEmpty);
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Background image/carousel with hero animation
-        Positioned.fill(
-          child: Opacity(
-            opacity: imageOpacity,
-            child: Hero(
-              tag: heroTag,
-              child: noImagesAvailable
-                  ? Container(
-                      color: AppColors.primaryColor.withOpacity(0.8),
-                      child: Center(
-                        child: Icon(
-                          CupertinoIcons.photo_fill,
-                          color: Colors.white.withOpacity(0.3),
-                          size: 60,
-                        ),
-                      ),
-                    )
-                  : CarouselSlider.builder(
-                      itemCount: headerImages.length,
-                      itemBuilder: (carouselContext, index, realIndex) {
-                        final imageUrl = headerImages[index];
-                        if (imageUrl.isEmpty) {
-                          return Container(
-                            color: AppColors.primaryColor.withOpacity(0.8),
-                            child: Center(
-                              child: Icon(
-                                CupertinoIcons.photo_fill,
-                                color: Colors.white.withOpacity(0.3),
-                                size: 60,
-                              ),
-                            ),
-                          );
-                        }
-                        return CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          placeholder: (c, u) => Shimmer.fromColors(
-                            baseColor: Colors.grey[300]!,
-                            highlightColor: Colors.grey[100]!,
-                            child: Container(color: Colors.white),
-                          ),
-                          errorWidget: (c, u, e) => Container(
-                            color: AppColors.primaryColor.withOpacity(0.8),
-                            child: Center(
-                              child: Icon(
-                                CupertinoIcons.photo_fill,
-                                color: Colors.white.withOpacity(0.3),
-                                size: 60,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                      options: CarouselOptions(
-                        height: double.infinity,
-                        viewportFraction: 1.0,
-                        enableInfiniteScroll: headerImages.length > 1,
-                        autoPlay: headerImages.length > 1,
-                        autoPlayInterval: const Duration(seconds: 5),
-                        autoPlayAnimationDuration:
-                            const Duration(milliseconds: 800),
-                        autoPlayCurve: Curves.fastOutSlowIn,
-                        onPageChanged: onCarouselPageChanged,
-                        initialPage: carouselIndex,
-                      ),
-                    ),
-            ),
-          ),
-        ),
-
-        // Gradient overlay for better readability
-        Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withOpacity(0.4),
-                  Colors.black.withOpacity(imageOpacity * 0.3),
-                  Colors.transparent,
-                ],
-                stops: const [0.0, 0.5, 1.0],
+  // Premium Loading Screen
+  Widget _buildPremiumLoadingScreen() {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Premium Hero section shimmer
+            Container(
+              height: 380,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.primaryColor.withOpacity(0.3),
+                    AppColors.secondaryColor.withOpacity(0.3),
+                  ],
+                ),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+              ),
+              child: Shimmer.fromColors(
+                baseColor: Colors.white.withOpacity(0.1),
+                highlightColor: Colors.white.withOpacity(0.3),
+                child: Container(),
               ),
             ),
-          ),
-        ),
 
-        // Header bar with title when scrolled
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            height: topSafeArea + kToolbarHeight,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.primaryColor.withOpacity(titleOpacity * 0.9),
-                  AppColors.primaryColor.withOpacity(titleOpacity * 0.7),
-                  AppColors.primaryColor.withOpacity(0),
-                ],
-                stops: const [0.0, 0.7, 1.0],
-              ),
-            ),
-            child: Padding(
-              padding: EdgeInsets.only(top: topSafeArea),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Centered title
-                  Opacity(
-                    opacity: titleOpacity,
-                    child: Text(
-                      providerDisplayData.businessName,
-                      style: AppTextStyle.getTitleStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+            // Premium Content shimmer
+            Expanded(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(28),
+                    topRight: Radius.circular(28),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // Business info shimmer
+                      Shimmer.fromColors(
+                        baseColor: Colors.grey[300]!,
+                        highlightColor: Colors.grey[100]!,
+                        child: Container(
+                          height: 140,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
                       ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+                      const Gap(20),
 
-                  // Back button
-                  Positioned(
-                    left: 4,
-                    child: _buildHeaderButton(
-                      icon: CupertinoIcons.chevron_left,
-                      onTap: () => Navigator.pop(parentContext),
-                      color: progress > 0.3 && titleOpacity > 0
-                          ? Colors.white
-                          : Colors.white,
-                    ),
-                  ),
+                      // Action cards shimmer
+                      Row(
+                        children: List.generate(
+                            4,
+                            (index) => Expanded(
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 6),
+                                    child: Shimmer.fromColors(
+                                      baseColor: Colors.grey[300]!,
+                                      highlightColor: Colors.grey[100]!,
+                                      child: Container(
+                                        height: 90,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )),
+                      ),
 
-                  // Action buttons
-                  Positioned(
-                    right: 4,
-                    child: Row(
-                      children: [
-                        _buildHeaderButton(
-                          icon: CupertinoIcons.share,
-                          onTap: () {
-                            showGlobalSnackBar(
-                                parentContext, "Share feature coming soon!");
-                          },
-                          color: progress > 0.3 && titleOpacity > 0
-                              ? Colors.white
-                              : Colors.white,
+                      const Gap(20),
+
+                      // Content cards shimmer
+                      for (int i = 0; i < 3; i++) ...[
+                        Shimmer.fromColors(
+                          baseColor: Colors.grey[300]!,
+                          highlightColor: Colors.grey[100]!,
+                          child: Container(
+                            height: 160,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
                         ),
-                        _buildHeaderButton(
-                          icon: isFavorite
-                              ? CupertinoIcons.heart_fill
-                              : CupertinoIcons.heart,
-                          onTap: onFavoriteToggle,
-                          color: isFavorite
-                              ? Colors.redAccent
-                              : (progress > 0.3 && titleOpacity > 0
-                                  ? Colors.white
-                                  : Colors.white),
-                        ),
+                        const Gap(20),
                       ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-
-        // Carousel dots indicator
-        if (!noImagesAvailable && headerImages.length > 1 && imageOpacity > 0.5)
-          Positioned(
-            bottom: 16,
-            left: 0,
-            right: 0,
-            child: Opacity(
-              opacity: imageOpacity,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: DotsIndicator(
-                    dotsCount: headerImages.length,
-                    position: carouselIndex.toDouble(),
-                    decorator: DotsDecorator(
-                      size: const Size.square(6.0),
-                      activeSize: const Size(18.0, 6.0),
-                      activeShape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(3.0),
-                      ),
-                      color: Colors.white.withOpacity(0.5),
-                      activeColor: Colors.white,
-                      spacing: const EdgeInsets.symmetric(horizontal: 3.0),
-                    ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ),
-      ],
-    );
-  }
-
-  // Modern header button
-  Widget _buildHeaderButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: IconButton(
-        icon: Icon(
-          icon,
-          color: color,
-          size: 22,
+          ],
         ),
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        splashRadius: 20,
       ),
     );
   }
 
-  @override
-  double get maxExtent =>
-      MediaQuery.of(parentContext).size.width * (9 / 16) +
-      MediaQuery.of(parentContext).padding.top;
+  // Premium Error Screen
+  Widget _buildPremiumErrorScreen(String message, VoidCallback onRetry) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Premium Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  _buildFloatingButton(
+                    child: const Icon(
+                      CupertinoIcons.chevron_left,
+                      color: AppColors.primaryColor,
+                      size: 20,
+                    ),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  const Gap(16),
+                  Expanded(
+                    child: Text(
+                      "Error Loading Details",
+                      style: AppTextStyle.getHeadlineTextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primaryText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
-  @override
-  double get minExtent =>
-      kToolbarHeight + MediaQuery.of(parentContext).padding.top;
-
-  @override
-  bool shouldRebuild(
-      covariant _ModernSliverProviderHeaderDelegate oldDelegate) {
-    return parentContext != oldDelegate.parentContext ||
-        providerDisplayData != oldDelegate.providerDisplayData ||
-        theme != oldDelegate.theme ||
-        heroTag != oldDelegate.heroTag ||
-        isFavorite != oldDelegate.isFavorite ||
-        !listEquals(headerImages, oldDelegate.headerImages) ||
-        carouselIndex != oldDelegate.carouselIndex;
+            // Premium Error Content
+            Expanded(
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white,
+                        Colors.white.withOpacity(0.95),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
+                        spreadRadius: -6,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.redColor.withOpacity(0.2),
+                              AppColors.redColor.withOpacity(0.1),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.exclamationmark_triangle_fill,
+                          color: AppColors.redColor,
+                          size: 40,
+                        ),
+                      ),
+                      const Gap(24),
+                      Text(
+                        "Something went wrong",
+                        style: AppTextStyle.getTitleStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Gap(12),
+                      Text(
+                        message,
+                        style: AppTextStyle.getbodyStyle(
+                          color: AppColors.secondaryText,
+                          height: 1.6,
+                          fontSize: 15,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const Gap(32),
+                      Container(
+                        width: double.infinity,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primaryColor,
+                              AppColors.secondaryColor
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryColor.withOpacity(0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(18),
+                          child: InkWell(
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              onRetry();
+                            },
+                            borderRadius: BorderRadius.circular(18),
+                            child: Center(
+                              child: Text(
+                                "Try Again",
+                                style: AppTextStyle.getButtonStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

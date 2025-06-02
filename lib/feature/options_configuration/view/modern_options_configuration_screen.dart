@@ -86,7 +86,7 @@ class _ModernConfigurationViewState extends State<ModernConfigurationView>
     'calendar': false,
   };
 
-  bool _payForEveryone = false;
+  final bool _payForEveryone = false;
   final List<String> _pages = ['Details', 'Configuration', 'Payment'];
 
   @override

@@ -9,11 +9,11 @@ class ReviewSummary extends StatelessWidget {
   final VoidCallback? onAddReview;
 
   const ReviewSummary({
-    Key? key,
+    super.key,
     required this.reviews,
     this.onViewAll,
     this.onAddReview,
-  }) : super(key: key);
+  });
 
   double get _averageRating {
     if (reviews.isEmpty) return 0;

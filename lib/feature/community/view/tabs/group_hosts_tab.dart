@@ -12,7 +12,7 @@ import 'package:shamil_mobile_app/feature/community/bloc/community_state.dart';
 import 'package:shamil_mobile_app/feature/community/models/group_host_model.dart';
 
 class GroupHostsTab extends StatelessWidget {
-  const GroupHostsTab({Key? key}) : super(key: key);
+  const GroupHostsTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +43,7 @@ class GroupHostsTab extends StatelessWidget {
                 // Groups list
                 ...state.groupHosts
                     .map((group) => _buildGroupHostCard(context, group))
-                    .toList(),
+                    ,
 
                 // Add some bottom padding
                 const SizedBox(height: 80),

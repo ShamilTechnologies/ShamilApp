@@ -2,7 +2,6 @@ import 'package:equatable/equatable.dart';
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart'
     show PaymentStatus, AttendeeModel;
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 // PaymentStatus is imported from reservation_model.dart
 

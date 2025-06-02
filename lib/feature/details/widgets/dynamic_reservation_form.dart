@@ -77,8 +77,7 @@ class DynamicReservationForm extends StatelessWidget {
     // However, the const BookableService in orElse has durationMinutes: 60.
     // If the intention is to return the found service's duration or 60 if nothing is found,
     // the logic can be simplified or made more explicit.
-    if (firstTimeBasedService != null &&
-        firstTimeBasedService.id != '_fallback_no_time_service' &&
+    if (firstTimeBasedService.id != '_fallback_no_time_service' &&
         firstTimeBasedService.durationMinutes != null) {
       return firstTimeBasedService.durationMinutes!;
     }

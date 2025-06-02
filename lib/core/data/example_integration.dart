@@ -165,7 +165,7 @@ class SubscriptionManager {
 
 /// Modern Reservations List Widget
 class ModernReservationsListWidget extends StatelessWidget {
-  const ModernReservationsListWidget({Key? key}) : super(key: key);
+  const ModernReservationsListWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -239,9 +239,9 @@ class ModernReservationCard extends StatelessWidget {
   final ReservationModel reservation;
 
   const ModernReservationCard({
-    Key? key,
+    super.key,
     required this.reservation,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -259,7 +259,7 @@ class ModernReservationCard extends StatelessWidget {
                   reservation.serviceName ?? 'Service',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                _buildStatusChip(reservation.status?.toString() ?? 'unknown'),
+                _buildStatusChip(reservation.status.toString() ?? 'unknown'),
               ],
             ),
             const SizedBox(height: 8),
@@ -291,7 +291,7 @@ class ModernReservationCard extends StatelessWidget {
 
   Widget _buildStatusChip(String status) {
     Color color;
-    switch (status?.toLowerCase()) {
+    switch (status.toLowerCase()) {
       case 'confirmed':
         color = Colors.green;
         break;
@@ -490,7 +490,7 @@ class ProviderSearchManager {
 
 /// Example of a complete screen using the orchestrator
 class ModernReservationsScreen extends StatefulWidget {
-  const ModernReservationsScreen({Key? key}) : super(key: key);
+  const ModernReservationsScreen({super.key});
 
   @override
   State<ModernReservationsScreen> createState() =>

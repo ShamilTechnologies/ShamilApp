@@ -5,12 +5,8 @@ import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
-import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:gap/gap.dart';
-import 'package:shimmer/shimmer.dart';
 // Import placeholder builder and image data if needed directly
-import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart'
-    show buildProfilePlaceholder, transparentImageData;
 
 /// Builds a ListTile for an accepted/external family member.
 Widget buildFamilyMemberTile(

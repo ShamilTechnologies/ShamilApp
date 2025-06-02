@@ -11,7 +11,6 @@ import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_con
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 import 'package:shamil_mobile_app/feature/subscription/data/subscription_model.dart';
 import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
-import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'

@@ -11,9 +11,9 @@ class PaymentMethodSection extends StatelessWidget {
   final OptionsConfigurationState state;
 
   const PaymentMethodSection({
-    Key? key,
+    super.key,
     required this.state,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

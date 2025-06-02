@@ -12,7 +12,6 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_display_mod
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 import 'package:shamil_mobile_app/feature/reservation/data/repositories/reservation_repository.dart';
-import 'package:shamil_mobile_app/feature/reservation/presentation/bloc/reservation_bloc.dart';
 
 part 'service_details_event.dart';
 part 'service_details_state.dart';

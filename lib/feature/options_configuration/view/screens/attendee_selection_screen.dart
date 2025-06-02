@@ -83,7 +83,7 @@ class _AttendeeSelectionScreenState extends State<AttendeeSelectionScreen> {
         _dataOrchestrator.fetchCurrentUserFamilyMembers(),
       ]);
 
-      final friends = futures[0] as List<dynamic>;
+      final friends = futures[0];
       final familyMembers = futures[1] as List<FamilyMember>;
 
       // Combine contacts

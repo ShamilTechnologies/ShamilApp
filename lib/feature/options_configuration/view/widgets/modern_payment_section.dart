@@ -805,7 +805,7 @@ class ModernPaymentButton extends StatelessWidget {
                 if (index < attendeeCount - 1) const Gap(8),
               ],
             );
-          }).toList(),
+          }),
 
           const Gap(16),
           Container(height: 1, color: AppColors.primaryColor.withOpacity(0.2)),
@@ -1259,8 +1259,8 @@ class ModernPaymentButton extends StatelessWidget {
 
       // Fallback to Firebase Auth directly if AuthBloc not available
       if (customerId.startsWith('temp_')) {
-        final FirebaseAuth _auth = FirebaseAuth.instance;
-        final currentUser = _auth.currentUser;
+        final FirebaseAuth auth = FirebaseAuth.instance;
+        final currentUser = auth.currentUser;
 
         if (currentUser != null) {
           customerId = currentUser.uid;
@@ -1343,8 +1343,8 @@ class ModernPaymentButton extends StatelessWidget {
             amount: paymentAmount,
             customer: customer,
             description: isPlan
-                ? 'Subscription: ${state.itemName} (${totalAttendees} ${totalAttendees == 1 ? 'person' : 'people'})'
-                : 'Service Booking: ${state.itemName} (${totalAttendees} ${totalAttendees == 1 ? 'person' : 'people'})',
+                ? 'Subscription: ${state.itemName} ($totalAttendees ${totalAttendees == 1 ? 'person' : 'people'})'
+                : 'Service Booking: ${state.itemName} ($totalAttendees ${totalAttendees == 1 ? 'person' : 'people'})',
             onPaymentSuccess: () {
               Navigator.pop(modalContext);
               _handlePaymentSuccess(context, state, onPaymentSuccess, bloc);

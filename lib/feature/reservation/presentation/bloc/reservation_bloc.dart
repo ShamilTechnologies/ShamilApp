@@ -1,16 +1,15 @@
 // lib/feature/reservation/bloc/reservation_bloc.dart
 
 import 'dart:async'; // Import async
-import 'dart:math'; // Import for min/max
+// Import for min/max
 
 import 'package:bloc/bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Needed for Timestamp
 import 'package:collection/collection.dart'; // For firstWhereOrNull
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Needed for userId
-import 'package:flutter/foundation.dart'; // For debugPrint
+// For debugPrint
 import 'package:flutter/material.dart'; // For TimeOfDay, BuildContext (for formatting in handler)
-import 'package:meta/meta.dart';
 import 'package:shamil_mobile_app/feature/home/data/bookable_service.dart';
 
 // Import the UPDATED models and repository

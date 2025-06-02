@@ -142,12 +142,10 @@ class NotificationService {
 
     try {
       final notificationId = notification.notificationId;
-      if (notificationId != null) {
-        await _repository.markNotificationAsReadInFirestore(
-            _currentUserId!, notificationId);
-        _updateUnreadCount();
-      }
-    } catch (e) {
+      await _repository.markNotificationAsReadInFirestore(
+          _currentUserId!, notificationId);
+      _updateUnreadCount();
+        } catch (e) {
       debugPrint('Error marking notification as read: $e');
     }
   }

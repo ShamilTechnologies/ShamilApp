@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'dart:io' show Platform;
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 
 /// Stub notification service that maintains the interface but without actual notification functionality

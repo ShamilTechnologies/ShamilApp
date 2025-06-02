@@ -2,7 +2,6 @@
 
 import 'dart:async';
 import 'package:bloc/bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
@@ -11,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geocoding/geocoding.dart' as geocoding;
 
 // Models
-import 'package:shamil_mobile_app/feature/home/data/banner_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/homeModel.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_display_model.dart';
 // --- NEW: Import business categories ---

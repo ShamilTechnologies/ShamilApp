@@ -103,7 +103,7 @@ class ExploreTopSectionDelegate extends SliverPersistentHeaderDelegate {
                               String authUserNameForPlaceholder = "G";
 
                               if (authState is LoginSuccessState) {
-                                final AuthModel? currentUser = authState.user;
+                                final AuthModel currentUser = authState.user;
                                 if (currentUser != null) {
                                   authUserNameForPlaceholder = currentUser.name;
                                   userName = authUserNameForPlaceholder

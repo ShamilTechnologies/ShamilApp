@@ -1,12 +1,8 @@
 // lib/feature/reservation/presentation/widgets/attendee_management_widget.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
-import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
-import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 
 class AttendeeManagementWidget extends StatelessWidget {
   final List<AttendeeModel> attendees;

@@ -14,14 +14,14 @@ class ReviewForm extends StatefulWidget {
   final bool isVerified;
 
   const ReviewForm({
-    Key? key,
+    super.key,
     required this.reservationId,
     required this.providerId,
     this.serviceId,
     required this.onSubmit,
     this.isAnonymous = false,
     this.isVerified = false,
-  }) : super(key: key);
+  });
 
   @override
   State<ReviewForm> createState() => _ReviewFormState();
@@ -31,8 +31,8 @@ class _ReviewFormState extends State<ReviewForm> {
   final _formKey = GlobalKey<FormState>();
   final _commentController = TextEditingController();
   double _rating = 0.0;
-  List<String> _photos = [];
-  Map<String, double> _categoryRatings = {};
+  final List<String> _photos = [];
+  final Map<String, double> _categoryRatings = {};
   bool _isSubmitting = false;
   String? _errorMessage;
 
