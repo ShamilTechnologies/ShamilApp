@@ -176,17 +176,17 @@ class _CommunityScreenState extends State<CommunityScreen>
                           return Container(
                             padding: const EdgeInsets.only(top: 16),
                             child: Center(
-                              child: Container(
+                    child: Container(
                                 width: 40,
                                 height: 40,
-                                decoration: BoxDecoration(
+                      decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
                                       AppColors.primaryColor.withOpacity(0.8),
                                       AppColors.tealColor.withOpacity(0.8),
                                     ],
                                   ),
-                                  shape: BoxShape.circle,
+                        shape: BoxShape.circle,
                                 ),
                                 child:
                                     refreshState == RefreshIndicatorMode.refresh
@@ -203,26 +203,26 @@ class _CommunityScreenState extends State<CommunityScreen>
                             ),
                           );
                         },
-                        onRefresh: () async {
+                            onRefresh: () async {
                           if (mounted) {
-                            setState(() {
-                              _isRefreshing = true;
-                            });
-                            context
-                                .read<CommunityBloc>()
-                                .add(const RefreshCommunityData());
-                            // Will be completed by listener when state changes
-                            return Future.delayed(const Duration(seconds: 3));
+                              setState(() {
+                                _isRefreshing = true;
+                              });
+                              context
+                                  .read<CommunityBloc>()
+                                  .add(const RefreshCommunityData());
+                              // Will be completed by listener when state changes
+                              return Future.delayed(const Duration(seconds: 3));
                           }
                           return Future.value();
-                        },
-                      ),
+                            },
+                          ),
 
                       // Premium header
                       SliverAppBar(
                         backgroundColor: Colors.transparent,
                         elevation: 0,
-                        pinned: true,
+                            pinned: true,
                         expandedHeight: 140,
                         automaticallyImplyLeading: false,
                         flexibleSpace: FlexibleSpaceBar(
@@ -245,7 +245,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                                         Container(
                                           padding: const EdgeInsets.symmetric(
                                               horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(
+            decoration: BoxDecoration(
                                             gradient: LinearGradient(
                                               colors: [
                                                 AppColors.accentColor
@@ -256,48 +256,48 @@ class _CommunityScreenState extends State<CommunityScreen>
                                             ),
                                             borderRadius:
                                                 BorderRadius.circular(15),
-                                            boxShadow: [
-                                              BoxShadow(
+              boxShadow: [
+                BoxShadow(
                                                 color: AppColors.accentColor
                                                     .withOpacity(0.3),
                                                 blurRadius: 6,
                                                 offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
+                ),
+              ],
+            ),
                                           child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
+              mainAxisSize: MainAxisSize.min,
+              children: [
                                               const Icon(
                                                 Icons.people_rounded,
                                                 color: Colors.white,
                                                 size: 12,
-                                              ),
+                ),
                                               const Gap(3),
-                                              Text(
+                Text(
                                                 'COMMUNITY HUB',
                                                 style:
                                                     AppTextStyle.getbodyStyle(
                                                   fontSize: 9,
                                                   fontWeight: FontWeight.w700,
                                                   color: Colors.white,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
                                         const Gap(8),
 
                                         // Title with gradient text
                                         ShaderMask(
                                           shaderCallback: (bounds) =>
                                               const LinearGradient(
-                                            colors: [
+                          colors: [
                                               Colors.white,
                                               Color(0xFFB8BCC8)
-                                            ],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                                           ).createShader(bounds),
                                           child: Text(
                                             'Community',
@@ -307,9 +307,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                                               color: Colors.white,
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
+                          ),
+                        ],
+                      ),
                                   ),
                                 );
                               },
@@ -334,30 +334,30 @@ class _CommunityScreenState extends State<CommunityScreen>
                             if (_pageController.hasClients) {
                               _pageController.animateToPage(
                                 index,
-                                duration: _animationDuration,
+                        duration: _animationDuration,
                                 curve: Curves.easeInOut,
                               );
                             }
                           },
-                        ),
+                  ),
                       ),
 
                       // Tab content with premium styling
                       SliverFillRemaining(
                         child: Container(
                           decoration: const BoxDecoration(
-                            gradient: LinearGradient(
+              gradient: LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
-                              colors: [
+                colors: [
                                 Colors.transparent,
                                 Color(0xFF0A0A1A),
-                              ],
+                ],
                             ),
-                          ),
+              ),
                           child: _buildPremiumTabContent(context, state),
                         ),
-                      ),
+              ),
                     ],
                   ),
 
@@ -366,9 +366,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                     Positioned.fill(
                       child: _buildPremiumLoadingOverlay(),
                     ),
-                ],
-              ),
+              ],
             ),
+          ),
           );
         },
       ),
@@ -384,17 +384,17 @@ class _CommunityScreenState extends State<CommunityScreen>
           return Positioned(
             top: 100 + (20 * (_orbAnimationController.value * 2 - 1).abs()),
             right: 50 + (15 * (_orbAnimationController.value * 2 - 1)),
-            child: Container(
+      child: Container(
               width: 120,
               height: 120,
-              decoration: BoxDecoration(
+        decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  colors: [
+          colors: [
                     AppColors.accentColor.withOpacity(0.3),
                     AppColors.accentColor.withOpacity(0.1),
                     Colors.transparent,
                   ],
-                ),
+        ),
                 shape: BoxShape.circle,
               ),
               child: BackdropFilter(
@@ -404,8 +404,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                     color: Colors.transparent,
                     shape: BoxShape.circle,
                   ),
-                ),
-              ),
+            ),
+          ),
             ),
           );
         },
@@ -421,21 +421,21 @@ class _CommunityScreenState extends State<CommunityScreen>
             child: Container(
               width: 80,
               height: 80,
-              decoration: BoxDecoration(
+      decoration: BoxDecoration(
                 gradient: RadialGradient(
                   colors: [
                     AppColors.tealColor.withOpacity(0.4),
                     AppColors.tealColor.withOpacity(0.2),
                     Colors.transparent,
-                  ],
-                ),
+        ],
+      ),
                 shape: BoxShape.circle,
               ),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                 child: Container(
                   decoration: const BoxDecoration(
-                    color: Colors.transparent,
+      color: Colors.transparent,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -452,10 +452,10 @@ class _CommunityScreenState extends State<CommunityScreen>
           return Positioned(
             bottom: 200 + (25 * _orbAnimationController.value),
             right: 80 + (10 * (_orbAnimationController.value * 2 - 1)),
-            child: Container(
+        child: Container(
               width: 60,
-              height: 60,
-              decoration: BoxDecoration(
+          height: 60,
+          decoration: BoxDecoration(
                 gradient: RadialGradient(
                   colors: [
                     AppColors.primaryColor.withOpacity(0.3),
@@ -464,7 +464,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                   ],
                 ),
                 shape: BoxShape.circle,
-              ),
+            ),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                 child: Container(
@@ -475,9 +475,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                 ),
               ),
             ),
-          );
-        },
-      ),
+              );
+            },
+          ),
     ];
   }
 
@@ -544,11 +544,11 @@ class _CommunityScreenState extends State<CommunityScreen>
                 // Allow horizontal scroll gestures to pass through to PageView
                 return false;
               },
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: _handlePageChange,
+        child: PageView(
+          controller: _pageController,
+          onPageChanged: _handlePageChange,
                 physics: const BouncingScrollPhysics(),
-                children: [
+          children: [
                   const CommunityEventsTab(),
                   const GroupHostsTab(),
                   const TournamentsTab(),
@@ -564,10 +564,10 @@ class _CommunityScreenState extends State<CommunityScreen>
   Widget _buildTabContentWrapper(
       Widget tabContent, CommunityState state, int tabIndex) {
     // This method is no longer needed since we handle the logic in _buildPremiumTabContent
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: tabContent,
-    );
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: tabContent,
+      );
   }
 
   Widget _buildPremiumLoadingContent(int tabIndex) {
@@ -586,11 +586,11 @@ class _CommunityScreenState extends State<CommunityScreen>
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Container(
-                      height: height,
-                      decoration: BoxDecoration(
+      height: height,
+      decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+        borderRadius: BorderRadius.circular(16),
+      ),
                     ),
                   );
                 },
@@ -651,98 +651,98 @@ class _CommunityScreenState extends State<CommunityScreen>
           borderRadius: BorderRadius.circular(20),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
                         AppColors.primaryColor.withOpacity(0.3),
                         AppColors.accentColor.withOpacity(0.3),
                       ],
                     ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    emptyIcons[tabIndex],
-                    size: 50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                emptyIcons[tabIndex],
+                size: 50,
                     color: Colors.white,
-                  ),
-                ),
-                const Gap(24),
-                Text(
-                  emptyTitles[tabIndex],
-                  style: AppTextStyle.getTitleStyle(
+              ),
+            ),
+            const Gap(24),
+            Text(
+              emptyTitles[tabIndex],
+              style: AppTextStyle.getTitleStyle(
                     color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Gap(12),
-                Text(
-                  emptyMessages[tabIndex],
-                  textAlign: TextAlign.center,
-                  style: AppTextStyle.getbodyStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Gap(12),
+            Text(
+              emptyMessages[tabIndex],
+              textAlign: TextAlign.center,
+              style: AppTextStyle.getbodyStyle(
                     color: Colors.white.withOpacity(0.7),
-                    fontSize: 14,
-                  ),
-                ),
-                const Gap(30),
-                Material(
-                  borderRadius: BorderRadius.circular(30),
+                fontSize: 14,
+              ),
+            ),
+            const Gap(30),
+            Material(
+              borderRadius: BorderRadius.circular(30),
                   color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(30),
-                    onTap: () {
+              child: InkWell(
+                borderRadius: BorderRadius.circular(30),
+                onTap: () {
                       HapticFeedback.lightImpact();
-                      context
-                          .read<CommunityBloc>()
-                          .add(const RefreshCommunityData());
-                    },
+                  context
+                      .read<CommunityBloc>()
+                      .add(const RefreshCommunityData());
+                },
                     child: Container(
-                      decoration: BoxDecoration(
+                  decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
                             AppColors.primaryColor.withOpacity(0.8),
                             AppColors.tealColor.withOpacity(0.8),
                           ],
-                        ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primaryColor.withOpacity(0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryColor.withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
+                    ],
+                  ),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 30, vertical: 12),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                           const Icon(
-                            CupertinoIcons.refresh,
-                            color: Colors.white,
-                            size: 20,
-                          ),
+                          CupertinoIcons.refresh,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                           const Gap(10),
-                          Text(
-                            'Refresh',
+                        Text(
+                          'Refresh',
                             style: AppTextStyle.getbodyStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
+              ),
               ],
             ),
           ),
@@ -766,7 +766,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                 colors: [
                   Colors.white.withOpacity(0.15),
                   Colors.white.withOpacity(0.05),
-                ],
+          ],
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(

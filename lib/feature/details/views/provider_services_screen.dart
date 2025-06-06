@@ -1,3 +1,5 @@
+import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,7 +19,7 @@ import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
-import 'package:shamil_mobile_app/feature/options_configuration/view/modern_options_configuration_screen.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/enhanced_booking_configuration_screen.dart';
 
 class ProviderServicesScreen extends StatefulWidget {
   final ServiceProviderModel provider;
@@ -33,13 +35,21 @@ class ProviderServicesScreen extends StatefulWidget {
 
 class _ProviderServicesScreenState extends State<ProviderServicesScreen>
     with TickerProviderStateMixin {
-  late AnimationController _slideAnimationController;
-  late AnimationController _fadeAnimationController;
-  late Animation<Offset> _headerSlideAnimation;
-  late Animation<double> _contentFadeAnimation;
+  // Enhanced animation controllers
+  late AnimationController _heroAnimationController;
+  late AnimationController _contentAnimationController;
+  late AnimationController _searchAnimationController;
+  late AnimationController _itemsAnimationController;
+
+  late Animation<double> _heroAnimation;
+  late Animation<double> _contentAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _searchFadeAnimation;
+  late Animation<double> _itemsFadeAnimation;
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   bool _hasServices = false;
   bool _hasPlans = false;
@@ -48,6 +58,7 @@ class _ProviderServicesScreenState extends State<ProviderServicesScreen>
   List<SubscriptionPlan> _filteredPlans = [];
   String _selectedCategory = 'all'; // 'all', 'services', 'plans'
   bool _showSearchResults = false;
+  bool _isSearchFocused = false;
 
   @override
   void initState() {
@@ -57,34 +68,71 @@ class _ProviderServicesScreenState extends State<ProviderServicesScreen>
     _filteredServices = widget.provider.bookableServices;
     _filteredPlans = widget.provider.subscriptionPlans;
 
-    _slideAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+    // Initialize enhanced animation controllers
+    _heroAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-    _fadeAnimationController = AnimationController(
+    _contentAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
+    _searchAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _itemsAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
 
-    _headerSlideAnimation = Tween<Offset>(
-      begin: const Offset(0, -1),
+    // Setup animations
+    _heroAnimation = CurvedAnimation(
+      parent: _heroAnimationController,
+      curve: Curves.easeOutCubic,
+    );
+    _contentAnimation = CurvedAnimation(
+      parent: _contentAnimationController,
+      curve: Curves.easeOutQuart,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(CurvedAnimation(
-      parent: _slideAnimationController,
-      curve: Curves.easeOutQuart,
+      parent: _contentAnimationController,
+      curve: Curves.easeOutCubic,
     ));
-
-    _contentFadeAnimation = CurvedAnimation(
-      parent: _fadeAnimationController,
+    _searchFadeAnimation = CurvedAnimation(
+      parent: _searchAnimationController,
+      curve: Curves.easeOutCubic,
+    );
+    _itemsFadeAnimation = CurvedAnimation(
+      parent: _itemsAnimationController,
       curve: Curves.easeOutCubic,
     );
 
-    _slideAnimationController.forward();
-    Future.delayed(const Duration(milliseconds: 200), () {
-      _fadeAnimationController.forward();
+    // Start staggered animations
+    _heroAnimationController.forward();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _contentAnimationController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _searchAnimationController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) _itemsAnimationController.forward();
     });
 
     _searchController.addListener(_onSearchChanged);
+    _searchFocusNode.addListener(_onSearchFocusChanged);
+  }
+
+  void _onSearchFocusChanged() {
+    if (mounted) {
+      setState(() {
+        _isSearchFocused = _searchFocusNode.hasFocus;
+      });
+    }
   }
 
   void _onSearchChanged() {
@@ -106,45 +154,587 @@ class _ProviderServicesScreenState extends State<ProviderServicesScreen>
 
   @override
   void dispose() {
-    _slideAnimationController.dispose();
-    _fadeAnimationController.dispose();
+    _heroAnimationController.dispose();
+    _contentAnimationController.dispose();
+    _searchAnimationController.dispose();
+    _itemsAnimationController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      body: Column(
-        children: [
-          // Compact Header
-          SlideTransition(
-            position: _headerSlideAnimation,
-            child: _buildCompactHeader(),
+      backgroundColor: AppColors.deepSpaceNavy,
+      extendBodyBehindAppBar: true,
+      body: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.deepSpaceNavy,
+        ),
+        child: Stack(
+          children: [
+            // Professional ambient orbs
+            ..._buildAmbientDesign(),
+
+            // Main content
+            FadeTransition(
+              opacity: _heroAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  slivers: [
+                    // Modern Hero Header
+                    _buildModernHeroHeader(),
+
+                    // Enhanced Search Section
+                    SliverToBoxAdapter(
+                      child: FadeTransition(
+                        opacity: _searchFadeAnimation,
+                        child: _buildEnhancedSearchSection(),
+                      ),
+                    ),
+
+                    // Premium Content
+                    SliverToBoxAdapter(
+                      child: FadeTransition(
+                        opacity: _itemsFadeAnimation,
+                        child: _buildPremiumContent(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Professional Ambient Design Elements
+  List<Widget> _buildAmbientDesign() {
+    return [
+      // Primary ambient orb
+      Positioned(
+        top: 80,
+        right: -120,
+        child: Container(
+          width: 240,
+          height: 240,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 0.8,
+              colors: [
+                AppColors.tealColor.withOpacity(0.15),
+                AppColors.tealColor.withOpacity(0.08),
+                AppColors.tealColor.withOpacity(0.02),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.4, 0.7, 1.0],
+            ),
           ),
-          // Main Content
-          Expanded(
-            child: FadeTransition(
-              opacity: _contentFadeAnimation,
-              child: CustomScrollView(
-                controller: _scrollController,
-                slivers: [
-                  // Search Bar
-                  SliverToBoxAdapter(child: _buildSearchBar()),
-                  // Horizontal Categories
-                  SliverToBoxAdapter(child: _buildHorizontalCategories()),
-                  // Services and Plans List
-                  _buildMainContent(),
+        ),
+      ),
+      // Secondary ambient orb
+      Positioned(
+        top: 300,
+        left: -80,
+        child: Container(
+          width: 160,
+          height: 160,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 0.9,
+              colors: [
+                AppColors.electricBlue.withOpacity(0.12),
+                AppColors.electricBlue.withOpacity(0.06),
+                AppColors.electricBlue.withOpacity(0.02),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.3, 0.6, 1.0],
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  // Modern Hero Header
+  Widget _buildModernHeroHeader() {
+    return SliverAppBar(
+      expandedHeight: 280,
+      floating: false,
+      pinned: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      leading: Container(),
+      actions: [],
+      flexibleSpace: FlexibleSpaceBar(
+        background: _buildHeroBackground(),
+      ),
+    );
+  }
+
+  // Hero Background
+  Widget _buildHeroBackground() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.deepSpaceNavy,
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Dynamic gradient overlay
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primaryColor.withOpacity(0.1),
+                  AppColors.tealColor.withOpacity(0.05),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+
+          // Content
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Navigation row
+                  Row(
+                    children: [
+                      // Back button
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  Navigator.pop(context);
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Center(
+                                  child: Icon(
+                                    CupertinoIcons.chevron_left,
+                                    color: AppColors.lightText,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const Spacer(),
+
+                      // Stats badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Text(
+                              '${widget.provider.bookableServices.length + widget.provider.subscriptionPlans.length} Items',
+                              style: AppTextStyle.getSmallStyle(
+                                fontSize: 12,
+                                color: AppColors.lightText,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const Gap(30),
+
+                  // Provider info
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.provider.businessName,
+                        style: AppTextStyle.getHeadlineTextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.lightText,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Gap(8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primaryColor,
+                              AppColors.tealColor
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          'Services & Subscription Plans',
+                          style: AppTextStyle.getSmallStyle(
+                            fontSize: 12,
+                            color: AppColors.lightText,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
         ],
       ),
-      floatingActionButton: _buildQuickBookButton(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  // Enhanced Search Section
+  Widget _buildEnhancedSearchSection() {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          // Modern search bar
+          _buildModernSearchBar(),
+          const Gap(20),
+          // Enhanced category tabs
+          _buildEnhancedCategoryTabs(),
+        ],
+      ),
+    );
+  }
+
+  // Modern Search Bar
+  Widget _buildModernSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isSearchFocused
+              ? AppColors.primaryColor.withOpacity(0.5)
+              : Colors.white.withOpacity(0.1),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _isSearchFocused
+                ? AppColors.primaryColor.withOpacity(0.2)
+                : Colors.black.withOpacity(0.1),
+            blurRadius: _isSearchFocused ? 20 : 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: TextField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            style: AppTextStyle.getbodyStyle(
+              color: AppColors.lightText,
+              fontSize: 16,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search services and plans...',
+              hintStyle: AppTextStyle.getbodyStyle(
+                color: AppColors.lightText.withOpacity(0.6),
+                fontSize: 16,
+              ),
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [AppColors.primaryColor, AppColors.tealColor],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  CupertinoIcons.search,
+                  color: AppColors.lightText,
+                  size: 18,
+                ),
+              ),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? Container(
+                      margin: const EdgeInsets.all(8),
+                      child: IconButton(
+                        onPressed: () {
+                          _searchController.clear();
+                          _searchFocusNode.unfocus();
+                        },
+                        icon: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            CupertinoIcons.xmark,
+                            color: AppColors.lightText,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.transparent,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Enhanced Category Tabs
+  Widget _buildEnhancedCategoryTabs() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildPremiumCategoryTab(
+            'All Items',
+            'all',
+            CupertinoIcons.square_stack_3d_up,
+            _filteredServices.length + _filteredPlans.length,
+          ),
+        ),
+        if (_hasServices) ...[
+          const Gap(12),
+          Expanded(
+            child: _buildPremiumCategoryTab(
+              'Services',
+              'services',
+              CupertinoIcons.wrench_fill,
+              _filteredServices.length,
+            ),
+          ),
+        ],
+        if (_hasPlans) ...[
+          const Gap(12),
+          Expanded(
+            child: _buildPremiumCategoryTab(
+              'Plans',
+              'plans',
+              CupertinoIcons.doc_text_fill,
+              _filteredPlans.length,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // Premium Category Tab
+  Widget _buildPremiumCategoryTab(
+      String label, String category, IconData icon, int count) {
+    final isSelected = _selectedCategory == category;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        setState(() {
+          _selectedCategory = category;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [AppColors.primaryColor, AppColors.tealColor],
+                )
+              : LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.1),
+                    Colors.white.withOpacity(0.05),
+                  ],
+                ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primaryColor.withOpacity(0.3)
+                : Colors.white.withOpacity(0.1),
+            width: 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primaryColor.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Column(
+              children: [
+                Icon(
+                  icon,
+                  size: 24,
+                  color: isSelected
+                      ? AppColors.lightText
+                      : AppColors.lightText.withOpacity(0.7),
+                ),
+                const Gap(8),
+                Text(
+                  label,
+                  style: AppTextStyle.getSmallStyle(
+                    fontSize: 12,
+                    color: isSelected
+                        ? AppColors.lightText
+                        : AppColors.lightText.withOpacity(0.7),
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const Gap(4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withOpacity(0.2)
+                        : Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    count.toString(),
+                    style: AppTextStyle.getSmallStyle(
+                      fontSize: 10,
+                      color: AppColors.lightText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Premium Content
+  Widget _buildPremiumContent() {
+    List<dynamic> items = [];
+
+    if (_selectedCategory == 'all') {
+      items.addAll(_filteredServices);
+      items.addAll(_filteredPlans);
+    } else if (_selectedCategory == 'services') {
+      items.addAll(_filteredServices);
+    } else if (_selectedCategory == 'plans') {
+      items.addAll(_filteredPlans);
+    }
+
+    if (items.isEmpty) {
+      return _buildPremiumEmptyState();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          ...items.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+
+            return TweenAnimationBuilder<double>(
+              duration: Duration(milliseconds: 600 + (index * 100)),
+              tween: Tween(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                return Transform.translate(
+                  offset: Offset(0, 30 * (1 - value)),
+                  child: Opacity(
+                    opacity: value,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: item is BookableService
+                          ? _buildPremiumServiceCard(item)
+                          : _buildPremiumPlanCard(item as SubscriptionPlan),
+                    ),
+                  ),
+                );
+              },
+            );
+          }).toList(),
+          const Gap(100), // Bottom padding
+        ],
+      ),
     );
   }
 
@@ -443,6 +1033,527 @@ class _ProviderServicesScreenState extends State<ProviderServicesScreen>
             return const SizedBox.shrink();
           },
           childCount: items.length,
+        ),
+      ),
+    );
+  }
+
+  // Premium Empty State
+  Widget _buildPremiumEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(40),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.1),
+                    Colors.white.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Center(
+                    child: Icon(
+                      _searchQuery.isNotEmpty
+                          ? CupertinoIcons.search
+                          : CupertinoIcons.cube_box,
+                      color: AppColors.lightText.withOpacity(0.6),
+                      size: 48,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const Gap(24),
+            Text(
+              _searchQuery.isNotEmpty
+                  ? 'No Results Found'
+                  : 'No Items Available',
+              style: AppTextStyle.getHeadlineTextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: AppColors.lightText,
+              ),
+            ),
+            const Gap(12),
+            Text(
+              _searchQuery.isNotEmpty
+                  ? 'Try adjusting your search terms or browse all categories'
+                  : 'This provider hasn\'t added any services or plans yet',
+              style: AppTextStyle.getbodyStyle(
+                color: AppColors.lightText.withOpacity(0.7),
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Premium Service Card
+  Widget _buildPremiumServiceCard(BookableService service) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                _navigateToOptionsConfiguration(context,
+                    service: service, provider: widget.provider);
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    // Service Icon
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [AppColors.primaryColor, AppColors.tealColor],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryColor.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        CupertinoIcons.wrench_fill,
+                        color: AppColors.lightText,
+                        size: 28,
+                      ),
+                    ),
+                    const Gap(16),
+                    // Service Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  service.name,
+                                  style: AppTextStyle.getTitleStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.lightText,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      AppColors.primaryColor,
+                                      AppColors.tealColor
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Service',
+                                  style: AppTextStyle.getSmallStyle(
+                                    fontSize: 10,
+                                    color: AppColors.lightText,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Gap(8),
+                          Text(
+                            service.description,
+                            style: AppTextStyle.getbodyStyle(
+                              fontSize: 14,
+                              color: AppColors.lightText.withOpacity(0.8),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const Gap(12),
+                          Row(
+                            children: [
+                              if (service.price != null) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        CupertinoIcons.money_dollar,
+                                        size: 14,
+                                        color: AppColors.lightText,
+                                      ),
+                                      const Gap(4),
+                                      Text(
+                                        '${service.price!.toStringAsFixed(0)} EGP',
+                                        style: AppTextStyle.getSmallStyle(
+                                          fontSize: 12,
+                                          color: AppColors.lightText,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (service.price != null &&
+                                  service.durationMinutes != null)
+                                const Gap(8),
+                              if (service.durationMinutes != null) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        CupertinoIcons.clock,
+                                        size: 14,
+                                        color: AppColors.lightText
+                                            .withOpacity(0.8),
+                                      ),
+                                      const Gap(4),
+                                      Text(
+                                        '${service.durationMinutes} min',
+                                        style: AppTextStyle.getSmallStyle(
+                                          fontSize: 12,
+                                          color: AppColors.lightText
+                                              .withOpacity(0.8),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(12),
+                    // Arrow
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Icon(
+                        CupertinoIcons.chevron_right,
+                        color: AppColors.lightText.withOpacity(0.8),
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Premium Plan Card
+  Widget _buildPremiumPlanCard(SubscriptionPlan plan) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                _navigateToOptionsConfiguration(context,
+                    planData: plan, provider: widget.provider);
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    // Plan Icon
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.electricBlue,
+                            AppColors.purpleColor
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.electricBlue.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        CupertinoIcons.doc_text_fill,
+                        color: AppColors.lightText,
+                        size: 28,
+                      ),
+                    ),
+                    const Gap(16),
+                    // Plan Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  plan.name,
+                                  style: AppTextStyle.getTitleStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.lightText,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      AppColors.electricBlue,
+                                      AppColors.purpleColor
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Plan',
+                                  style: AppTextStyle.getSmallStyle(
+                                    fontSize: 10,
+                                    color: AppColors.lightText,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Gap(8),
+                          Text(
+                            plan.description,
+                            style: AppTextStyle.getbodyStyle(
+                              fontSize: 14,
+                              color: AppColors.lightText.withOpacity(0.8),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const Gap(12),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      CupertinoIcons.money_dollar,
+                                      size: 14,
+                                      color: AppColors.lightText,
+                                    ),
+                                    const Gap(4),
+                                    Text(
+                                      '${plan.price.toStringAsFixed(0)} EGP',
+                                      style: AppTextStyle.getSmallStyle(
+                                        fontSize: 12,
+                                        color: AppColors.lightText,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Gap(8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      CupertinoIcons.repeat,
+                                      size: 14,
+                                      color:
+                                          AppColors.lightText.withOpacity(0.8),
+                                    ),
+                                    const Gap(4),
+                                    Text(
+                                      _getBillingText(plan),
+                                      style: AppTextStyle.getSmallStyle(
+                                        fontSize: 12,
+                                        color: AppColors.lightText
+                                            .withOpacity(0.8),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(12),
+                    // Arrow
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Icon(
+                        CupertinoIcons.chevron_right,
+                        color: AppColors.lightText.withOpacity(0.8),
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -865,16 +1976,10 @@ class _ProviderServicesScreenState extends State<ProviderServicesScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MultiBlocProvider(
-          providers: [
-            BlocProvider.value(value: BlocProvider.of<SocialBloc>(context)),
-            BlocProvider.value(value: BlocProvider.of<AuthBloc>(context)),
-          ],
-          child: ModernOptionsConfigurationScreen(
-            providerId: provider.id,
-            plan: planModelForConfig,
-            service: serviceModelForConfig,
-          ),
+        builder: (_) => EnhancedBookingConfigurationScreen(
+          provider: provider,
+          plan: planModelForConfig,
+          service: serviceModelForConfig,
         ),
       ),
     );

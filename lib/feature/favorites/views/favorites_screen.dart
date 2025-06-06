@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
@@ -21,59 +23,148 @@ class FavoritesScreen extends StatelessWidget {
     final userId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
       return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryColor.withOpacity(0.1),
-                  shape: BoxShape.circle,
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF0F0F23),
+                Color(0xFF1A1A2E),
+                Color(0xFF16213E),
+                Color(0xFF0F0F23),
+              ],
+              stops: [0.0, 0.3, 0.7, 1.0],
+            ),
+          ),
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.all(30),
+              margin: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.15),
+                    Colors.white.withOpacity(0.05),
+                  ],
                 ),
-                child: const Icon(
-                  CupertinoIcons.person_fill,
-                  color: AppColors.primaryColor,
-                  size: 48,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primaryColor.withOpacity(0.3),
+                              AppColors.accentColor.withOpacity(0.3),
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.person_fill,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                      ),
+                      const Gap(24),
+                      Text(
+                        'Sign In Required',
+                        style: AppTextStyle.getTitleStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Gap(12),
+                      Text(
+                        'Please sign in to view your favorites',
+                        style: AppTextStyle.getbodyStyle(
+                          color: Colors.white.withOpacity(0.7),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const Gap(16),
-              Text(
-                'Sign In Required',
-                style: AppTextStyle.getTitleStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Gap(8),
-              Text(
-                'Please sign in to view your favorites',
-                style: AppTextStyle.getbodyStyle(
-                  color: AppColors.secondaryText,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
       );
     }
 
-    return const _FavoritesView();
+    return const _PremiumFavoritesView();
   }
 }
 
-class _FavoritesView extends StatefulWidget {
-  const _FavoritesView();
+class _PremiumFavoritesView extends StatefulWidget {
+  const _PremiumFavoritesView();
 
   @override
-  State<_FavoritesView> createState() => _FavoritesViewState();
+  State<_PremiumFavoritesView> createState() => _PremiumFavoritesViewState();
 }
 
-class _FavoritesViewState extends State<_FavoritesView> {
+class _PremiumFavoritesViewState extends State<_PremiumFavoritesView>
+    with TickerProviderStateMixin {
+  // Premium animation controllers
+  late final AnimationController _animationController;
+  late final AnimationController _orbAnimationController;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<double> _slideAnimation;
+
   @override
   void initState() {
     super.initState();
+
+    // Setup premium animations
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    _orbAnimationController = AnimationController(
+      duration: const Duration(seconds: 4),
+      vsync: this,
+    )..repeat();
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+    ));
+
+    _slideAnimation = Tween<double>(
+      begin: 30.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.2, 0.8, curve: Curves.easeOut),
+    ));
+
+    _animationController.forward();
+
     // Force refresh favorites on screen load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FavoritesBloc>().add(const LoadFavorites());
@@ -81,144 +172,299 @@ class _FavoritesViewState extends State<_FavoritesView> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  void dispose() {
+    _animationController.dispose();
+    _orbAnimationController.dispose();
+    super.dispose();
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(30),
-              bottomRight: Radius.circular(30),
-            ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF0F0F23),
+              Color(0xFF1A1A2E),
+              Color(0xFF16213E),
+              Color(0xFF0F0F23),
+            ],
+            stops: [0.0, 0.3, 0.7, 1.0],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
-                    ),
-                    child: RefreshIndicator(
-                      onRefresh: () async {
-                        context
-                            .read<FavoritesBloc>()
-                            .add(const LoadFavorites());
-                        return await Future.delayed(const Duration(seconds: 1));
-                      },
-                      child: _buildFavoritesContent(),
+        ),
+        child: Stack(
+          children: [
+            // Animated floating orbs
+            ..._buildFloatingOrbs(),
+
+            // Main content
+            CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // Pull to refresh indicator
+                CupertinoSliverRefreshControl(
+                  builder: (context, refreshState, pulledExtent,
+                      refreshTriggerPullDistance, refreshIndicatorExtent) {
+                    return Container(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Center(
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppColors.primaryColor.withOpacity(0.8),
+                                AppColors.tealColor.withOpacity(0.8),
+                              ],
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: refreshState == RefreshIndicatorMode.refresh
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                )
+                              : const Icon(
+                                  Icons.arrow_downward_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                        ),
+                      ),
+                    );
+                  },
+                  onRefresh: () async {
+                    context.read<FavoritesBloc>().add(const LoadFavorites());
+                    return Future.delayed(const Duration(seconds: 1));
+                  },
+                ),
+
+                // Premium header
+                SliverAppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  pinned: true,
+                  expandedHeight: 140,
+                  automaticallyImplyLeading: false,
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Container(
+                      padding:
+                          const EdgeInsets.only(left: 20, right: 20, top: 80),
+                      child: AnimatedBuilder(
+                        animation: _slideAnimation,
+                        builder: (context, child) {
+                          return Transform.translate(
+                            offset: Offset(0, _slideAnimation.value),
+                            child: FadeTransition(
+                              opacity: _fadeAnimation,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Premium badge
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.red.withOpacity(0.8),
+                                          Colors.pink.withOpacity(0.8),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(15),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.red.withOpacity(0.3),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.favorite_rounded,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                        const Gap(3),
+                                        Text(
+                                          'SAVED COLLECTION',
+                                          style: AppTextStyle.getbodyStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Gap(8),
+
+                                  // Title with gradient text
+                                  ShaderMask(
+                                    shaderCallback: (bounds) =>
+                                        const LinearGradient(
+                                      colors: [Colors.white, Color(0xFFB8BCC8)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ).createShader(bounds),
+                                    child: Text(
+                                      'Favorites',
+                                      style: AppTextStyle.getTitleStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
+                // Content with premium styling
+                SliverFillRemaining(
+                  child: Container(
+                    decoration: const BoxDecoration(
                       gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                         colors: [
-                          AppColors.primaryColor,
-                          AppColors.primaryColor.withOpacity(0.7),
+                          Colors.transparent,
+                          Color(0xFF0A0A1A),
                         ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(15),
                     ),
-                    child: const Icon(
-                      CupertinoIcons.heart_fill,
-                      color: Colors.white,
-                      size: 26,
-                    ),
+                    child: _buildPremiumFavoritesContent(),
                   ),
-                  const Gap(14),
-                  Text(
-                    'Favorites',
-                    style: AppTextStyle.getHeadlineTextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              _buildRefreshButton(context),
-            ],
-          ),
-          const Gap(12),
-          Text(
-            'Service providers you have saved',
-            style: AppTextStyle.getbodyStyle(
-              color: AppColors.secondaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRefreshButton(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        context.read<FavoritesBloc>().add(const LoadFavorites());
-        showGlobalSnackBar(context, "Refreshing favorites...");
-      },
-      borderRadius: BorderRadius.circular(50),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(50),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 0,
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+                ),
+              ],
             ),
           ],
         ),
-        child: const Icon(
-          CupertinoIcons.arrow_clockwise,
-          color: AppColors.primaryColor,
-          size: 20,
-        ),
       ),
     );
   }
 
-  Widget _buildFavoritesContent() {
+  List<Widget> _buildFloatingOrbs() {
+    return [
+      // Large orb top right
+      AnimatedBuilder(
+        animation: _orbAnimationController,
+        builder: (context, child) {
+          return Positioned(
+            top: 100 + (20 * (_orbAnimationController.value * 2 - 1).abs()),
+            right: 50 + (15 * (_orbAnimationController.value * 2 - 1)),
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.red.withOpacity(0.3),
+                    Colors.red.withOpacity(0.1),
+                    Colors.transparent,
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+
+      // Medium orb middle left
+      AnimatedBuilder(
+        animation: _orbAnimationController,
+        builder: (context, child) {
+          return Positioned(
+            top: 300 + (30 * _orbAnimationController.value),
+            left: 30 + (20 * (1 - _orbAnimationController.value)),
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.pink.withOpacity(0.4),
+                    Colors.pink.withOpacity(0.2),
+                    Colors.transparent,
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+
+      // Small orb bottom right
+      AnimatedBuilder(
+        animation: _orbAnimationController,
+        builder: (context, child) {
+          return Positioned(
+            bottom: 200 + (25 * _orbAnimationController.value),
+            right: 80 + (10 * (_orbAnimationController.value * 2 - 1)),
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.primaryColor.withOpacity(0.3),
+                    AppColors.primaryColor.withOpacity(0.15),
+                    Colors.transparent,
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ];
+  }
+
+  Widget _buildPremiumFavoritesContent() {
     return BlocConsumer<FavoritesBloc, FavoritesState>(
       listener: (context, state) {
         if (state is FavoritesError) {
@@ -227,59 +473,93 @@ class _FavoritesViewState extends State<_FavoritesView> {
             "Error loading favorites: ${state.message}",
             isError: true,
           );
-        } else if (state is FavoritesLoaded) {
-          // Only show success message when refreshing, not on initial load
-          ScaffoldMessenger.of(context).clearSnackBars();
-          // Check if we're refreshing (not the initial load)
-          if (mounted && state.operationInProgressId != null) {
-            showGlobalSnackBar(context, "Favorites updated successfully");
-          }
+        } else if (state is FavoritesLoaded &&
+            state.operationInProgressId != null) {
+          showGlobalSnackBar(context, "Favorites updated successfully");
         }
       },
       builder: (context, state) {
         if (state is FavoritesInitial || state is FavoritesLoading) {
-          return _buildLoadingShimmer();
+          return _buildPremiumLoadingShimmer();
         } else if (state is FavoritesError) {
-          return _buildErrorState(context, state.message);
+          return _buildPremiumErrorState(context, state.message);
         } else if (state is FavoritesLoaded) {
           if (state.favorites.isEmpty) {
-            return _buildEmptyState(context);
+            return _buildPremiumEmptyState(context);
           }
 
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: AnimationLimiter(
-              child: GridView.builder(
-                padding: const EdgeInsets.only(bottom: 16),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount:
-                      MediaQuery.of(context).size.width > 600 ? 3 : 2,
-                  childAspectRatio: 0.75,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.15),
+                  Colors.white.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
-                itemCount: state.favorites.length,
-                itemBuilder: (context, index) {
-                  final provider = state.favorites[index];
-                  return AnimationConfiguration.staggeredGrid(
-                    position: index,
-                    duration: const Duration(milliseconds: 375),
-                    columnCount:
-                        MediaQuery.of(context).size.width > 600 ? 3 : 2,
-                    child: ScaleAnimation(
-                      child: FadeInAnimation(
-                        child: _FavoriteCard(
-                          provider: provider,
-                          onRemove: () {
-                            context
-                                .read<FavoritesBloc>()
-                                .add(ToggleFavorite(provider));
-                          },
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: AnimationLimiter(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount:
+                              MediaQuery.of(context).size.width > 600 ? 3 : 2,
+                          childAspectRatio: 0.75,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
                         ),
+                        itemCount: state.favorites.length,
+                        itemBuilder: (context, index) {
+                          final provider = state.favorites[index];
+                          return AnimationConfiguration.staggeredGrid(
+                            position: index,
+                            duration: const Duration(milliseconds: 375),
+                            columnCount:
+                                MediaQuery.of(context).size.width > 600 ? 3 : 2,
+                            child: ScaleAnimation(
+                              child: FadeInAnimation(
+                                child: _PremiumFavoriteCard(
+                                  provider: provider,
+                                  onRemove: () {
+                                    HapticFeedback.lightImpact();
+                                    context
+                                        .read<FavoritesBloc>()
+                                        .add(ToggleFavorite(provider));
+                                  },
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
             ),
           );
@@ -288,19 +568,19 @@ class _FavoritesViewState extends State<_FavoritesView> {
         return Center(
           child: Text(
             'Something went wrong',
-            style: AppTextStyle.getbodyStyle(),
+            style: AppTextStyle.getbodyStyle(color: Colors.white),
           ),
         );
       },
     );
   }
 
-  Widget _buildLoadingShimmer() {
+  Widget _buildPremiumLoadingShimmer() {
     return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
+      baseColor: Colors.white.withOpacity(0.1),
+      highlightColor: Colors.white.withOpacity(0.3),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20),
         child: GridView.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2,
@@ -312,8 +592,8 @@ class _FavoritesViewState extends State<_FavoritesView> {
           itemBuilder: (context, index) {
             return Container(
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
               ),
             );
           },
@@ -322,110 +602,197 @@ class _FavoritesViewState extends State<_FavoritesView> {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildPremiumEmptyState(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.primaryColor.withOpacity(0.1),
-              shape: BoxShape.circle,
+      child: Container(
+        padding: const EdgeInsets.all(30),
+        margin: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withOpacity(0.15),
+              Colors.white.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
             ),
-            child: const Icon(
-              CupertinoIcons.heart,
-              color: AppColors.primaryColor,
-              size: 48,
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.red.withOpacity(0.3),
+                        Colors.pink.withOpacity(0.3),
+                      ],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.heart,
+                    color: Colors.white,
+                    size: 48,
+                  ),
+                ),
+                const Gap(24),
+                Text(
+                  'No Favorites Yet',
+                  style: AppTextStyle.getTitleStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const Gap(16),
+                Text(
+                  'Save service providers to your favorites to see them here',
+                  style: AppTextStyle.getbodyStyle(
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
-          const Gap(16),
-          Text(
-            'No Favorites Yet',
-            style: AppTextStyle.getTitleStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Gap(8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Text(
-              'Save service providers to your favorites to see them here',
-              style: AppTextStyle.getbodyStyle(
-                color: AppColors.secondaryText,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildErrorState(BuildContext context, String message) {
+  Widget _buildPremiumErrorState(BuildContext context, String message) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1),
-              shape: BoxShape.circle,
+      child: Container(
+        padding: const EdgeInsets.all(30),
+        margin: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.red.withOpacity(0.15),
+              Colors.red.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.red.withOpacity(0.3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
             ),
-            child: const Icon(
-              CupertinoIcons.exclamationmark_triangle,
-              color: Colors.red,
-              size: 48,
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  CupertinoIcons.exclamationmark_triangle,
+                  color: Colors.white,
+                  size: 48,
+                ),
+                const Gap(20),
+                Text(
+                  'Error Loading Favorites',
+                  style: AppTextStyle.getTitleStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const Gap(12),
+                Text(
+                  message,
+                  style: AppTextStyle.getbodyStyle(
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const Gap(24),
+                Material(
+                  borderRadius: BorderRadius.circular(30),
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(30),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      context.read<FavoritesBloc>().add(const LoadFavorites());
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.red.withOpacity(0.8),
+                            Colors.red.withOpacity(0.6),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(CupertinoIcons.refresh,
+                              color: Colors.white),
+                          const Gap(8),
+                          Text(
+                            'Try Again',
+                            style: AppTextStyle.getbodyStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const Gap(16),
-          Text(
-            'Error Loading Favorites',
-            style: AppTextStyle.getTitleStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Gap(8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Text(
-              message,
-              style: AppTextStyle.getbodyStyle(
-                color: AppColors.secondaryText,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const Gap(24),
-          ElevatedButton.icon(
-            onPressed: () {
-              context.read<FavoritesBloc>().add(const LoadFavorites());
-            },
-            icon: const Icon(CupertinoIcons.refresh),
-            label: const Text('Try Again'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(50),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _FavoriteCard extends StatelessWidget {
+class _PremiumFavoriteCard extends StatelessWidget {
   final ServiceProviderDisplayModel provider;
   final VoidCallback onRemove;
 
-  const _FavoriteCard({
+  const _PremiumFavoriteCard({
     required this.provider,
     required this.onRemove,
   });
@@ -434,207 +801,298 @@ class _FavoriteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.2),
+            Colors.white.withOpacity(0.1),
+          ],
+        ),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            spreadRadius: 0,
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BlocProvider.value(
-                      value: BlocProvider.of<FavoritesBloc>(context),
-                      child: ServiceProviderDetailScreen(
-                        providerId: provider.id,
-                        heroTag: 'favorites_${provider.id}',
-                        initialProviderData: provider,
-                      ),
-                    ),
-                  ),
-                );
-              },
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Stack(
-                    children: [
-                      AspectRatio(
-                        aspectRatio: 1.2,
-                        child: CachedNetworkImage(
-                          imageUrl: provider.imageUrl ?? '',
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[200],
-                            child: const Center(
-                                child: CircularProgressIndicator()),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey[200],
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  CupertinoIcons.photo,
-                                  size: 40,
-                                  color: Colors.grey[400],
-                                ),
-                                const Gap(8),
-                                Text(
-                                  'No Image',
-                                  style: AppTextStyle.getSmallStyle(
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Stack(
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BlocProvider.value(
+                          value: BlocProvider.of<FavoritesBloc>(context),
+                          child: ServiceProviderDetailScreen(
+                            providerId: provider.id,
+                            heroTag: 'favorites_${provider.id}',
+                            initialProviderData: provider,
                           ),
                         ),
                       ),
-                      if (provider.businessCategory.isNotEmpty)
-                        Positioned(
-                          top: 12,
-                          left: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Image with gradient overlay
+                      Expanded(
+                        flex: 3,
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(20),
+                                  topRight: Radius.circular(20),
+                                ),
+                                image: provider.imageUrl?.isNotEmpty == true
+                                    ? DecorationImage(
+                                        image: CachedNetworkImageProvider(
+                                            provider.imageUrl!),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                                color: provider.imageUrl?.isEmpty != false
+                                    ? Colors.white.withOpacity(0.1)
+                                    : null,
+                              ),
+                              child: provider.imageUrl?.isEmpty != false
+                                  ? Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          CupertinoIcons.photo,
+                                          size: 40,
+                                          color: Colors.white.withOpacity(0.5),
+                                        ),
+                                        const Gap(8),
+                                        Text(
+                                          'No Image',
+                                          style: AppTextStyle.getSmallStyle(
+                                            color:
+                                                Colors.white.withOpacity(0.7),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : null,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.6),
-                              borderRadius: BorderRadius.circular(50),
-                            ),
-                            child: Text(
-                              provider.businessCategory,
-                              style: AppTextStyle.getSmallStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
+
+                            // Gradient overlay
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(20),
+                                  topRight: Radius.circular(20),
+                                ),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withOpacity(0.3),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
+
+                            // Category badge
+                            if (provider.businessCategory.isNotEmpty)
+                              Positioned(
+                                top: 12,
+                                left: 12,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.primaryColor.withOpacity(0.9),
+                                        AppColors.accentColor.withOpacity(0.9),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    provider.businessCategory,
+                                    style: AppTextStyle.getSmallStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          provider.businessName,
-                          style: AppTextStyle.getTitleStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const Gap(4),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on,
-                              size: 14,
-                              color: AppColors.secondaryText,
-                            ),
-                            const Gap(2),
-                            Expanded(
-                              child: Text(
-                                provider.city.isNotEmpty
-                                    ? provider.city
-                                    : 'Location unavailable',
-                                style: AppTextStyle.getSmallStyle(
-                                  color: AppColors.secondaryText,
+                      ),
+
+                      // Content section
+                      Expanded(
+                        flex: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                provider.businessName,
+                                style: AppTextStyle.getTitleStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
-                        ),
-                        const Gap(6),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.amber[700]!.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                              child: Row(
+                              const Gap(4),
+                              Row(
                                 children: [
                                   Icon(
-                                    CupertinoIcons.star_fill,
-                                    size: 12,
-                                    color: Colors.amber[700],
+                                    Icons.location_on,
+                                    size: 11,
+                                    color: Colors.white.withOpacity(0.7),
                                   ),
                                   const Gap(3),
-                                  Text(
-                                    provider.averageRating.toStringAsFixed(1),
-                                    style: AppTextStyle.getSmallStyle(
-                                      color: Colors.amber[700],
-                                      fontWeight: FontWeight.w600,
+                                  Expanded(
+                                    child: Text(
+                                      provider.city.isNotEmpty
+                                          ? provider.city
+                                          : 'Location unavailable',
+                                      style: AppTextStyle.getSmallStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 10,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                            const Gap(4),
-                            Text(
-                              '(${provider.ratingCount})',
-                              style: AppTextStyle.getSmallStyle(
-                                color: AppColors.secondaryText,
+                              const Spacer(),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.amber.withOpacity(0.8),
+                                          Colors.orange.withOpacity(0.8),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          CupertinoIcons.star_fill,
+                                          size: 9,
+                                          color: Colors.white,
+                                        ),
+                                        const Gap(2),
+                                        Text(
+                                          provider.averageRating
+                                              .toStringAsFixed(1),
+                                          style: AppTextStyle.getSmallStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 9,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Gap(4),
+                                  Text(
+                                    '(${provider.ratingCount})',
+                                    style: AppTextStyle.getSmallStyle(
+                                      color: Colors.white.withOpacity(0.6),
+                                      fontSize: 9,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 10,
-              right: 10,
-              child: GestureDetector(
-                onTap: onRemove,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 6,
-                        spreadRadius: 0,
                       ),
                     ],
                   ),
-                  child: Icon(
-                    CupertinoIcons.heart_fill,
-                    size: 20,
-                    color: Colors.red[400],
+                ),
+              ),
+
+              // Premium favorite button
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Material(
+                  borderRadius: BorderRadius.circular(50),
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(50),
+                    onTap: onRemove,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.red.withOpacity(0.9),
+                            Colors.pink.withOpacity(0.9),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.heart_fill,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

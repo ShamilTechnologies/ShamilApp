@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 
@@ -91,7 +93,7 @@ class _SmoothTypingTextState extends State<SmoothTypingText> {
   }
 }
 
-/// Enhanced login view with modern design and improved maintainability
+/// Enhanced login view with explore screen design architecture
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
 
@@ -100,6 +102,8 @@ class LoginView extends StatefulWidget {
 }
 
 class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
+  final ScrollController _scrollController = ScrollController();
+
   // Form key for validation
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
@@ -161,12 +165,13 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final topPadding = MediaQuery.of(context).padding.top;
+
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
-        // Dismiss keyboard when state changes
         FocusScope.of(context).unfocus();
-
-        // Handle login-related state changes
         _handleAuthStateChanges(state);
       },
       child: BlocBuilder<AuthBloc, AuthState>(
@@ -176,62 +181,468 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
           final isLoading = state is AuthLoadingState;
 
           return Scaffold(
+            backgroundColor: const Color(0xFF0A0E1A),
+            extendBodyBehindAppBar: true,
             body: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: [
                     AppColors.primaryColor,
                     AppColors.primaryColor.withOpacity(0.95),
-                    Colors.white,
+                    AppColors.primaryColor.withOpacity(0.9),
+                    const Color(0xFF0A0E1A),
                   ],
-                  stops: const [0.0, 0.3, 0.6],
+                  stops: const [0.0, 0.3, 0.7, 1.0],
                 ),
               ),
-              child: SafeArea(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header with animated content
-                        FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: _buildHeader(context),
-                        ),
-
-                        // Main content with form
-                        Expanded(
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(30),
-                                topRight: Radius.circular(30),
-                              ),
-                            ),
-                            child: SlideTransition(
-                              position: _slideAnimation,
-                              child: SingleChildScrollView(
-                                physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.all(24.0),
-                                child: Form(
-                                  key: _formKey,
-                                  child: _buildLoginForm(context, isLoading),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
                 ),
+                slivers: <Widget>[
+                  // Premium Hero Header - Same as explore screen
+                  SliverAppBar(
+                    expandedHeight: screenHeight * 0.45,
+                    floating: false,
+                    pinned: true,
+                    stretch: true,
+                    elevation: 0,
+                    backgroundColor: Colors.transparent,
+                    flexibleSpace:
+                        _buildPremiumFlexibleSpace(topPadding, screenWidth),
+                  ),
+
+                  // Premium Content - Same dark background as explore screen
+                  SliverToBoxAdapter(
+                    child: Container(
+                      color: const Color(0xFF0A0E1A),
+                      child: SlideTransition(
+                        position: _slideAnimation,
+                        child: _buildSignInContent(context, isLoading),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildPremiumFlexibleSpace(double topPadding, double screenWidth) {
+    return FlexibleSpaceBar(
+      stretchModes: const [
+        StretchMode.zoomBackground,
+        StretchMode.blurBackground,
+        StretchMode.fadeTitle,
+      ],
+      background: Stack(
+        children: [
+          // Animated background - Same as explore screen
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primaryColor,
+                  AppColors.primaryColor.withOpacity(0.9),
+                  AppColors.tealColor,
+                  AppColors.primaryColor.withOpacity(0.8),
+                ],
+                stops: const [0.0, 0.3, 0.7, 1.0],
+              ),
+            ),
+          ),
+
+          // Floating orbs - Same as explore screen
+          Positioned(
+            top: topPadding + 40,
+            right: -50,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.tealColor.withOpacity(0.3),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          Positioned(
+            top: topPadding + 100,
+            left: -40,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.accentColor.withOpacity(0.2),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Content
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Hero sign in section
+                            Flexible(child: _buildHeroSignInSection()),
+                            const SizedBox(height: 16),
+
+                            // Premium sign in indicator
+                            _buildPremiumSignInIndicator(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroSignInSection() {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Welcome back text with gradient
+          ShaderMask(
+            shaderCallback: (bounds) => LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                Colors.white.withOpacity(0.9),
+                Colors.white.withOpacity(0.8),
+              ],
+            ).createShader(bounds),
+            child: SmoothTypingText(
+              text: "Welcome\nBack",
+              style: const TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                height: 1.1,
+                letterSpacing: -1.5,
+              ),
+            ),
+          ),
+          const Gap(12),
+
+          // Subtitle with glassmorphism
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.15),
+                  Colors.white.withOpacity(0.08),
+                ],
+              ),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              "Sign in to continue your premium experience",
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumSignInIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.2),
+            Colors.white.withOpacity(0.1),
+          ],
+        ),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.tealColor.withOpacity(0.3),
+                  AppColors.accentColor.withOpacity(0.3),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              CupertinoIcons.arrow_down,
+              color: Colors.white,
+              size: 12,
+            ),
+          ),
+          const Gap(8),
+          Text(
+            "Sign In Below",
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignInContent(BuildContext context, bool isLoading) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        children: [
+          const Gap(24),
+
+          // Direct form fields without container
+          Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Modern Email Field
+                _buildModernTextField(
+                  controller: _emailController,
+                  hintText: "Enter your email",
+                  icon: CupertinoIcons.mail,
+                  hasError: _hasEmailError,
+                  errorText: _emailErrorText,
+                  isPassword: false,
+                  isLoading: isLoading,
+                  onChanged: (value) {
+                    if (_hasEmailError) {
+                      setState(() {
+                        _hasEmailError = false;
+                        _emailErrorText = null;
+                      });
+                    }
+                  },
+                  onSubmitted: (_) => _focusPassword(),
+                ),
+                const Gap(20),
+
+                // Modern Password Field
+                _buildModernTextField(
+                  controller: _passwordController,
+                  hintText: "Enter your password",
+                  icon: CupertinoIcons.lock,
+                  hasError: _hasPasswordError,
+                  errorText: _passwordErrorText,
+                  isPassword: true,
+                  isLoading: isLoading,
+                  onChanged: (value) {
+                    if (_hasPasswordError) {
+                      setState(() {
+                        _hasPasswordError = false;
+                        _passwordErrorText = null;
+                      });
+                    }
+                  },
+                  onSubmitted: (_) => _handleLogin(),
+                ),
+
+                // Forgot Password Button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: isLoading ? null : _navigateToForgotPassword,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 0, vertical: 8),
+                      foregroundColor: AppColors.tealColor,
+                    ),
+                    child: Text(
+                      'Forgot Password?',
+                      style: getbodyStyle(
+                        color: AppColors.tealColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+                const Gap(24),
+
+                // Modern Glassy Sign In Button
+                _buildGlassyButton(
+                  text: isLoading ? "Signing In..." : "Sign In",
+                  isLoading: isLoading,
+                  onPressed: isLoading ? null : _handleLogin,
+                ),
+              ],
+            ),
+          ),
+          const Gap(32),
+
+          // Modern Register Navigation Link
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.1),
+                    Colors.white.withOpacity(0.05),
+                  ],
+                ),
+              ),
+              child: GestureDetector(
+                onTap: isLoading ? null : _navigateToRegister,
+                child: RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: getbodyStyle(
+                      color: isLoading
+                          ? Colors.grey
+                          : Colors.white.withOpacity(0.8),
+                      fontSize: 15,
+                    ),
+                    text: "Don't have an account? ",
+                    children: [
+                      TextSpan(
+                        text: 'Create Account',
+                        style: getbodyStyle(
+                          color: isLoading ? Colors.grey : AppColors.tealColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const Gap(40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassyButton({
+    required String text,
+    required bool isLoading,
+    required VoidCallback? onPressed,
+  }) {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          if (!isLoading && onPressed != null)
+            BoxShadow(
+              color: AppColors.tealColor.withOpacity(0.2),
+              blurRadius: 20,
+              spreadRadius: 1,
+              offset: const Offset(0, 8),
+            ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: onPressed,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isLoading || onPressed == null
+                      ? Colors.grey.withOpacity(0.2)
+                      : AppColors.tealColor.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: isLoading
+                      ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : Text(
+                          text,
+                          style: getTitleStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -291,183 +702,100 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
     }
   }
 
-  /// Builds the animated header section
-  Widget _buildHeader(BuildContext context) {
-    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-    final double welcomeFontSize = isKeyboardOpen ? 28 : 36;
-    final double headerHeight = isKeyboardOpen ? 100 : 160;
-    final String welcomeText =
-        isKeyboardOpen ? "Welcome Back" : "Welcome\nBack";
-
-    return Container(
-      height: headerHeight,
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // App logo/icon
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              CupertinoIcons.person_fill,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const Gap(12),
-
-          // Welcome text with animation
-          Flexible(
-            child: SmoothTypingText(
-              key: ValueKey(isKeyboardOpen),
-              text: welcomeText,
-              style: getHeadlineTextStyle(
-                fontSize: welcomeFontSize,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-          ),
-
-          // Subtitle (hidden when keyboard is open)
-          if (!isKeyboardOpen && headerHeight > 120)
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  "Sign in to continue to your account",
-                  style: getbodyStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Builds the login form
-  Widget _buildLoginForm(BuildContext context, bool isLoading) {
+  Widget _buildModernTextField({
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+    required bool hasError,
+    required String? errorText,
+    required bool isPassword,
+    required bool isLoading,
+    required Function(String) onChanged,
+    required Function(String) onSubmitted,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Form Title
-        Text(
-          "Login",
-          style: getTitleStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primaryText,
-          ),
-        ),
-        const Gap(8),
-        Text(
-          "Please sign in to continue",
-          style: getbodyStyle(
-            color: AppColors.secondaryText,
-          ),
-        ),
-        const Gap(30),
-
-        // Email Field
-        EmailTextFormField(
-          controller: _emailController,
-          focusNode: FocusNode(),
-          onChanged: (value) {
-            // Clear error when typing
-            if (_hasEmailError) {
-              setState(() {
-                _hasEmailError = false;
-                _emailErrorText = null;
-              });
-            }
-          },
-          onFieldSubmitted: (_) => _focusPassword(),
-          enabled: !isLoading,
-          hasError: _hasEmailError,
-          errorText: _emailErrorText,
-        ),
-        const Gap(20),
-
-        // Password Field
-        PasswordTextFormField(
-          controller: _passwordController,
-          onChanged: (value) {
-            // Clear error when typing
-            if (_hasPasswordError) {
-              setState(() {
-                _hasPasswordError = false;
-                _passwordErrorText = null;
-              });
-            }
-          },
-          onFieldSubmitted: (_) => _handleLogin(),
-          enabled: !isLoading,
-          hasError: _hasPasswordError,
-          errorText: _passwordErrorText,
-        ),
-
-        // Forgot Password Button
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: isLoading ? null : _navigateToForgotPassword,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-              foregroundColor: AppColors.primaryColor,
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.15),
+                Colors.white.withOpacity(0.08),
+              ],
             ),
-            child: Text(
-              'Forgot Password?',
-              style: getbodyStyle(
-                color: AppColors.primaryColor,
-                fontWeight: FontWeight.w600,
+            border: Border.all(
+              color: hasError
+                  ? Colors.red.withOpacity(0.6)
+                  : Colors.white.withOpacity(0.3),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-            ),
+            ],
           ),
-        ),
-        const Gap(30),
-
-        // Login Button
-        CustomButton(
-          onPressed: isLoading ? null : _handleLogin,
-          text: isLoading ? "Logging In..." : "Login",
-          height: 54,
-        ),
-        const Gap(20),
-
-        // Register Navigation Link
-        Center(
-          child: GestureDetector(
-            onTap: isLoading ? null : _navigateToRegister,
-            child: RichText(
-              textAlign: TextAlign.center,
-              text: TextSpan(
-                style: getbodyStyle(
-                  color: isLoading ? Colors.grey : AppColors.secondaryText,
-                ),
-                text: "Don't have an account? ",
-                children: [
-                  TextSpan(
-                    text: 'Register Now',
-                    style: getbodyStyle(
-                      color: isLoading ? Colors.grey : AppColors.primaryColor,
-                      fontWeight: FontWeight.bold,
-                    ),
+          child: TextFormField(
+            controller: controller,
+            obscureText: isPassword,
+            enabled: !isLoading,
+            onChanged: onChanged,
+            onFieldSubmitted: onSubmitted,
+            style: getbodyStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: getbodyStyle(
+                color: Colors.white.withOpacity(0.6),
+                fontSize: 15,
+              ),
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.tealColor.withOpacity(0.3),
+                      AppColors.accentColor.withOpacity(0.3),
+                    ],
                   ),
-                ],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 18,
               ),
             ),
           ),
         ),
+        if (hasError && errorText != null) ...[
+          const Gap(8),
+          Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: Text(
+              errorText!,
+              style: getbodyStyle(
+                color: Colors.red.withOpacity(0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

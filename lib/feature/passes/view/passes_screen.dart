@@ -1,17 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
-import 'package:shamil_mobile_app/core/utils/text_style.dart' as AppTextStyle;
+import 'package:shamil_mobile_app/core/utils/text_style.dart' as app_text_style;
 import 'package:gap/gap.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:shamil_mobile_app/feature/passes/bloc/my_passes_bloc.dart';
 import 'package:shamil_mobile_app/feature/passes/data/models/pass_type.dart';
 import 'package:shamil_mobile_app/feature/passes/view/components/passes_content.dart';
 import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
-import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 
 class PassesScreen extends StatefulWidget {
   const PassesScreen({super.key});
@@ -156,7 +153,7 @@ class _PassesScreenState extends State<PassesScreen>
                                           const Gap(3),
                                           Text(
                                             'PREMIUM ACCESS',
-                                            style: AppTextStyle.getbodyStyle(
+                                            style: app_text_style.getbodyStyle(
                                               fontSize: 9,
                                               fontWeight: FontWeight.w700,
                                               color: Colors.white,
@@ -180,7 +177,7 @@ class _PassesScreenState extends State<PassesScreen>
                                       ).createShader(bounds),
                                       child: Text(
                                         'My Passes',
-                                        style: AppTextStyle.getTitleStyle(
+                                        style: app_text_style.getTitleStyle(
                                           fontSize: 26,
                                           fontWeight: FontWeight.w900,
                                           color: Colors.white,
@@ -423,11 +420,11 @@ class _PremiumTabBarDelegate extends SliverPersistentHeaderDelegate {
                       dividerColor: Colors.transparent,
                       labelColor: Colors.white,
                       unselectedLabelColor: Colors.white.withOpacity(0.6),
-                      labelStyle: AppTextStyle.getbodyStyle(
+                      labelStyle: app_text_style.getbodyStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
                       ),
-                      unselectedLabelStyle: AppTextStyle.getbodyStyle(
+                      unselectedLabelStyle: app_text_style.getbodyStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 16,
                       ),

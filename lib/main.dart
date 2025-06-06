@@ -49,6 +49,10 @@ import 'package:shamil_mobile_app/core/payment/integration_example_simple.dart';
 import 'package:shamil_mobile_app/feature/payments/views/payments_screen.dart';
 import 'package:shamil_mobile_app/feature/reservation/presentation/screens/reservation_payment_screen.dart';
 
+// Import options configuration screens
+import 'package:shamil_mobile_app/feature/options_configuration/view/enhanced_booking_configuration_screen.dart';
+import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
+
 // Import the new credentials manager
 import 'package:shamil_mobile_app/core/payment/config/payment_credentials_manager.dart';
 import 'package:shamil_mobile_app/core/payment/config/payment_environment_config.dart';
@@ -396,6 +400,36 @@ class _MainAppState extends State<MainApp> {
           return ReservationPaymentScreen(
             reservation: args['reservation'],
             serviceProvider: args['serviceProvider'],
+          );
+        },
+        '/options_configuration': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          if (args == null || args['providerId'] == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Invalid configuration data'),
+              ),
+            );
+          }
+
+          // For now, we need to pass a mock provider until we can fetch it properly
+          final provider = ServiceProviderModel(
+            id: args['providerId'] as String,
+            businessName: 'Service Provider',
+            category: 'General',
+            businessDescription: 'Service provider description',
+            address: const {'city': 'Unknown', 'street': 'Unknown'},
+            isActive: true,
+            isApproved: true,
+            pricingModel: PricingModel.reservation,
+            createdAt: Timestamp.now(),
+          );
+
+          return EnhancedBookingConfigurationScreen(
+            provider: provider,
+            service: args['service'],
+            plan: args['plan'],
           );
         },
       },

@@ -5,7 +5,8 @@ import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/feature/intro/onBoarding/bottom_text.dart';
 import 'package:shamil_mobile_app/feature/intro/onBoarding/button_area.dart';
 
-class OnBoardingView extends StatefulWidget { // Changed to StatefulWidget for potential future animations/state
+class OnBoardingView extends StatefulWidget {
+  // Changed to StatefulWidget for potential future animations/state
   const OnBoardingView({super.key});
 
   @override
@@ -28,7 +29,8 @@ class _OnBoardingViewState extends State<OnBoardingView> {
           alignment: Alignment.center, // Align stack children center
           children: [
             // Background Lottie animation
-            Positioned.fill( // Ensure Lottie fills the space if needed
+            Positioned.fill(
+              // Ensure Lottie fills the space if needed
               child: Lottie.asset(
                 // frameRate: FrameRate.composition, // Usually not needed unless optimizing
                 AssetsIcons.onBoardingAnimation,

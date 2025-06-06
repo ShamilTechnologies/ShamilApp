@@ -1,6 +1,7 @@
 // lib/feature/home/views/home_view.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
@@ -261,25 +262,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      // Update background to a beautiful gradient
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF0A0E1A),
       extendBodyBehindAppBar: true,
-      floatingActionButton: _buildCustomFloatingButton(context),
+      floatingActionButton: _buildPremiumFloatingButton(context),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Container(
         decoration: BoxDecoration(
-          // Subtle gradient background that complements the content
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
               AppColors.primaryColor,
               AppColors.primaryColor.withOpacity(0.95),
-              AppColors.lightBackground,
+              AppColors.primaryColor.withOpacity(0.9),
+              const Color(0xFF0A0E1A),
             ],
-            stops: const [0.0, 0.25, 0.5],
+            stops: const [0.0, 0.3, 0.7, 1.0],
           ),
         ),
         child: MultiBlocListener(
@@ -294,12 +297,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     _activeSearchQuery = state.searchQuery;
                   });
                 } else if (state is HomeError && !state.isInitialError) {
-                  ScaffoldMessenger.of(context).removeCurrentSnackBar();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text("Couldn't refresh: ${state.message}"),
-                        backgroundColor: Colors.orange[700]),
-                  );
+                  _showPremiumSnackBar(
+                      context, "Couldn't refresh: ${state.message}");
                 }
               },
             ),
@@ -320,16 +319,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   state.previousState == null;
 
               if (isInitialLoading) {
-                return HomeLoadingShimmer(
-                    userName: _userName, profileImageUrl: _userImageUrl);
+                return _buildPremiumLoadingShimmer();
               }
               if (isInitialError) {
-                return HomeErrorWidget(
-                  message: (state).message,
-                  onRetry: () => context
-                      .read<HomeBloc>()
-                      .add(const LoadHomeData(isRefresh: true)),
-                );
+                return _buildPremiumErrorWidget(state.message);
               }
 
               HomeData? homeData;
@@ -343,23 +336,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 homeData = state.previousState!.homeData;
               }
 
-              // Determine if results are being shown (from search or filter)
               final bool isShowingResults =
                   _activeSearchQuery != null || _activeFilterCategory != null;
-              List<ServiceProviderDisplayModel> mainProviderList = homeData
-                      ?.nearbyPlaces ??
-                  []; // Default to nearby, will be overwritten if searching/filtering
-              String mainListTitle = "Nearby You"; // Default title
+              List<ServiceProviderDisplayModel> mainProviderList =
+                  homeData?.nearbyPlaces ?? [];
+              String mainListTitle = "Discover Nearby";
 
               if (isShowingResults) {
                 if (_activeSearchQuery != null) {
-                  mainListTitle = "Results for \"$_activeSearchQuery\"";
-                  // Assuming searchResults are placed in nearbyPlaces by the Bloc for now
+                  mainListTitle = "Search Results";
                   mainProviderList =
                       homeData?.searchResults ?? homeData?.nearbyPlaces ?? [];
                 } else if (_activeFilterCategory != null) {
-                  mainListTitle = "Results for \"$_activeFilterCategory\"";
-                  // Assuming categoryFilteredResults are placed in nearbyPlaces by the Bloc for now
+                  mainListTitle = _activeFilterCategory!;
                   mainProviderList = homeData?.categoryFilteredResults ??
                       homeData?.nearbyPlaces ??
                       [];
@@ -368,6 +357,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
               return RefreshIndicator(
                 onRefresh: () async {
+                  HapticFeedback.mediumImpact();
                   context
                       .read<HomeBloc>()
                       .add(const LoadHomeData(isRefresh: true));
@@ -376,111 +366,54 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       .stream
                       .firstWhere((s) => s is HomeDataLoaded || s is HomeError);
                 },
-                color: AppColors.primaryColor,
+                color: AppColors.tealColor,
                 backgroundColor: Colors.white,
-                child: Stack(
-                  children: [
-                    // Main content
-                    CustomScrollView(
-                      controller: _scrollController,
-                      physics: const BouncingScrollPhysics(),
-                      slivers: <Widget>[
-                        SliverPersistentHeader(
-                          delegate: ExploreTopSectionDelegate(
-                            currentCityDisplay: _currentCity,
-                            onSearchTap: () {
-                              // Show search UI or navigate to search screen
-                              // You can implement this based on your app's requirements
-                              print("Search tapped");
-                            },
-                            onCitySelected: (city) {
-                              if (city.isNotEmpty) {
-                                _onCityChanged(city);
-                              }
-                            },
-                            onProfileTap: () {
-                              try {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const AccessCodeView(),
-                                  ),
-                                );
-                              } catch (e) {
-                                print(
-                                    "Error navigating to Access Code screen: $e");
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                        "Could not navigate to Access Code screen."),
-                                  ),
-                                );
-                              }
-                            },
-                            onNotificationsTap: () {
-                              // Navigate to notifications screen
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const NotificationsView(),
-                                ),
-                              );
-                            },
-                            topSafeAreaPadding:
-                                MediaQuery.of(context).padding.top,
-                          ),
-                          pinned: true,
-                          floating: false,
-                        ),
+                strokeWidth: 3,
+                displacement: 80,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  slivers: <Widget>[
+                    // Premium Hero Header
+                    SliverAppBar(
+                      expandedHeight: screenHeight * 0.45,
+                      floating: false,
+                      pinned: true,
+                      stretch: true,
+                      elevation: 0,
+                      backgroundColor: Colors.transparent,
+                      flexibleSpace:
+                          _buildPremiumFlexibleSpace(topPadding, screenWidth),
+                    ),
 
-                        // Main content sections with white background
-                        SliverToBoxAdapter(
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: AppColors.lightBackground,
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(24),
-                                topRight: Radius.circular(24),
+                    // Premium Content
+                    SliverToBoxAdapter(
+                      child: Container(
+                        color: const Color(0xFF0A0E1A),
+                        child: Column(
+                          children: [
+                            if (isShowingResults)
+                              _buildPremiumSearchResults(
+                                context: context,
+                                title: mainListTitle,
+                                results: mainProviderList,
+                                isLoading: isEffectivelyLoading &&
+                                    mainProviderList.isEmpty,
+                                query: _activeSearchQuery ??
+                                    _activeFilterCategory ??
+                                    "",
+                              )
+                            else
+                              _buildPremiumHomeContent(
+                                context: context,
+                                homeData: homeData,
+                                isLoading: isEffectivelyLoading,
                               ),
-                            ),
-                            child: Column(
-                              children: [
-                                // Drag handle for visual affordance
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Container(
-                                    height: 5,
-                                    width: 40,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.withOpacity(0.3),
-                                      borderRadius: BorderRadius.circular(2.5),
-                                    ),
-                                  ),
-                                ),
-
-                                // Content sections
-                                if (isShowingResults)
-                                  _buildSearchResultsContent(
-                                    context: context,
-                                    title: mainListTitle,
-                                    results: mainProviderList,
-                                    isLoading: isEffectivelyLoading &&
-                                        mainProviderList.isEmpty,
-                                    query: _activeSearchQuery ??
-                                        _activeFilterCategory ??
-                                        "",
-                                  )
-                                else
-                                  _buildNearbyContent(
-                                    context: context,
-                                    homeData: homeData,
-                                    isLoading: isEffectivelyLoading,
-                                  ),
-                              ],
-                            ),
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -492,191 +425,1082 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  // Nearby content section
-  Widget _buildNearbyContent({
-    required BuildContext context,
-    required HomeData? homeData,
-    required bool isLoading,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 20),
-        // Nearby places section
-        _buildSectionTitleWidget(context, "Nearby You",
-            () => _navigateToSeeAll("Nearby You", homeData?.nearbyPlaces)),
+  Widget _buildPremiumFlexibleSpace(double topPadding, double screenWidth) {
+    return FlexibleSpaceBar(
+      stretchModes: const [
+        StretchMode.zoomBackground,
+        StretchMode.blurBackground,
+        StretchMode.fadeTitle,
+      ],
+      background: Stack(
+        children: [
+          // Animated background
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primaryColor,
+                  AppColors.primaryColor.withOpacity(0.9),
+                  AppColors.tealColor,
+                  AppColors.primaryColor.withOpacity(0.8),
+                ],
+                stops: const [0.0, 0.3, 0.7, 1.0],
+              ),
+            ),
+          ),
 
-        // Nearby places cards
-        SizedBox(
-          height: 270,
-          child: (isLoading && homeData?.nearbyPlaces == null)
-              ? _buildLoadingShimmer()
-              : (homeData?.nearbyPlaces == null ||
-                      homeData!.nearbyPlaces.isEmpty)
-                  ? _buildEmptyState(
-                      "No nearby places found for $_currentCity.",
-                      Icons.location_off_outlined)
-                  : ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: homeData.nearbyPlaces.length,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12.0, vertical: 8.0),
-                      itemBuilder: (context, index) {
-                        final provider = homeData.nearbyPlaces[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: ServiceProviderCard(
-                            provider: provider,
-                            heroTagPrefix: "nearby",
-                            onTap:
-                                _createNavigationCallback(provider, "nearby"),
-                          ),
-                        );
-                      },
+          // Floating orbs
+          Positioned(
+            top: topPadding + 40,
+            right: -50,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.tealColor.withOpacity(0.3),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          Positioned(
+            top: topPadding + 100,
+            left: -40,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.accentColor.withOpacity(0.2),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Content
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Premium top header
+                            _buildPremiumTopHeader(),
+                            const SizedBox(height: 20),
+
+                            // Hero welcome section
+                            Flexible(child: _buildHeroWelcomeSection()),
+                            const SizedBox(height: 16),
+
+                            // Premium search bar
+                            _buildPremiumSearchBar(),
+                            const SizedBox(height: 12),
+
+                            // Premium location selector
+                            _buildPremiumLocationSelector(),
+                          ],
+                        ),
+                      ),
                     ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumTopHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Premium profile section
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AccessCodeView()),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.tealColor.withOpacity(0.3),
+                  AppColors.accentColor.withOpacity(0.3),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      gradient: _userImageUrl != null
+                          ? null
+                          : LinearGradient(
+                              colors: [
+                                AppColors.tealColor,
+                                AppColors.accentColor,
+                              ],
+                            ),
+                      image: _userImageUrl != null
+                          ? DecorationImage(
+                              image: NetworkImage(_userImageUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: _userImageUrl == null
+                        ? Icon(
+                            Icons.person_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _userName ?? "Guest",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        "Premium",
+                        style: TextStyle(
+                          color: AppColors.tealColor,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
 
-        // Categories section
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: ExploreCategoriesGridSection(),
+        // Premium notifications and menu
+        Row(
+          children: [
+            // Notifications
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.15),
+                    Colors.white.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Icon(
+                    Icons.notifications_none_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: AppColors.accentColor,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: Colors.white, width: 1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Menu
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.15),
+                    Colors.white.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Icon(
+                Icons.apps_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ],
         ),
-
-        const SizedBox(height: 24),
       ],
     );
   }
 
-  // Search results content
-  Widget _buildSearchResultsContent({
-    required BuildContext context,
-    required String title,
-    required List<ServiceProviderDisplayModel> results,
-    required bool isLoading,
-    required String query,
-  }) {
-    final theme = Theme.of(context);
-
-    if (isLoading) {
-      return Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: _buildLoadingShimmer(),
-      );
+  Widget _buildHeroWelcomeSection() {
+    final hour = DateTime.now().hour;
+    String greeting = "Good Morning";
+    String emoji = "🌅";
+    if (hour >= 12 && hour < 17) {
+      greeting = "Good Afternoon";
+      emoji = "☀️";
+    } else if (hour >= 17) {
+      greeting = "Good Evening";
+      emoji = "🌙";
     }
 
-    if (results.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.1),
+                Colors.white.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.search_off_rounded,
-                  size: 64, color: AppColors.secondaryText),
-              const Gap(16),
               Text(
-                'No results found for "$query"',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: AppColors.primaryText,
+                emoji,
+                style: const TextStyle(fontSize: 12),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                greeting,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Gap(8),
-              Text(
-                "Try checking your spelling or use different keywords.",
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.secondaryText,
-                ),
-              ),
-              const Gap(24),
-              SizedBox(
-                width: 180,
-                child: ElevatedButton(
-                  onPressed: () {
-                    // Clear search
-                    FocusScope.of(context).unfocus();
-                    _onSearchSubmitted('');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text('Clear Search'),
                 ),
               ),
             ],
           ),
         ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 20),
-        _buildSectionTitleWidget(context, title, null),
-
-        Padding(
-          padding: const EdgeInsets.only(
-              left: 20.0, right: 20.0, top: 8.0, bottom: 24.0),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16.0,
-              mainAxisSpacing: 16.0,
-              childAspectRatio: 0.75,
+        const SizedBox(height: 12),
+        ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            colors: [
+              Colors.white,
+              AppColors.tealColor,
+              AppColors.accentColor,
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ).createShader(bounds),
+          child: Text(
+            "Discover Amazing\nServices Near You",
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              height: 1.1,
+              letterSpacing: -0.5,
             ),
-            itemCount: results.length,
-            itemBuilder: (context, index) {
-              final provider = results[index];
-              return ServiceProviderCard(
-                provider: provider,
-                heroTagPrefix: "search_result",
-                onTap: _createNavigationCallback(provider, "search_result"),
-              );
-            },
           ),
         ),
-
-        // Categories section
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: ExploreCategoriesGridSection(),
+        const SizedBox(height: 8),
+        Text(
+          "Premium experiences curated just for you",
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
         ),
-
-        const SizedBox(height: 24),
       ],
     );
   }
 
-  // Loading shimmer
-  Widget _buildLoadingShimmer() {
+  Widget _buildPremiumSearchBar() {
+    return TextField(
+      onSubmitted: _onSearchSubmitted,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: AppColors.primaryText,
+      ),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: Colors.white,
+        hintText: "Search premium services...",
+        hintStyle: TextStyle(
+          color: AppColors.secondaryText.withOpacity(0.7),
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+        ),
+        prefixIcon: Container(
+          margin: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.primaryColor,
+                AppColors.tealColor,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.search_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
+        suffixIcon: _activeSearchQuery?.isNotEmpty == true
+            ? IconButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _onSearchSubmitted('');
+                },
+                icon: Icon(
+                  Icons.close_rounded,
+                  color: AppColors.secondaryText,
+                  size: 20,
+                ),
+              )
+            : Icon(
+                Icons.tune_rounded,
+                color: AppColors.tealColor,
+                size: 20,
+              ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: AppColors.primaryColor, width: 2),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      ),
+    );
+  }
+
+  Widget _buildPremiumLocationSelector() {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _showCitySelectionBottomSheet();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.location_on_rounded,
+              color: Colors.white,
+              size: 14,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _currentCity,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.white,
+              size: 14,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCitySelectionBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2.5),
+              ),
+            ),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.location_on_rounded,
+                    color: AppColors.primaryColor,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    "Select Your City",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Cities list
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: [
+                  'Cairo',
+                  'Alexandria',
+                  'Giza',
+                  'Sharm El Sheikh',
+                  'Luxor'
+                ].length,
+                itemBuilder: (context, index) {
+                  final cities = [
+                    'Cairo',
+                    'Alexandria',
+                    'Giza',
+                    'Sharm El Sheikh',
+                    'Luxor'
+                  ];
+                  final city = cities[index];
+                  final isSelected = city == _currentCity;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primaryColor.withOpacity(0.1)
+                          : null,
+                      borderRadius: BorderRadius.circular(12),
+                      border: isSelected
+                          ? Border.all(
+                              color: AppColors.primaryColor,
+                              width: 2,
+                            )
+                          : null,
+                    ),
+                    child: ListTile(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.pop(context);
+                        _onCityChanged(city);
+                      },
+                      leading: Icon(
+                        isSelected
+                            ? Icons.location_on_rounded
+                            : Icons.location_city_rounded,
+                        color: isSelected
+                            ? AppColors.primaryColor
+                            : AppColors.secondaryText,
+                      ),
+                      title: Text(
+                        city,
+                        style: TextStyle(
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color: isSelected
+                              ? AppColors.primaryColor
+                              : AppColors.primaryText,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? Icon(
+                              Icons.check_circle_rounded,
+                              color: AppColors.primaryColor,
+                            )
+                          : null,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumHomeContent({
+    required BuildContext context,
+    required HomeData? homeData,
+    required bool isLoading,
+  }) {
+    return Column(
+      children: [
+        const SizedBox(height: 24),
+
+        // Premium quick access section
+        _buildPremiumQuickAccess(),
+        const SizedBox(height: 24),
+
+        // Premium categories showcase
+        _buildPremiumCategoriesShowcase(),
+        const SizedBox(height: 32),
+
+        // Premium nearby section
+        _buildPremiumNearbySection(
+          context: context,
+          providers: homeData?.nearbyPlaces,
+          isLoading: isLoading,
+        ),
+        const SizedBox(height: 32),
+
+        // Premium popular section
+        if (homeData?.popularPlaces?.isNotEmpty == true)
+          _buildPremiumPopularSection(
+            context: context,
+            providers: homeData?.popularPlaces,
+            isLoading: isLoading,
+          ),
+
+        const SizedBox(height: 120), // Bottom padding for FAB
+      ],
+    );
+  }
+
+  Widget _buildPremiumQuickAccess() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.tealColor,
+                      AppColors.accentColor,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.flash_on_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                "Quick Access",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Quick access cards
+          Row(
+            children: [
+              _buildQuickAccessCard(
+                "Scan QR",
+                Icons.qr_code_scanner_rounded,
+                AppColors.tealColor,
+                () {
+                  HapticFeedback.mediumImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AccessCodeView()),
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
+              _buildQuickAccessCard(
+                "Nearby",
+                Icons.near_me_rounded,
+                AppColors.primaryColor,
+                () => _navigateToSeeAll("Nearby You", []),
+              ),
+              const SizedBox(width: 12),
+              _buildQuickAccessCard(
+                "Popular",
+                Icons.trending_up_rounded,
+                AppColors.accentColor,
+                () => _navigateToSeeAll("Popular Places", []),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAccessCard(
+      String title, IconData icon, Color color, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                color.withOpacity(0.2),
+                color.withOpacity(0.1),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [color, color.withOpacity(0.8)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumCategoriesShowcase() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF8B5CF6),
+                          const Color(0xFF06B6D4),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.category_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    "Categories",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.1),
+                      Colors.white.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  "View All",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Premium categories grid
+          const ExploreCategoriesGridSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumNearbySection({
+    required BuildContext context,
+    required List<ServiceProviderDisplayModel>? providers,
+    required bool isLoading,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF06B6D4),
+                          const Color(0xFF00D4FF),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.location_on_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Nearby You",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        "Premium services in $_currentCity",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (providers?.isNotEmpty == true)
+                GestureDetector(
+                  onTap: () => _navigateToSeeAll("Nearby You", providers),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.1),
+                          Colors.white.withOpacity(0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          height: 320,
+          child: isLoading && providers == null
+              ? _buildPremiumProviderShimmer()
+              : providers == null || providers.isEmpty
+                  ? _buildPremiumEmptyState(
+                      "No nearby places found", Icons.location_off_rounded)
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: providers.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: _buildPremiumProviderCard(
+                              providers[index], "nearby_$index"),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPremiumPopularSection({
+    required BuildContext context,
+    required List<ServiceProviderDisplayModel>? providers,
+    required bool isLoading,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF8B5CF6),
+                          const Color(0xFFEC4899),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.trending_up_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Trending Now",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        "Most popular premium services",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (providers?.isNotEmpty == true)
+                GestureDetector(
+                  onTap: () => _navigateToSeeAll("Popular Places", providers),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.1),
+                          Colors.white.withOpacity(0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          height: 320,
+          child: isLoading && providers == null
+              ? _buildPremiumProviderShimmer()
+              : providers == null || providers.isEmpty
+                  ? _buildPremiumEmptyState(
+                      "No popular places found", Icons.trending_down_rounded)
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: providers.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: _buildPremiumProviderCard(
+                              providers[index], "popular_$index"),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPremiumProviderShimmer() {
     return ListView.builder(
       scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: 3,
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       itemBuilder: (context, index) {
         return Shimmer.fromColors(
           baseColor: Colors.grey.shade300,
           highlightColor: Colors.grey.shade100,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4.0),
-            child: Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0)),
-              child: const SizedBox(
-                width: 180,
-                height: 250,
+          child: Container(
+            width: 220,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
               ),
             ),
           ),
@@ -685,30 +1509,677 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  // Empty state widget
-  Widget _buildEmptyState(String message, IconData icon) {
-    final theme = Theme.of(context);
+  Widget _buildPremiumEmptyState(String message, IconData icon) {
     return Container(
-      height: 180,
-      alignment: Alignment.center,
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 56, color: AppColors.secondaryText),
-          const Gap(16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.secondaryText,
-                height: 1.4,
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.1),
+                  Colors.white.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(icon, size: 48, color: Colors.white.withOpacity(0.7)),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void setStateIfMounted(VoidCallback fn) {
+    if (mounted) {
+      setState(fn);
+    }
+  }
+
+  Widget _buildPremiumFloatingButton(BuildContext context) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryColor,
+            AppColors.tealColor,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryColor.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AccessCodeView()),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: const Icon(
+            Icons.qr_code_scanner_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumLoadingShimmer() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.primaryColor,
+            AppColors.primaryColor.withOpacity(0.95),
+            const Color(0xFFF8FAFC),
+          ],
+          stops: const [0.0, 0.35, 0.6],
+        ),
+      ),
+      child: HomeLoadingShimmer(
+        userName: _userName,
+        profileImageUrl: _userImageUrl,
+      ),
+    );
+  }
+
+  Widget _buildPremiumErrorWidget(String message) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.primaryColor,
+            AppColors.primaryColor.withOpacity(0.95),
+            const Color(0xFFF8FAFC),
+          ],
+          stops: const [0.0, 0.35, 0.6],
+        ),
+      ),
+      child: HomeErrorWidget(
+        message: message,
+        onRetry: () =>
+            context.read<HomeBloc>().add(const LoadHomeData(isRefresh: true)),
+      ),
+    );
+  }
+
+  Widget _buildPremiumSearchResults({
+    required BuildContext context,
+    required String title,
+    required List<ServiceProviderDisplayModel> results,
+    required bool isLoading,
+    required String query,
+  }) {
+    if (isLoading) {
+      return Container(
+        height: 400,
+        padding: const EdgeInsets.all(24),
+        child: _buildPremiumProviderShimmer(),
+      );
+    }
+
+    if (results.isEmpty) {
+      return _buildPremiumEmptySearchState(query);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 32),
+
+        // Premium search results header
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.1),
+                Colors.white.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF00D4FF),
+                          const Color(0xFF8B5CF6),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.search_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          "${results.length} premium result${results.length != 1 ? 's' : ''} found",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 32),
+
+        // Premium results grid
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.75,
+            ),
+            itemCount: results.length,
+            itemBuilder: (context, index) {
+              final provider = results[index];
+              return _buildPremiumProviderCard(provider, "search_$index");
+            },
+          ),
+        ),
+
+        const SizedBox(height: 120), // Bottom padding for FAB
+      ],
+    );
+  }
+
+  Widget _buildPremiumEmptySearchState(String query) {
+    return Container(
+      padding: const EdgeInsets.all(40),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF00D4FF).withOpacity(0.2),
+                  const Color(0xFF8B5CF6).withOpacity(0.2),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              Icons.search_off_rounded,
+              size: 80,
+              color: Colors.white.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            'No Premium Results',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'We couldn\'t find any premium services for "$query"',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "Try different keywords or explore our categories below.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.white.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 40),
+          Container(
+            width: 220,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF00D4FF),
+                  const Color(0xFF8B5CF6),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00D4FF).withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _onSearchSubmitted('');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 18),
+              ),
+              child: const Text(
+                'Clear Search',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPremiumProviderCard(
+      ServiceProviderDisplayModel provider, String heroTag) {
+    return Container(
+      width: 220,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: _createNavigationCallback(provider, heroTag),
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Premium image section
+                Container(
+                  height: 140,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF00D4FF).withOpacity(0.8),
+                        const Color(0xFF8B5CF6).withOpacity(0.8),
+                      ],
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      if (provider.imageUrl?.isNotEmpty == true)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Image.network(
+                              provider.imageUrl!,
+                              width: double.infinity,
+                              height: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _buildPremiumPlaceholderImage(),
+                            ),
+                          ),
+                        )
+                      else
+                        _buildPremiumPlaceholderImage(),
+
+                      // Premium overlay gradient
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.3),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Premium category badge
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withOpacity(0.9),
+                                Colors.white.withOpacity(0.8),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.5),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            provider.businessCategory,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A1D29),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Premium status indicator
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFF00D4FF),
+                                const Color(0xFF8B5CF6),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "PREMIUM",
+                            style: const TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Premium content section
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          provider.businessName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_rounded,
+                              size: 14,
+                              color: Colors.white.withOpacity(0.7),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                provider.city,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.7),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        if (provider.averageRating > 0) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.amber.withOpacity(0.2),
+                                  Colors.orange.withOpacity(0.2),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.amber.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.star_rounded,
+                                  size: 14,
+                                  color: Colors.amber[400],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  provider.averageRating.toStringAsFixed(1),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.amber[400],
+                                  ),
+                                ),
+                                Text(
+                                  " (${provider.ratingCount})",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white.withOpacity(0.6),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFF00D4FF).withOpacity(0.2),
+                                  const Color(0xFF8B5CF6).withOpacity(0.2),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF00D4FF).withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              "New Business",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF00D4FF),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumPlaceholderImage() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF00D4FF).withOpacity(0.8),
+            const Color(0xFF8B5CF6).withOpacity(0.8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Icon(
+        Icons.store_rounded,
+        size: 48,
+        color: Colors.white.withOpacity(0.9),
+      ),
+    );
+  }
+
+  void _showPremiumSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 
@@ -758,418 +2229,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
       default:
         return null; // Show all categories
     }
-  }
-
-  void setStateIfMounted(VoidCallback fn) {
-    if (mounted) {
-      setState(fn);
-    }
-  }
-
-  void _showQueueServiceSelectionDialog(BuildContext context) {
-    // Get current city from state
-    final cityName = _currentCity;
-
-    // Use the HomeBloc to get services
-    final homeState = context.read<HomeBloc>().state;
-    List<ServiceProviderDisplayModel> providers = [];
-
-    if (homeState is HomeDataLoaded) {
-      // Get nearby providers or popular ones
-      providers = homeState.homeData?.nearbyPlaces ??
-          homeState.homeData?.popularPlaces ??
-          [];
-    }
-
-    if (providers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No services available for queue reservation')));
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select a Service'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount:
-                providers.length > 10 ? 10 : providers.length, // Limit to 10
-            itemBuilder: (context, index) {
-              final provider = providers[index];
-              return ListTile(
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.store_mall_directory,
-                    color: AppColors.primaryColor,
-                  ),
-                ),
-                title: Text(provider.businessName),
-                subtitle: Text(provider.businessCategory),
-                onTap: () {
-                  Navigator.pop(context); // Close dialog
-
-                  // Navigate to QueueReservationPage
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => QueueReservationPage(
-                        providerId: provider.id,
-                        governorateId:
-                            provider.city, // Use city as governorateId
-                        serviceId: null, // Will be selected on the queue page
-                        serviceName: provider.businessName,
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Builds a beautiful animated squared floating action button with dissolving colors
-  Widget _buildCustomFloatingButton(BuildContext context) {
-    return _AnimatedSquareButton(
-      onTap: () {
-        // Navigate to Access Code view (NFC/QR scanning page)
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const AccessCodeView(),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Eye-catching animated floating action button with balanced complexity
-class _AnimatedSquareButton extends StatefulWidget {
-  final VoidCallback onTap;
-
-  const _AnimatedSquareButton({required this.onTap});
-
-  @override
-  State<_AnimatedSquareButton> createState() => _AnimatedSquareButtonState();
-}
-
-class _AnimatedSquareButtonState extends State<_AnimatedSquareButton>
-    with TickerProviderStateMixin {
-  late AnimationController _scaleController;
-  late AnimationController _colorController;
-  late AnimationController _pulseController;
-  late AnimationController _gradientController;
-  late AnimationController _colorMixController;
-
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _colorAnimation;
-  late Animation<double> _pulseAnimation;
-  late Animation<double> _gradientAnimation;
-  late Animation<double> _colorMixAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Scale animation for interaction
-    _scaleController = AnimationController(
-      duration: const Duration(milliseconds: 120),
-      vsync: this,
-    );
-
-    // Color cycling animation
-    _colorController = AnimationController(
-      duration: const Duration(seconds: 3),
-      vsync: this,
-    );
-
-    // Pulse glow animation
-    _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    );
-
-    // Gradient movement animation
-    _gradientController = AnimationController(
-      duration: const Duration(seconds: 4),
-      vsync: this,
-    );
-
-    // Color mix animation
-    _colorMixController = AnimationController(
-      duration: const Duration(seconds: 5),
-      vsync: this,
-    );
-
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.93,
-    ).animate(CurvedAnimation(
-      parent: _scaleController,
-      curve: Curves.easeOut,
-    ));
-
-    _colorAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _colorController,
-      curve: Curves.easeInOut,
-    ));
-
-    _pulseAnimation = Tween<double>(
-      begin: 0.4,
-      end: 0.8,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
-
-    _gradientAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _gradientController,
-      curve: Curves.linear,
-    ));
-
-    _colorMixAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _colorMixController,
-      curve: Curves.easeInOut,
-    ));
-
-    // Start continuous animations
-    _colorController.repeat(reverse: true);
-    _pulseController.repeat(reverse: true);
-    _gradientController.repeat();
-    _colorMixController.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _scaleController.dispose();
-    _colorController.dispose();
-    _pulseController.dispose();
-    _gradientController.dispose();
-    _colorMixController.dispose();
-    super.dispose();
-  }
-
-  Color _getAnimatedColor() {
-    return Color.lerp(
-          AppColors.primaryColor,
-          AppColors.tealColor,
-          _colorAnimation.value,
-        ) ??
-        AppColors.primaryColor;
-  }
-
-  Color _getSecondaryColor() {
-    return Color.lerp(
-          AppColors.secondaryColor,
-          AppColors.purpleColor,
-          _colorAnimation.value,
-        ) ??
-        AppColors.secondaryColor;
-  }
-
-  Color _getMixedColor() {
-    // Create a complex color mix animation
-    final mixProgress = _colorMixAnimation.value;
-    final baseColor = Color.lerp(
-          AppColors.primaryColor,
-          AppColors.tealColor,
-          mixProgress,
-        ) ??
-        AppColors.primaryColor;
-
-    return Color.lerp(
-          baseColor,
-          AppColors.purpleColor,
-          math.sin(mixProgress * math.pi * 2) * 0.3 + 0.5,
-        ) ??
-        baseColor;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        _scaleAnimation,
-        _colorAnimation,
-        _pulseAnimation,
-        _gradientAnimation,
-        _colorMixAnimation
-      ]),
-      builder: (context, child) {
-        final primaryColor = _getAnimatedColor();
-        final secondaryColor = _getSecondaryColor();
-        final mixedColor = _getMixedColor();
-
-        // Calculate moving gradient positions
-        final gradientProgress = _gradientAnimation.value;
-        final beginAlignment = Alignment.lerp(
-              Alignment.topLeft,
-              Alignment.bottomRight,
-              gradientProgress,
-            ) ??
-            Alignment.topLeft;
-        final endAlignment = Alignment.lerp(
-              Alignment.bottomRight,
-              Alignment.topLeft,
-              gradientProgress,
-            ) ??
-            Alignment.bottomRight;
-
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                // Animated pulsing glow with mixed color
-                BoxShadow(
-                  color: mixedColor.withOpacity(_pulseAnimation.value * 0.6),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 6),
-                ),
-                // Secondary glow
-                BoxShadow(
-                  color:
-                      secondaryColor.withOpacity(_pulseAnimation.value * 0.4),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 3),
-                ),
-                // Mixed color accent glow
-                BoxShadow(
-                  color: Color.lerp(primaryColor, mixedColor, 0.7)
-                          ?.withOpacity(_pulseAnimation.value * 0.3) ??
-                      primaryColor.withOpacity(0.3),
-                  blurRadius: 15,
-                  spreadRadius: 0,
-                  offset: const Offset(0, 2),
-                ),
-                // Depth shadow
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                gradient: LinearGradient(
-                  begin: beginAlignment,
-                  end: endAlignment,
-                  colors: [
-                    primaryColor,
-                    mixedColor,
-                    secondaryColor,
-                    Color.lerp(secondaryColor, mixedColor, 0.6) ??
-                        secondaryColor,
-                  ],
-                  stops: const [0.0, 0.3, 0.7, 1.0],
-                ),
-                // Inner highlight
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: Stack(
-                children: [
-                  // Animated shine effect
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.white.withOpacity(0.3),
-                            Colors.transparent,
-                            Colors.white.withOpacity(0.1),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Button content
-                  Positioned.fill(
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: () {
-                          _scaleController.forward().then((_) {
-                            _scaleController.reverse();
-                          });
-                          widget.onTap();
-                        },
-                        onTapDown: (_) => _scaleController.forward(),
-                        onTapUp: (_) => _scaleController.reverse(),
-                        onTapCancel: () => _scaleController.reverse(),
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.qr_code_scanner_rounded,
-                              color: Colors.white,
-                              size: 26,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withOpacity(0.3),
-                                  offset: const Offset(0, 1),
-                                  blurRadius: 2,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 }
 
