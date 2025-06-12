@@ -1,410 +1,243 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 import '../../models/payment_models.dart';
+import '../../bloc/payment_bloc.dart';
 import '../../gateways/stripe/stripe_service.dart';
 
-/// Enhanced payment widget with modern design and better credit card input handling
-class EnhancedPaymentWidget extends StatefulWidget {
+/// Comprehensive payment screen with BLoC integration
+class EnhancedPaymentScreen extends StatefulWidget {
   final PaymentAmount amount;
   final PaymentCustomer customer;
   final String description;
-  final VoidCallback onPaymentSuccess;
-  final VoidCallback onPaymentFailure;
-  final VoidCallback onPaymentCancelled;
-  final bool showSavedMethods;
-  final bool allowSaving;
   final Map<String, dynamic>? metadata;
+  final VoidCallback? onSuccess;
+  final VoidCallback? onFailure;
+  final VoidCallback? onCancel;
 
-  const EnhancedPaymentWidget({
+  const EnhancedPaymentScreen({
     super.key,
     required this.amount,
     required this.customer,
     required this.description,
-    required this.onPaymentSuccess,
-    required this.onPaymentFailure,
-    required this.onPaymentCancelled,
-    this.showSavedMethods = true,
-    this.allowSaving = true,
     this.metadata,
+    this.onSuccess,
+    this.onFailure,
+    this.onCancel,
   });
 
   @override
-  State<EnhancedPaymentWidget> createState() => _EnhancedPaymentWidgetState();
+  State<EnhancedPaymentScreen> createState() => _EnhancedPaymentScreenState();
 }
 
-class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
-    with SingleTickerProviderStateMixin {
-  final StripeService _stripeService = StripeService();
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
+class _EnhancedPaymentScreenState extends State<EnhancedPaymentScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _slideController;
+  late AnimationController _fadeController;
   late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
 
-  bool _isLoading = false;
-  String? _errorMessage;
-  List<PaymentMethodData> _savedMethods = [];
-  PaymentMethodData? _selectedSavedMethod;
-  bool _showCardForm = true;
-  bool _saveCard = false;
-
-  // Card form controllers
+  // Form controllers
   final TextEditingController _nameController = TextEditingController();
   final stripe.CardFormEditController _cardController =
       stripe.CardFormEditController();
-
-  // Form validation
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final bool _isCardValid = false;
+
+  // State
+  bool _isCardValid = false;
+  bool _saveCard = false;
+  PaymentMethodData? _selectedSavedMethod;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
+    _nameController.text = widget.customer.name;
 
-    // Set initial card form visibility based on showSavedMethods
-    _showCardForm = !widget.showSavedMethods;
-
-    if (widget.showSavedMethods) {
-      _loadSavedPaymentMethods();
-    }
+    // Initialize payment system
+    context.read<PaymentBloc>().add(InitializePayments(
+          customerId: widget.customer.id,
+          loadSavedMethods: true,
+        ));
   }
 
   void _initializeAnimations() {
-    _animationController = AnimationController(
+    _slideController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
     );
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
+      begin: const Offset(0, 1),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
-    );
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    ));
 
-    _animationController.forward();
-  }
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    ));
 
-  Future<void> _loadSavedPaymentMethods() async {
-    // Only load saved methods for authenticated users (real Firebase UIDs)
-    // Skip for temporary customer IDs to avoid Stripe API errors
-    if (widget.customer.id.startsWith('temp_') ||
-        widget.customer.id.startsWith('user_') ||
-        widget.customer.id == 'current_user_id') {
-      debugPrint(
-          'Skipping saved payment methods for temporary/demo customer: ${widget.customer.id}');
-      return;
-    }
-
-    try {
-      final methods = await _stripeService.getSavedPaymentMethods(
-        customerId: widget.customer.id,
-      );
-      if (mounted) {
-        setState(() {
-          _savedMethods = methods;
-          if (_savedMethods.isNotEmpty) {
-            _showCardForm = false;
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading saved payment methods: $e');
-      // Silently handle error - user can still enter new card
-    }
-  }
-
-  Future<void> _processPayment() async {
-    if (_isLoading) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      if (_selectedSavedMethod != null) {
-        // Use saved payment method
-        await _processWithSavedMethod();
-      } else {
-        // Process with new card
-        await _processWithNewCard();
-      }
-
-      // If we reach here, payment was successful
-      debugPrint('🎉 Payment flow completed successfully');
-      widget.onPaymentSuccess();
-    } catch (e) {
-      debugPrint('❌ Payment flow failed: $e');
-      setState(() {
-        _errorMessage = e.toString();
-      });
-      widget.onPaymentFailure();
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _processWithSavedMethod() async {
-    if (_selectedSavedMethod == null) {
-      throw Exception('No saved payment method selected');
-    }
-
-    try {
-      // Create payment intent
-      final createResponse = await _stripeService.createReservationPayment(
-        reservationId: 'reservation_${DateTime.now().millisecondsSinceEpoch}',
-        amount: widget.amount.amount,
-        currency: widget.amount.currency,
-        customer: widget.customer,
-        description: widget.description,
-        metadata: widget.metadata,
-      );
-
-      if (!createResponse.isSuccessful) {
-        throw Exception(
-            createResponse.errorMessage ?? 'Failed to create payment intent');
-      }
-
-      // Confirm payment with saved payment method
-      final confirmResult = await stripe.Stripe.instance.confirmPayment(
-        paymentIntentClientSecret:
-            createResponse.gatewayResponse?['client_secret'],
-        data: stripe.PaymentMethodParams.cardFromMethodId(
-          paymentMethodData: stripe.PaymentMethodDataCardFromMethod(
-            paymentMethodId: _selectedSavedMethod!.id,
-          ),
-        ),
-      );
-
-      if (confirmResult.status != stripe.PaymentIntentsStatus.Succeeded) {
-        throw Exception(
-            'Payment confirmation failed with status: ${confirmResult.status}');
-      }
-
-      debugPrint('Payment successful with saved method: ${confirmResult.id}');
-    } catch (e) {
-      debugPrint('Saved payment method error: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> _processWithNewCard() async {
-    try {
-      // First validate the form thoroughly
-      if (!_formKey.currentState!.validate()) {
-        throw Exception('Please fill in all card details correctly');
-      }
-
-      final name = _nameController.text.trim();
-      if (name.isEmpty) {
-        throw Exception('Please enter the cardholder name');
-      }
-
-      // Debug current card state before validation
-      debugPrint('🔍 Pre-payment validation:');
-      debugPrint('   - Using Payment Sheet (no card form validation needed)');
-      debugPrint('   - Cardholder name: $name');
-
-      debugPrint('📝 Proceeding with payment processing');
-      debugPrint('   - Cardholder: $name');
-
-      // Create payment intent first
-      final createResponse = await _stripeService.createReservationPayment(
-        reservationId: 'reservation_${DateTime.now().millisecondsSinceEpoch}',
-        amount: widget.amount.amount,
-        currency: widget.amount.currency,
-        customer: widget.customer,
-        description: widget.description,
-        metadata: widget.metadata,
-      );
-
-      // Check if payment intent was created successfully (should be pending, not completed)
-      if (createResponse.isFailed) {
-        final errorMsg =
-            createResponse.errorMessage ?? 'Failed to create payment intent';
-        debugPrint('❌ Payment intent creation failed: $errorMsg');
-        throw Exception(errorMsg);
-      }
-
-      final clientSecret = createResponse.gatewayResponse?['client_secret'];
-      if (clientSecret == null) {
-        debugPrint(
-            '❌ No client secret in response: ${createResponse.gatewayResponse}');
-        throw Exception('No client secret received from payment intent');
-      }
-
-      debugPrint('✅ Payment intent created: ${createResponse.id}');
-      debugPrint(
-          '🔐 Client secret received: ${clientSecret.substring(0, 20)}...');
-      debugPrint('�� Attempting payment with Stripe Payment Sheet');
-
-      // Initialize payment sheet with billing details
-      await stripe.Stripe.instance.initPaymentSheet(
-        paymentSheetParameters: stripe.SetupPaymentSheetParameters(
-          paymentIntentClientSecret: clientSecret,
-          merchantDisplayName: 'Shamil App',
-          billingDetails: stripe.BillingDetails(
-            name: name,
-            email: widget.customer.email,
-            phone: widget.customer.phone,
-          ),
-          style: ThemeMode.system,
-        ),
-      );
-
-      // Present the payment sheet for user to complete payment
-      await stripe.Stripe.instance.presentPaymentSheet();
-
-      debugPrint('✅ Payment completed successfully via Payment Sheet');
-    } catch (e) {
-      debugPrint('💳 Payment error: $e');
-      rethrow;
-    }
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    _nameController.dispose();
-    _cardController.dispose();
-    super.dispose();
+    _slideController.forward();
+    _fadeController.forward();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SlideTransition(
-        position: _slideAnimation,
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.8,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                spreadRadius: 0,
-                offset: const Offset(0, -5),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildAmountCard(),
-                        const Gap(24),
-                        _buildPaymentMethodSection(),
-                        const Gap(24),
-                        if (_errorMessage != null) _buildErrorMessage(),
-                        _buildPayButton(),
-                        const Gap(16),
-                        _buildSecurityNotice(),
-                      ],
-                    ),
+    return Scaffold(
+      backgroundColor: Colors.black.withOpacity(0.5),
+      body: BlocConsumer<PaymentBloc, PaymentState>(
+        listener: _handleStateChanges,
+        builder: (context, state) {
+          return SlideTransition(
+            position: _slideAnimation,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.all(20),
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
+                  child: _buildContent(context, state),
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildContent(BuildContext context, PaymentState state) {
+    if (state is PaymentInitializing || state is PaymentInitial) {
+      return _buildLoadingContent('Initializing payment system...');
+    }
+
+    if (state is PaymentError && state.isCritical) {
+      return _buildErrorContent(state.message, true);
+    }
+
+    if (state is PaymentProcessing) {
+      return _buildLoadingContent(state.processingMessage);
+    }
+
+    if (state is PaymentSuccess) {
+      return _buildSuccessContent(state);
+    }
+
+    if (state is PaymentFailure) {
+      return _buildFailureContent(state);
+    }
+
+    if (state is PaymentRequiresAction) {
+      return _buildActionRequiredContent(state);
+    }
+
+    if (state is PaymentLoaded) {
+      return _buildPaymentForm(context, state);
+    }
+
+    return _buildLoadingContent('Loading...');
+  }
+
+  Widget _buildLoadingContent(String message) {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-      ),
+      padding: const EdgeInsets.all(40),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle bar
+          const CircularProgressIndicator(),
+          const Gap(20),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorContent(String message, bool isCritical) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           Container(
-            width: 40,
-            height: 4,
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
+              color: Colors.red.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              CupertinoIcons.exclamationmark_triangle_fill,
+              color: Colors.red,
+              size: 48,
             ),
           ),
-          const Gap(16),
+          const Gap(20),
+          Text(
+            isCritical ? 'System Error' : 'Payment Error',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+          ),
+          const Gap(12),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const Gap(24),
           Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  CupertinoIcons.creditcard,
-                  color: Colors.blue.shade600,
-                  size: 24,
-                ),
-              ),
-              const Gap(16),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Complete Payment',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                    ),
-                    Text(
-                      'Secure payment powered by Stripe',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey.shade600,
-                          ),
-                    ),
-                  ],
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
                 ),
               ),
-              IconButton(
-                onPressed: widget.onPaymentCancelled,
-                icon: const Icon(CupertinoIcons.xmark),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.grey.shade200,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              if (!isCritical) ...[
+                const Gap(12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      context
+                          .read<PaymentBloc>()
+                          .add(const ResetPaymentState());
+                      context.read<PaymentBloc>().add(InitializePayments(
+                            customerId: widget.customer.id,
+                          ));
+                    },
+                    child: const Text('Retry'),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -412,50 +245,289 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
     );
   }
 
-  Widget _buildAmountCard() {
+  Widget _buildSuccessContent(PaymentSuccess state) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              CupertinoIcons.check_mark_circled_solid,
+              color: Colors.green,
+              size: 48,
+            ),
+          ),
+          const Gap(20),
+          Text(
+            'Payment Successful!',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+          ),
+          const Gap(12),
+          Text(
+            state.successMessage,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const Gap(8),
+          Text(
+            'Amount: ${widget.amount.currencySymbol} ${widget.amount.totalAmount.toStringAsFixed(2)}',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const Gap(24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                widget.onSuccess?.call();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Continue'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFailureContent(PaymentFailure state) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              CupertinoIcons.xmark_circle_fill,
+              color: Colors.red,
+              size: 48,
+            ),
+          ),
+          const Gap(20),
+          Text(
+            'Payment Failed',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+          ),
+          const Gap(12),
+          Text(
+            state.errorMessage,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const Gap(24),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onFailure?.call();
+                  },
+                  child: const Text('Cancel'),
+                ),
+              ),
+              if (state.isRetryable) ...[
+                const Gap(12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      context
+                          .read<PaymentBloc>()
+                          .add(const ClearPaymentError());
+                    },
+                    child: const Text('Try Again'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionRequiredContent(PaymentRequiresAction state) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              CupertinoIcons.shield_lefthalf_fill,
+              color: Colors.orange,
+              size: 48,
+            ),
+          ),
+          const Gap(20),
+          Text(
+            'Additional Verification Required',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const Gap(12),
+          Text(
+            'Your bank requires additional verification to complete this payment.',
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const Gap(24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                // Handle 3D Secure or other verification
+                _handle3DSecure(state.actionUrl);
+              },
+              child: const Text('Complete Verification'),
+            ),
+          ),
+          const Gap(12),
+          TextButton(
+            onPressed: () {
+              context.read<PaymentBloc>().add(const ClearPaymentError());
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentForm(BuildContext context, PaymentLoaded state) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeader(context),
+            const Gap(24),
+            _buildAmountDisplay(context),
+            const Gap(24),
+            if (state.savedPaymentMethods.isNotEmpty) ...[
+              _buildSavedMethodsSection(context, state),
+              const Gap(20),
+            ],
+            _buildNewCardSection(context, state),
+            const Gap(24),
+            _buildPaymentButton(context, state),
+            if (state.error != null) ...[
+              const Gap(16),
+              _buildErrorBanner(context, state.error!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            CupertinoIcons.creditcard,
+            color: Theme.of(context).primaryColor,
+            size: 24,
+          ),
+        ),
+        const Gap(16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Payment Details',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              Text(
+                widget.description,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.7),
+                    ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(CupertinoIcons.xmark),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAmountDisplay(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.blue.shade600,
-            Colors.blue.shade700,
+            Theme.of(context).primaryColor,
+            Theme.of(context).primaryColor.withOpacity(0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Total Amount',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-              ),
-              const Gap(4),
-              Text(
-                widget.description,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withOpacity(0.7),
-                    ),
-              ),
-            ],
+          Text(
+            'Total Amount',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
           Text(
-            '${widget.amount.currency.symbol}${widget.amount.amount.toStringAsFixed(2)}',
+            '${widget.amount.currencySymbol} ${widget.amount.totalAmount.toStringAsFixed(2)}',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -466,221 +538,194 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
     );
   }
 
-  Widget _buildPaymentMethodSection() {
+  Widget _buildSavedMethodsSection(BuildContext context, PaymentLoaded state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Payment Method',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          'Saved Payment Methods',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
         ),
-        const Gap(16),
-
-        // Saved methods
-        if (_savedMethods.isNotEmpty) ...[
-          ..._savedMethods.map((method) => _buildSavedMethodCard(method)),
-          const Gap(12),
-          _buildAddNewCardButton(),
-        ],
-
-        // Card form
-        if (_showCardForm) _buildCardForm(),
+        const Gap(12),
+        ...state.savedPaymentMethods
+            .map((method) => _buildSavedMethodCard(context, method)),
       ],
     );
   }
 
-  Widget _buildSavedMethodCard(PaymentMethodData method) {
+  Widget _buildSavedMethodCard(BuildContext context, PaymentMethodData method) {
     final isSelected = _selectedSavedMethod?.id == method.id;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedSavedMethod = isSelected ? null : method;
-          _showCardForm = false;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.shade50 : Colors.grey.shade50,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _selectedSavedMethod = isSelected ? null : method;
+            });
+            context.read<PaymentBloc>().add(
+                  SelectSavedPaymentMethod(isSelected ? null : method),
+                );
+          },
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? Colors.blue.shade300 : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Center(
-                child: Text(
-                  method.brand?.toUpperCase() ?? 'CARD',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10,
-                      ),
-                ),
-              ),
-            ),
-            const Gap(12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '**** **** **** ${method.last4}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
-                  Text(
-                    'Expires ${method.expMonth?.toString().padLeft(2, '0')}/${method.expYear.toString().substring(2)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              Icon(
-                CupertinoIcons.checkmark_circle_fill,
-                color: Colors.blue.shade600,
-                size: 24,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAddNewCardButton() {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _showCardForm = true;
-          _selectedSavedMethod = null;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.grey.shade300,
-            style: BorderStyle.solid,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade100,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                CupertinoIcons.plus,
-                color: Colors.blue.shade600,
-                size: 16,
-              ),
-            ),
-            const Gap(12),
-            Text(
-              'Add new payment method',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.blue.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardForm() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      child: Column(
-        children: [
-          const Gap(8),
-
-          // Cardholder name
-          _buildTextField(
-            controller: _nameController,
-            label: 'Cardholder Name',
-            hint: 'John Doe',
-            prefixIcon: CupertinoIcons.person,
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Please enter cardholder name';
-              }
-              return null;
-            },
-          ),
-          const Gap(16),
-
-          // Simple card input message
-          Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.shade200),
+              border: Border.all(
+                color: isSelected
+                    ? Theme.of(context).primaryColor
+                    : Theme.of(context).dividerColor,
+                width: isSelected ? 2 : 1,
+              ),
+              color: isSelected
+                  ? Theme.of(context).primaryColor.withOpacity(0.05)
+                  : Theme.of(context).colorScheme.surface,
             ),
-            child: Column(
+            child: Row(
               children: [
                 Icon(
-                  CupertinoIcons.creditcard,
-                  color: Colors.blue.shade600,
-                  size: 24,
+                  CupertinoIcons.creditcard_fill,
+                  color: isSelected
+                      ? Theme.of(context).primaryColor
+                      : Theme.of(context).iconTheme.color,
                 ),
-                const Gap(8),
-                Text(
-                  'Card details will be collected securely',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.blue.shade700,
-                        fontWeight: FontWeight.w500,
+                const Gap(12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '**** **** **** ${method.last4 ?? '****'}',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
                       ),
-                ),
-                const Gap(4),
-                Text(
-                  'Stripe will handle card collection during payment',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.blue.shade600,
+                      Text(
+                        '${method.brand?.toUpperCase() ?? 'CARD'} • Expires ${method.expMonth}/${method.expYear}',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
-                  textAlign: TextAlign.center,
+                    ],
+                  ),
                 ),
+                if (isSelected)
+                  Icon(
+                    CupertinoIcons.checkmark_circle_fill,
+                    color: Theme.of(context).primaryColor,
+                  ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
 
-          if (widget.allowSaving) ...[
+  Widget _buildNewCardSection(BuildContext context, PaymentLoaded state) {
+    final showCardForm = _selectedSavedMethod == null;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (state.savedPaymentMethods.isNotEmpty)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Or use a new card',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                if (!showCardForm)
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedSavedMethod = null;
+                      });
+                      context.read<PaymentBloc>().add(
+                            const SelectSavedPaymentMethod(null),
+                          );
+                    },
+                    icon: const Icon(CupertinoIcons.add, size: 16),
+                    label: const Text('Add New'),
+                  ),
+              ],
+            )
+          else
+            Text(
+              'Payment Information',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          if (showCardForm) ...[
             const Gap(16),
+
+            // Cardholder Name
+            TextFormField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: 'Cardholder Name',
+                prefixIcon: const Icon(CupertinoIcons.person),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+              ),
+              validator: (value) {
+                if (value?.isEmpty ?? true) {
+                  return 'Please enter cardholder name';
+                }
+                return null;
+              },
+            ),
+
+            const Gap(16),
+
+            // Card Form
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Theme.of(context).dividerColor),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: stripe.CardFormField(
+                controller: _cardController,
+                style: stripe.CardFormStyle(
+                  borderColor: Colors.transparent,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  borderRadius: 12,
+                  fontSize: 16,
+                  placeholderColor: Theme.of(context).hintColor,
+                  textColor: Theme.of(context).colorScheme.onSurface,
+                ),
+                onCardChanged: (details) {
+                  setState(() {
+                    _isCardValid = details?.complete ?? false;
+                  });
+                },
+              ),
+            ),
+
+            const Gap(16),
+
+            // Save card option
             Row(
               children: [
                 Checkbox(
                   value: _saveCard,
-                  onChanged: (value) {
-                    setState(() {
-                      _saveCard = value ?? false;
-                    });
-                  },
+                  onChanged: (value) =>
+                      setState(() => _saveCard = value ?? false),
                 ),
-                const Gap(8),
                 Expanded(
                   child: Text(
                     'Save this card for future payments',
@@ -695,70 +740,90 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData prefixIcon,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(prefixIcon),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+  Widget _buildPaymentButton(BuildContext context, PaymentLoaded state) {
+    final canPay = _selectedSavedMethod != null ||
+        (_isCardValid && _nameController.text.isNotEmpty);
+
+    return SizedBox(
+      height: 56,
+      child: ElevatedButton(
+        onPressed: canPay && !state.isProcessing ? _processPayment : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: canPay ? 4 : 0,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
-        ),
-        filled: true,
-        fillColor: Colors.grey.shade50,
+        child: state.isProcessing
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  const Gap(12),
+                  const Text('Processing...'),
+                ],
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(CupertinoIcons.lock_shield, size: 20),
+                  const Gap(8),
+                  Text(
+                    'Pay ${widget.amount.currencySymbol} ${widget.amount.totalAmount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildErrorMessage() {
+  Widget _buildErrorBanner(BuildContext context, String error) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: Theme.of(context).colorScheme.error.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.error.withOpacity(0.3),
+        ),
       ),
       child: Row(
         children: [
           Icon(
             CupertinoIcons.exclamationmark_triangle,
-            color: Colors.red.shade600,
+            color: Theme.of(context).colorScheme.error,
             size: 20,
           ),
           const Gap(12),
           Expanded(
             child: Text(
-              _errorMessage!,
-              style: TextStyle(
-                color: Colors.red.shade700,
-                fontWeight: FontWeight.w500,
-              ),
+              error,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              context.read<PaymentBloc>().add(const ClearPaymentError());
+            },
+            icon: Icon(
+              CupertinoIcons.xmark,
+              color: Theme.of(context).colorScheme.error,
+              size: 16,
             ),
           ),
         ],
@@ -766,115 +831,50 @@ class _EnhancedPaymentWidgetState extends State<EnhancedPaymentWidget>
     );
   }
 
-  Widget _buildPayButton() {
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade600, Colors.blue.shade700],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _processPayment,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: _isLoading
-            ? const SizedBox(
-                height: 24,
-                width: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : Text(
-                'Pay ${widget.amount.currency.symbol}${widget.amount.amount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-      ),
-    );
-  }
+  void _processPayment() {
+    if (_selectedSavedMethod != null) {
+      // Process with saved method
+      context.read<PaymentBloc>().add(ProcessPaymentWithSavedMethod(
+            amount: widget.amount,
+            customer: widget.customer,
+            savedMethod: _selectedSavedMethod!,
+            description: widget.description,
+            metadata: widget.metadata,
+          ));
+    } else {
+      // Process with new card
+      if (!_formKey.currentState!.validate()) return;
 
-  Widget _buildSecurityNotice() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          CupertinoIcons.lock_shield,
-          size: 16,
-          color: Colors.grey.shade600,
-        ),
-        const Gap(8),
-        Text(
-          'Your payment is secured with 256-bit SSL encryption',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade600,
-              ),
-        ),
-      ],
-    );
-  }
-}
-
-// Input formatters for card fields
-class _CardNumberInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final newText = newValue.text.replaceAll(' ', '');
-    if (newText.length > 16) return oldValue;
-
-    String formatted = '';
-    for (int i = 0; i < newText.length; i++) {
-      if (i > 0 && i % 4 == 0) {
-        formatted += ' ';
-      }
-      formatted += newText[i];
+      context.read<PaymentBloc>().add(CreatePayment(
+            amount: widget.amount,
+            customer: widget.customer,
+            method: PaymentMethod.creditCard,
+            description: widget.description,
+            metadata: widget.metadata,
+            savePaymentMethod: _saveCard,
+          ));
     }
-
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
   }
-}
 
-class _ExpiryDateInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final newText = newValue.text.replaceAll('/', '');
-    if (newText.length > 4) return oldValue;
-
-    String formatted = newText;
-    if (newText.length > 2) {
-      formatted = '${newText.substring(0, 2)}/${newText.substring(2)}';
+  void _handleStateChanges(BuildContext context, PaymentState state) {
+    if (state is PaymentSuccess) {
+      HapticFeedback.lightImpact();
+    } else if (state is PaymentFailure) {
+      HapticFeedback.heavyImpact();
     }
+  }
 
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
+  void _handle3DSecure(String actionUrl) {
+    // Implementation for 3D Secure handling
+    // This would typically open a web view or redirect
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    _fadeController.dispose();
+    _nameController.dispose();
+    _cardController.dispose();
+    super.dispose();
   }
 }

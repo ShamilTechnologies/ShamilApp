@@ -45,14 +45,7 @@ class _NotesPreferencesManagerState extends State<NotesPreferencesManager> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildNotesSection(),
-        const Gap(24),
-        _buildPreferencesSection(),
-      ],
-    );
+    return _buildNotesSection();
   }
 
   Widget _buildNotesSection() {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/shamil_nfc_service_desc"
+    android:requireDeviceUnlock="false">
+    
+    <!-- Shamil Access Control AID -->
+    <aid-group 
+        android:description="@string/shamil_aid_group_desc"
+        android:category="other">
+        
+        <!-- Primary AID: F0534841D494C (SHAMIL) -->
+        <aid-filter android:name="F0534841D494C" />
+        
+        <!-- Alternative AID for compatibility -->
+        <aid-filter android:name="F053414D494C00" />
+        
+    </aid-group>
+</host-apdu-service> 

@@ -33,7 +33,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 // *** Import Repositories ***
 // ACTION: Import SubscriptionRepository when created
 // import 'package:shamil_mobile_app/feature/subscription/repository/subscription_repository.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
 import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
 import 'package:shamil_mobile_app/core/services/notification_service.dart';
@@ -57,6 +56,14 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'
 import 'package:shamil_mobile_app/core/payment/config/payment_credentials_manager.dart';
 import 'package:shamil_mobile_app/core/payment/config/payment_environment_config.dart';
 import 'package:shamil_mobile_app/core/payment/gateways/stripe/stripe_service.dart';
+
+// Import NFC services for proper initialization
+import 'package:shamil_mobile_app/feature/access/data/enhanced_nfc_service.dart';
+import 'package:shamil_mobile_app/feature/access/data/nfc_sound_service.dart';
+// Import global NFC services
+import 'package:shamil_mobile_app/services/shamil_nfc_service.dart';
+import 'package:shamil_mobile_app/services/notification_service.dart'
+    as global_notification;
 
 // --- FCM Background Handler ---
 @pragma('vm:entry-point')
@@ -91,12 +98,49 @@ Future<void> _initializePaymentSystem() async {
   }
 }
 
+/// Initialize NFC services
+Future<void> _initializeNFCServices() async {
+  try {
+    debugPrint('🔧 Initializing NFC services...');
+
+    // Initialize sound service first
+    await NFCSoundService().initialize();
+    debugPrint('✅ NFC Sound Service initialized');
+
+    // Background processing removed due to WorkManager compilation issues
+    debugPrint('⚠️ Background processing disabled');
+
+    // Initialize global notification service
+    await global_notification.ShamIlNotificationService.initialize();
+    debugPrint('✅ Global Notification Service initialized');
+
+    // Initialize the enhanced NFC service (legacy)
+    final nfcService = EnhancedNFCService();
+    final isAvailable = await nfcService.initialize();
+
+    if (isAvailable) {
+      debugPrint('✅ Enhanced NFC Service initialized successfully');
+
+      // Initialize global NFC service (new)
+      await ShamIlNFCService.initialize();
+      debugPrint('✅ Global Shamil NFC Service initialized');
+    } else {
+      debugPrint('⚠️ NFC not available on this device');
+    }
+  } catch (e) {
+    debugPrint('❌ Failed to initialize NFC services: $e');
+    // Don't throw error to prevent app crash
+    // NFC features will be disabled if initialization fails
+  }
+}
+
+// Background task callback dispatcher removed due to WorkManager issues
+
 Future<void> main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize SharedPreferences
   await AppLocalStorage.init();
-  final prefs = await SharedPreferences.getInstance();
 
   // Load environment variables
   try {
@@ -126,6 +170,9 @@ Future<void> main() async {
 
   // Initialize payment system
   await _initializePaymentSystem();
+
+  // Initialize NFC services
+  await _initializeNFCServices();
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -177,9 +224,7 @@ Future<void> main() async {
           ),
           // Payment system provider
           BlocProvider<PaymentBloc>(
-            create: (context) => PaymentBloc(
-              stripeService: null, // Use null to let it create its own instance
-            )..add(const InitializePayments()),
+            create: (context) => PaymentBloc()..add(const InitializePayments()),
           ),
         ],
         child: ChangeNotifierProvider(
@@ -207,6 +252,9 @@ class _MainAppState extends State<MainApp> {
 
     // Initialize the notification service
     _initializeNotificationService();
+
+    // Setup auth listener for NFC service
+    _setupAuthListenerForNFC();
   }
 
   Future<void> _configureFirebaseMessaging() async {
@@ -345,6 +393,21 @@ class _MainAppState extends State<MainApp> {
     }
   }
 
+  /// Setup authentication listener to update NFC service with user information
+  void _setupAuthListenerForNFC() {
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (user != null) {
+        debugPrint('🔑 User logged in - updating NFC service with user info');
+        debugPrint('👤 User: ${user.displayName ?? 'Unknown'} (${user.uid})');
+
+        // The NFC service will get user info when needed through the bloc
+        // No need to manually update here as the enhanced access view handles this
+      } else {
+        debugPrint('🔑 User logged out - clearing NFC service user info');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -356,11 +419,11 @@ class _MainAppState extends State<MainApp> {
         '/login': (context) => const LoginView(),
         '/home': (context) => const MainNavigationView(),
         // Payment routes
-        '/payment-demo': (context) => const PaymentIntegrationDemoScreen(),
+        '/payment-demo': (context) => const PaymentShowcaseScreen(),
         '/service-payment': (context) {
           final args = ModalRoute.of(context)?.settings.arguments
               as Map<String, dynamic>?;
-          return SimplePaymentIntegrationExamples.buildServicePaymentScreen(
+          return PaymentIntegrationExamples.buildServicePaymentScreen(
             serviceId: args?['serviceId'] ?? 'default',
             serviceName: args?['serviceName'] ?? 'Service',
             amount: args?['amount'] ?? 100.0,
@@ -372,8 +435,7 @@ class _MainAppState extends State<MainApp> {
         '/subscription-payment': (context) {
           final args = ModalRoute.of(context)?.settings.arguments
               as Map<String, dynamic>?;
-          return SimplePaymentIntegrationExamples
-              .buildSubscriptionPaymentScreen(
+          return PaymentIntegrationExamples.buildSubscriptionPaymentScreen(
             planId: args?['planId'] ?? 'plan_default',
             planName: args?['planName'] ?? 'Plan',
             monthlyPrice: args?['monthlyPrice'] ?? 99.0,

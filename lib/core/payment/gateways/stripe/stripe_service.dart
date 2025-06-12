@@ -38,11 +38,17 @@ class StripeService {
     }
   }
 
-  /// Create or get existing customer in Stripe
+  /// Create or get existing customer in Stripe with improved error handling
   Future<String> _ensureCustomerExists(PaymentCustomer customer) async {
     try {
       debugPrint('🔍 Checking if customer exists: ${customer.email}');
-      
+
+      // Skip customer creation for demo/temp users to avoid API errors
+      if (_isDemoCustomer(customer.id)) {
+        debugPrint('⚡ Using demo customer ID: ${customer.id}');
+        return customer.id;
+      }
+
       // Try to get existing customer by email
       final searchResponse = await _makeApiCall(
         'GET',
@@ -58,12 +64,13 @@ class StripeService {
 
       if (customers.isNotEmpty) {
         final existingCustomer = customers.first;
-        debugPrint('✅ Found existing Stripe customer: ${existingCustomer['id']}');
+        debugPrint(
+            '✅ Found existing Stripe customer: ${existingCustomer['id']}');
         return existingCustomer['id'];
       }
 
       debugPrint('➕ Creating new Stripe customer for: ${customer.email}');
-      
+
       // Create new customer if none exists
       final createResponse = await _makeApiCall(
         'POST',
@@ -74,6 +81,8 @@ class StripeService {
           'phone': customer.phone ?? '',
           'metadata': {
             'firebase_uid': customer.id,
+            'source': 'shamil_app',
+            'created_at': DateTime.now().toIso8601String(),
           },
         },
       );
@@ -83,9 +92,18 @@ class StripeService {
       return customerData['id'];
     } catch (e) {
       debugPrint('❌ Error ensuring customer exists: $e');
-      // Return the original customer ID and let Stripe handle the error
-      return customer.id;
+      // For production, we should handle this more gracefully
+      throw StripeServiceException(
+          'Failed to prepare customer for payment: ${e.toString()}');
     }
+  }
+
+  /// Check if customer is a demo/temp customer
+  bool _isDemoCustomer(String customerId) {
+    return customerId.startsWith('temp_') ||
+        customerId.startsWith('user_') ||
+        customerId.startsWith('demo_') ||
+        customerId == 'current_user_id';
   }
 
   /// Create payment intent for reservation

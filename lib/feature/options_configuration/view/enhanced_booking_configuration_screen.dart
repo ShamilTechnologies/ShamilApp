@@ -12,6 +12,7 @@ import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart'
 import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_configuration_bloc.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_configuration_event.dart';
 import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
+import 'package:shamil_mobile_app/core/payment/models/payment_models.dart';
 
 // Import individual feature components
 import 'components/provider_services_selector.dart';
@@ -489,6 +490,8 @@ class _EnhancedBookingConfigurationViewState
           DateTimeSelector(
             state: state,
             provider: widget.provider,
+            service: widget.service,
+            plan: widget.plan,
             onDateChanged: (date) => context
                 .read<OptionsConfigurationBloc>()
                 .add(DateSelected(selectedDate: date)),
@@ -553,7 +556,7 @@ class _EnhancedBookingConfigurationViewState
         children: [
           _buildStepHeader(
             'Customize Experience',
-            'Set your preferences and add any special notes',
+            'Set your sharing preferences and add to calendar',
           ),
           const Gap(24),
           NotesPreferencesManager(
@@ -561,14 +564,6 @@ class _EnhancedBookingConfigurationViewState
             onNotesChanged: (notes) => context
                 .read<OptionsConfigurationBloc>()
                 .add(NotesUpdated(notes: notes)),
-          ),
-          const Gap(24),
-          ReminderSettingsManager(
-            state: state,
-            onReminderSettingsChanged: (enabled, times) => context
-                .read<OptionsConfigurationBloc>()
-                .add(UpdateReminderSettings(
-                    enableReminders: enabled, reminderTimes: times)),
           ),
           const Gap(24),
           SharingSettingsManager(
@@ -584,9 +579,15 @@ class _EnhancedBookingConfigurationViewState
           const Gap(24),
           CalendarIntegrationManager(
             state: state,
-            onCalendarSettingChanged: (addToCalendar) => context
+            provider: widget.provider,
+            service: widget.service,
+            plan: widget.plan,
+            onCalendarIntegrationChanged: (addToCalendar) => context
                 .read<OptionsConfigurationBloc>()
                 .add(ToggleAddToCalendar(addToCalendar: addToCalendar)),
+            userId: 'guest_user', // Would come from user session
+            userName: 'Guest User', // Would come from user session
+            userEmail: 'guest@shamil.app', // Would come from user session
           ),
         ],
       ),
@@ -607,17 +608,30 @@ class _EnhancedBookingConfigurationViewState
           BookingSummaryCard(
             state: state,
             provider: widget.provider,
-            isPlan: widget.isPlan,
+            service: widget.service,
+            plan: widget.plan,
+            onEditBooking: () => setState(() => _currentStep = 0),
           ),
           const Gap(24),
           PaymentMethodSelector(
             state: state,
+            provider: widget.provider,
+            service: widget.service,
+            plan: widget.plan,
             onPaymentMethodChanged: (method) => context
                 .read<OptionsConfigurationBloc>()
                 .add(UpdatePaymentMethod(paymentMethod: method)),
-            onPaymentInitiated: () => context
-                .read<OptionsConfigurationBloc>()
-                .add(const ConfirmConfiguration()),
+            onPaymentCompleted: (response) {
+              if (response.status == PaymentStatus.completed ||
+                  response.status == PaymentStatus.pending) {
+                _completeBookingWithPayment(context, state, response);
+              } else {
+                _showPaymentErrorDialog(context, response.errorMessage);
+              }
+            },
+            userId: 'guest_user', // Would come from user session
+            userName: 'Guest User', // Would come from user session
+            userEmail: 'guest@shamil.app', // Would come from user session
           ),
         ],
       ),
@@ -824,6 +838,64 @@ class _EnhancedBookingConfigurationViewState
   void _completeBooking(OptionsConfigurationState state) {
     HapticFeedback.mediumImpact();
     context.read<OptionsConfigurationBloc>().add(const ConfirmConfiguration());
+  }
+
+  void _completeBookingWithPayment(
+    BuildContext context,
+    OptionsConfigurationState state,
+    PaymentResponse paymentResponse,
+  ) {
+    HapticFeedback.mediumImpact();
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Payment ${paymentResponse.status == PaymentStatus.completed ? 'completed' : 'initiated'} successfully!',
+        ),
+        backgroundColor: AppColors.greenColor,
+      ),
+    );
+
+    // Complete the booking
+    context.read<OptionsConfigurationBloc>().add(const ConfirmConfiguration());
+  }
+
+  void _showPaymentErrorDialog(BuildContext context, String? errorMessage) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.darkBackground,
+        title: Text(
+          'Payment Error',
+          style: app_text_style.getTitleStyle(
+            color: AppColors.lightText,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          errorMessage ?? 'Payment failed. Please try again.',
+          style: app_text_style.getbodyStyle(
+            color: AppColors.lightText.withValues(alpha: 0.8),
+            fontSize: 14,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'OK',
+              style: app_text_style.getbodyStyle(
+                color: AppColors.primaryColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -30,7 +30,6 @@ class _SharingSettingsManagerState extends State<SharingSettingsManager>
   late Animation<Offset> _slideAnimation;
 
   bool _enableSocialSharing = false;
-  bool _enableLocationSharing = true;
   List<String> _selectedPlatforms = [];
 
   final List<SharingPlatform> _sharingPlatforms = [
@@ -123,7 +122,7 @@ class _SharingSettingsManagerState extends State<SharingSettingsManager>
   void _updateSharingSettings() {
     widget.onSharingSettingsChanged(
       _enableSocialSharing,
-      _enableLocationSharing,
+      true, // Privacy setting - always enabled
       _selectedPlatforms.isNotEmpty ? _selectedPlatforms : null,
     );
   }
@@ -142,8 +141,6 @@ class _SharingSettingsManagerState extends State<SharingSettingsManager>
               const Gap(20),
               _buildPlatformSelector(),
             ],
-            const Gap(20),
-            _buildLocationSharingToggle(),
             const Gap(20),
             _buildPrivacyInfo(),
           ],
@@ -385,84 +382,6 @@ class _SharingSettingsManagerState extends State<SharingSettingsManager>
     );
   }
 
-  Widget _buildLocationSharingToggle() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.12),
-            Colors.white.withOpacity(0.06),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.tealColor, AppColors.cyanColor],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                CupertinoIcons.location_fill,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            const Gap(16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Location Sharing',
-                    style: AppTextStyle.getTitleStyle(
-                      color: AppColors.lightText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Gap(4),
-                  Text(
-                    _enableLocationSharing
-                        ? 'Share venue location with attendees'
-                        : 'Keep location private',
-                    style: AppTextStyle.getbodyStyle(
-                      color: AppColors.lightText.withOpacity(0.8),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Gap(12),
-            CupertinoSwitch(
-              value: _enableLocationSharing,
-              onChanged: (value) {
-                HapticFeedback.lightImpact();
-                setState(() {
-                  _enableLocationSharing = value;
-                });
-                _updateSharingSettings();
-              },
-              activeColor: AppColors.tealColor,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildPrivacyInfo() {
     return Container(
       decoration: BoxDecoration(
@@ -539,4 +458,3 @@ class SharingPlatform {
     required this.color,
   });
 }
- 

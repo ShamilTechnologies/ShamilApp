@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Shamil</string>
+    
+    <!-- NFC Service Descriptions -->
+    <string name="shamil_nfc_service_desc">Shamil Access Control - NFC Card Emulation Service</string>
+    <string name="shamil_aid_group_desc">Shamil Access Control System</string>
+</resources> 

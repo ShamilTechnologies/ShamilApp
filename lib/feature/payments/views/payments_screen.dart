@@ -57,147 +57,141 @@ class _PaymentsScreenState extends State<PaymentsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => PaymentBloc(
-        stripeService: null, // Use null to let it create its own instance
-      )..add(const InitializePayments()),
-      child: Scaffold(
-        backgroundColor: Colors.grey[50],
-        body: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Decorative background elements
-              Positioned(
-                top: -100,
-                right: -50,
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primaryColor.withValues(alpha: 0.1),
-                  ),
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Decorative background elements
+            Positioned(
+              top: -100,
+              right: -50,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primaryColor.withValues(alpha: 0.1),
                 ),
               ),
-              Positioned(
-                bottom: -80,
-                left: -30,
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primaryColor.withValues(alpha: 0.07),
-                  ),
+            ),
+            Positioned(
+              bottom: -80,
+              left: -30,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primaryColor.withValues(alpha: 0.07),
                 ),
               ),
+            ),
 
-              // Main content
-              NestedScrollView(
-                headerSliverBuilder: (context, innerBoxIsScrolled) {
-                  return [
-                    SliverAppBar(
-                      expandedHeight: 120,
-                      floating: false,
-                      pinned: true,
-                      elevation: 0,
-                      backgroundColor: innerBoxIsScrolled
-                          ? AppColors.primaryColor
-                          : Colors.transparent,
-                      flexibleSpace: FlexibleSpaceBar(
-                        background: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                AppColors.primaryColor,
-                                AppColors.secondaryColor,
-                              ],
-                            ),
+            // Main content
+            NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return [
+                  SliverAppBar(
+                    expandedHeight: 120,
+                    floating: false,
+                    pinned: true,
+                    elevation: 0,
+                    backgroundColor: innerBoxIsScrolled
+                        ? AppColors.primaryColor
+                        : Colors.transparent,
+                    flexibleSpace: FlexibleSpaceBar(
+                      background: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              AppColors.primaryColor,
+                              AppColors.secondaryColor,
+                            ],
                           ),
-                          child: SafeArea(
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.2),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: const Icon(
-                                          Icons.payment,
-                                          color: Colors.white,
-                                          size: 24,
-                                        ),
+                        ),
+                        child: SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      const Gap(12),
-                                      const Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'Payments',
-                                              style: TextStyle(
-                                                fontSize: 24,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            Text(
-                                              'Manage your transactions',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.white70,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                      child: const Icon(
+                                        Icons.payment,
+                                        color: Colors.white,
+                                        size: 24,
                                       ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                                    ),
+                                    const Gap(12),
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Payments',
+                                            style: TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Manage your transactions',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.white70,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
-                      bottom: TabBar(
-                        controller: _tabController,
-                        indicatorColor: Colors.white,
-                        labelColor: Colors.white,
-                        unselectedLabelColor: Colors.white70,
-                        tabs: const [
-                          Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
-                          Tab(icon: Icon(Icons.add_card), text: 'New Payment'),
-                          Tab(icon: Icon(Icons.history), text: 'History'),
-                        ],
-                      ),
                     ),
-                  ];
-                },
-                body: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildDashboardTab(),
-                    _buildNewPaymentTab(),
-                    _buildHistoryTab(),
-                  ],
-                ),
+                    bottom: TabBar(
+                      controller: _tabController,
+                      indicatorColor: Colors.white,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.white70,
+                      tabs: const [
+                        Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
+                        Tab(icon: Icon(Icons.add_card), text: 'New Payment'),
+                        Tab(icon: Icon(Icons.history), text: 'History'),
+                      ],
+                    ),
+                  ),
+                ];
+              },
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildDashboardTab(),
+                  _buildNewPaymentTab(),
+                  _buildHistoryTab(),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
