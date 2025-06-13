@@ -1,4 +1,4 @@
-package com.shamil.mobile_app
+package com.shamilTechnologies.shamil_mobile_app
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine

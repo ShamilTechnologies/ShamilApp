@@ -1,4 +1,4 @@
-package com.shamil.mobile_app
+package com.shamilTechnologies.shamil_mobile_app
 
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
