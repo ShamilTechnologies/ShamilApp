@@ -1,838 +1,639 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_stripe/flutter_stripe.dart' as stripe
-    hide PaymentMethod;
-import 'package:flutter_bloc/flutter_bloc.dart';
-
-import '../gateways/stripe/stripe_service.dart' as stripe_service;
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
+import 'package:gap/gap.dart';
+import '../../utils/colors.dart';
+import '../../utils/text_style.dart' as app_text_style;
+import '../ui/stripe_payment_widget.dart' as stripe_ui;
 import '../models/payment_models.dart';
-import '../bloc/payment_bloc.dart';
 
-/// Modern Stripe payment widget with production-ready features
-///
-/// Features:
-/// - Card input with real-time validation
-/// - Saved payment methods support
-/// - 3D Secure authentication
-/// - Apple Pay / Google Pay integration
-/// - Accessibility support
-/// - Error handling and retry logic
-/// - Loading states and animations
-class StripePaymentWidget extends StatefulWidget {
+/// Modern payment widget wrapper that provides consistent styling
+/// across the app with glassmorphism effects and smooth animations
+class ModernPaymentWidget extends StatefulWidget {
   final PaymentRequest paymentRequest;
-  final VoidCallback? onPaymentSuccess;
-  final VoidCallback? onPaymentFailure;
-  final VoidCallback? onPaymentCancel;
+  final Function(PaymentResponse) onPaymentComplete;
+  final Function(String)? onError;
   final bool showSavedMethods;
-  final bool enableApplePay;
-  final bool enableGooglePay;
-  final String? customButtonText;
-  final Color? primaryColor;
-  final Color? backgroundColor;
+  final String? customerId;
+  final VoidCallback? onCancel;
+  final String? title;
+  final Widget? headerIcon;
 
-  const StripePaymentWidget({
+  const ModernPaymentWidget({
     super.key,
     required this.paymentRequest,
-    this.onPaymentSuccess,
-    this.onPaymentFailure,
-    this.onPaymentCancel,
+    required this.onPaymentComplete,
+    this.onError,
     this.showSavedMethods = true,
-    this.enableApplePay = true,
-    this.enableGooglePay = true,
-    this.customButtonText,
-    this.primaryColor,
-    this.backgroundColor,
+    this.customerId,
+    this.onCancel,
+    this.title,
+    this.headerIcon,
   });
 
   @override
-  State<StripePaymentWidget> createState() => _StripePaymentWidgetState();
+  State<ModernPaymentWidget> createState() => _ModernPaymentWidgetState();
 }
 
-class _StripePaymentWidgetState extends State<StripePaymentWidget>
+class _ModernPaymentWidgetState extends State<ModernPaymentWidget>
     with TickerProviderStateMixin {
-  final stripe_service.StripeService _stripeService =
-      stripe_service.StripeService();
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppColors.mainBackgroundGradient,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Custom header
+          if (widget.title != null) _buildCustomHeader(),
 
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+          // Payment widget - Full width, no constraints
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: stripe_ui.StripePaymentWidget(
+              paymentRequest: widget.paymentRequest,
+              onPaymentComplete: widget.onPaymentComplete,
+              onError: widget.onError,
+              showSavedMethods: widget.showSavedMethods,
+              customerId: widget.customerId,
+              onCancel: widget.onCancel,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  stripe.CardFieldInputDetails? _cardDetails;
-  List<stripe_service.PaymentMethodData> _savedMethods = [];
-  stripe_service.PaymentMethodData? _selectedSavedMethod;
-  bool _isProcessing = false;
-  bool _savePaymentMethod = false;
-  String? _errorMessage;
-  bool _showNewCardForm = false;
+  Widget _buildCustomHeader() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Row(
+        children: [
+          if (widget.headerIcon != null) ...[
+            widget.headerIcon!,
+            const Gap(16),
+          ],
+          Expanded(
+            child: Text(
+              widget.title!,
+              style: app_text_style.getHeadlineTextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: AppColors.lightText,
+              ),
+            ),
+          ),
+          if (widget.onCancel != null)
+            GestureDetector(
+              onTap: widget.onCancel,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  CupertinoIcons.xmark,
+                  size: 20,
+                  color: AppColors.lightText.withValues(alpha: 0.8),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Payment summary card widget for displaying payment details
+class PaymentSummaryCard extends StatelessWidget {
+  final PaymentRequest paymentRequest;
+  final List<PaymentSummaryItem>? additionalItems;
+  final Widget? footer;
+
+  const PaymentSummaryCard({
+    super.key,
+    required this.paymentRequest,
+    this.additionalItems,
+    this.footer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Text(
+            'Payment Summary',
+            style: app_text_style.getTitleStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.lightText,
+            ),
+          ),
+          const Gap(16),
+
+          // Main item
+          _buildSummaryItem(
+            label: paymentRequest.description,
+            amount: paymentRequest.amount.amount,
+            currency: paymentRequest.amount.currency,
+            isMain: true,
+          ),
+
+          // Additional items
+          if (additionalItems != null) ...[
+            const Gap(12),
+            ...additionalItems!.map((item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _buildSummaryItem(
+                    label: item.label,
+                    amount: item.amount,
+                    currency: paymentRequest.amount.currency,
+                    isSubItem: true,
+                  ),
+                )),
+          ],
+
+          // Tax and fees
+          if (paymentRequest.amount.taxAmount != null) ...[
+            const Gap(8),
+            _buildSummaryItem(
+              label: 'Tax',
+              amount: paymentRequest.amount.taxAmount!,
+              currency: paymentRequest.amount.currency,
+              isSubItem: true,
+            ),
+          ],
+
+          if (paymentRequest.amount.discountAmount != null) ...[
+            const Gap(8),
+            _buildSummaryItem(
+              label: 'Discount',
+              amount: -paymentRequest.amount.discountAmount!,
+              currency: paymentRequest.amount.currency,
+              isSubItem: true,
+              isDiscount: true,
+            ),
+          ],
+
+          // Divider
+          const Gap(16),
+          Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.0),
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+          const Gap(16),
+
+          // Total
+          _buildSummaryItem(
+            label: 'Total',
+            amount: paymentRequest.amount.totalAmount,
+            currency: paymentRequest.amount.currency,
+            isTotal: true,
+          ),
+
+          // Footer
+          if (footer != null) ...[
+            const Gap(16),
+            footer!,
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem({
+    required String label,
+    required double amount,
+    required Currency currency,
+    bool isMain = false,
+    bool isSubItem = false,
+    bool isTotal = false,
+    bool isDiscount = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          flex: 2,
+          child: Text(
+            label,
+            style: app_text_style.getbodyStyle(
+              fontSize: isTotal ? 16 : (isMain ? 15 : 14),
+              fontWeight: isTotal
+                  ? FontWeight.w700
+                  : (isMain ? FontWeight.w600 : FontWeight.normal),
+              color: isSubItem
+                  ? AppColors.lightText.withValues(alpha: 0.7)
+                  : AppColors.lightText,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 1,
+          child: Text(
+            '${isDiscount ? '-' : ''}${currency.symbol}${amount.abs().toStringAsFixed(2)}',
+            style: app_text_style.getbodyStyle(
+              fontSize: isTotal ? 18 : (isMain ? 16 : 14),
+              fontWeight: isTotal
+                  ? FontWeight.w800
+                  : (isMain ? FontWeight.w600 : FontWeight.w500),
+              color: isDiscount
+                  ? AppColors.successColor
+                  : (isTotal ? AppColors.primaryColor : AppColors.lightText),
+            ),
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Payment summary item model
+class PaymentSummaryItem {
+  final String label;
+  final double amount;
+
+  const PaymentSummaryItem({
+    required this.label,
+    required this.amount,
+  });
+}
+
+/// Payment success widget with celebration animation
+class PaymentSuccessWidget extends StatefulWidget {
+  final PaymentResponse paymentResponse;
+  final VoidCallback? onContinue;
+  final String? successMessage;
+  final Widget? customIcon;
+
+  const PaymentSuccessWidget({
+    super.key,
+    required this.paymentResponse,
+    this.onContinue,
+    this.successMessage,
+    this.customIcon,
+  });
+
+  @override
+  State<PaymentSuccessWidget> createState() => _PaymentSuccessWidgetState();
+}
+
+class _PaymentSuccessWidgetState extends State<PaymentSuccessWidget>
+    with TickerProviderStateMixin {
+  late AnimationController _celebrationController;
+  late AnimationController _scaleController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _rotationAnimation;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
-    _loadSavedPaymentMethods();
+    _startCelebration();
+  }
+
+  void _initializeAnimations() {
+    _celebrationController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves.elasticOut,
+    ));
+
+    _rotationAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _celebrationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  void _startCelebration() {
+    HapticFeedback.heavyImpact();
+    _scaleController.forward();
+    _celebrationController.forward();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _celebrationController.dispose();
+    _scaleController.dispose();
     super.dispose();
-  }
-
-  void _initializeAnimations() {
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    ));
-
-    _animationController.forward();
-  }
-
-  Future<void> _loadSavedPaymentMethods() async {
-    if (!widget.showSavedMethods) return;
-
-    try {
-      // This would typically get the customer ID from your auth system
-      final customerId = widget.paymentRequest.customer.id;
-      final methods = await _stripeService.getSavedPaymentMethods(
-        customerId: customerId,
-      );
-
-      if (mounted) {
-        setState(() {
-          _savedMethods = methods;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading saved payment methods: $e');
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<PaymentBloc, PaymentState>(
-      listener: _handlePaymentStateChange,
-      child: Container(
-        decoration: BoxDecoration(
-          color: widget.backgroundColor ?? Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppColors.mainBackgroundGradient,
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Success icon with animation
+              ScaleTransition(
+                scale: _scaleAnimation,
+                child: RotationTransition(
+                  turns: _rotationAnimation,
+                  child: widget.customIcon ??
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.successColor,
+                              AppColors.tealColor,
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  AppColors.successColor.withValues(alpha: 0.4),
+                              blurRadius: 30,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.checkmark,
+                          color: Colors.white,
+                          size: 60,
+                        ),
+                      ),
+                ),
+              ),
+              const Gap(40),
+
+              // Success message
+              Text(
+                widget.successMessage ?? 'Payment Successful!',
+                style: app_text_style.getHeadlineTextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.lightText,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const Gap(16),
+
+              // Payment details
+              Text(
+                'Your payment of ${widget.paymentResponse.currency.symbol}${widget.paymentResponse.amount.toStringAsFixed(2)} has been processed successfully.',
+                style: app_text_style.getbodyStyle(
+                  fontSize: 16,
+                  color: AppColors.lightText.withValues(alpha: 0.8),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const Gap(32),
+
+              // Payment ID
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.1),
+                      Colors.white.withValues(alpha: 0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildHeader(),
-                    const SizedBox(height: 24),
-                    _buildPaymentMethodSelector(),
-                    if (_showNewCardForm || _savedMethods.isEmpty) ...[
-                      const SizedBox(height: 24),
-                      _buildCardForm(),
-                    ],
-                    if (_selectedSavedMethod != null) ...[
-                      const SizedBox(height: 24),
-                      _buildSelectedMethodCard(),
-                    ],
-                    const SizedBox(height: 24),
-                    _buildDigitalWalletButtons(),
-                    const SizedBox(height: 24),
-                    _buildPaymentButton(),
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 16),
-                      _buildErrorMessage(),
-                    ],
+                    Text(
+                      'Transaction ID',
+                      style: app_text_style.getSmallStyle(
+                        fontSize: 12,
+                        color: AppColors.lightText.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    const Gap(4),
+                    Text(
+                      widget.paymentResponse.id,
+                      style: app_text_style.getbodyStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.lightText,
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
+              const Gap(40),
+
+              // Continue button
+              if (widget.onContinue != null)
+                GestureDetector(
+                  onTap: widget.onContinue,
+                  child: Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primaryColor,
+                          AppColors.primaryColor.withValues(alpha: 0.8),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.primaryColor.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryColor.withValues(alpha: 0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Continue',
+                        style: app_text_style.getButtonStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+/// Quick payment button for common actions
+class QuickPaymentButton extends StatelessWidget {
+  final String label;
+  final PaymentAmount amount;
+  final VoidCallback onTap;
+  final IconData? icon;
+  final bool isLoading;
+
+  const QuickPaymentButton({
+    super.key,
+    required this.label,
+    required this.amount,
+    required this.onTap,
+    this.icon,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isLoading ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.15),
+              Colors.white.withValues(alpha: 0.08),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.2),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
           children: [
-            Icon(
-              Icons.payment,
-              color: widget.primaryColor ?? Theme.of(context).primaryColor,
-              size: 28,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Payment Details',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).textTheme.headlineSmall?.color,
-                    ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.security,
-                    size: 16,
-                    color: Colors.green[700],
+            if (icon != null) ...[
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primaryColor,
+                      AppColors.primaryColor.withValues(alpha: 0.8),
+                    ],
                   ),
-                  const SizedBox(width: 4),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const Gap(12),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    'Secure',
-                    style: TextStyle(
-                      color: Colors.green[700],
-                      fontSize: 12,
+                    label,
+                    style: app_text_style.getbodyStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
+                      color: AppColors.lightText,
+                    ),
+                  ),
+                  Text(
+                    '${amount.currency.symbol}${amount.totalAmount.toStringAsFixed(2)}',
+                    style: app_text_style.getSmallStyle(
+                      fontSize: 12,
+                      color: AppColors.lightText.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Total: ${widget.paymentRequest.currency.symbol}${widget.paymentRequest.amount.toStringAsFixed(2)}',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: widget.primaryColor ?? Theme.of(context).primaryColor,
-              ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPaymentMethodSelector() {
-    if (!widget.showSavedMethods || _savedMethods.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Payment Method',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-        ),
-        const SizedBox(height: 12),
-        ...(_savedMethods.map((method) => _buildSavedMethodTile(method))),
-        const SizedBox(height: 8),
-        _buildNewCardOption(),
-      ],
-    );
-  }
-
-  Widget _buildSavedMethodTile(stripe_service.PaymentMethodData method) {
-    final isSelected = _selectedSavedMethod?.id == method.id;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _selectSavedMethod(method),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isSelected
-                    ? (widget.primaryColor ?? Theme.of(context).primaryColor)
-                    : Colors.grey.withOpacity(0.3),
-                width: isSelected ? 2 : 1,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              color: isSelected
-                  ? (widget.primaryColor ?? Theme.of(context).primaryColor)
-                      .withOpacity(0.05)
-                  : null,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: _getCardBrandColor(method.brand),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Center(
-                    child: Text(
-                      _getCardBrandText(method.brand),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '**** **** **** ${method.last4}',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      Text(
-                        'Expires ${method.expMonth?.toString().padLeft(2, '0')}/${method.expYear?.toString().substring(2)}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isSelected)
-                  Icon(
-                    Icons.check_circle,
-                    color:
-                        widget.primaryColor ?? Theme.of(context).primaryColor,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNewCardOption() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => setState(() {
-          _showNewCardForm = !_showNewCardForm;
-          _selectedSavedMethod = null;
-        }),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: _showNewCardForm
-                  ? (widget.primaryColor ?? Theme.of(context).primaryColor)
-                  : Colors.grey.withOpacity(0.3),
-              width: _showNewCardForm ? 2 : 1,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            color: _showNewCardForm
-                ? (widget.primaryColor ?? Theme.of(context).primaryColor)
-                    .withOpacity(0.05)
-                : null,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Icon(
-                  Icons.add,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Add new card',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ),
-              if (_showNewCardForm)
-                Icon(
-                  Icons.check_circle,
-                  color: widget.primaryColor ?? Theme.of(context).primaryColor,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Card Information',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.withOpacity(0.3)),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: stripe.CardField(
-            onCardChanged: (details) {
-              setState(() {
-                _cardDetails = details;
-                _errorMessage = null;
-              });
-            },
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Checkbox(
-              value: _savePaymentMethod,
-              onChanged: (value) {
-                setState(() {
-                  _savePaymentMethod = value ?? false;
-                });
-              },
-              activeColor:
-                  widget.primaryColor ?? Theme.of(context).primaryColor,
-            ),
-            Expanded(
-              child: Text(
-                'Save this card for future payments',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSelectedMethodCard() {
-    if (_selectedSavedMethod == null) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: (widget.primaryColor ?? Theme.of(context).primaryColor)
-            .withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: (widget.primaryColor ?? Theme.of(context).primaryColor)
-              .withOpacity(0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.credit_card,
-            color: widget.primaryColor ?? Theme.of(context).primaryColor,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Using saved card ending in ${_selectedSavedMethod!.last4}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDigitalWalletButtons() {
-    return Column(
-      children: [
-        if (widget.enableApplePay) ...[
-          _buildApplePayButton(),
-          const SizedBox(height: 12),
-        ],
-        if (widget.enableGooglePay) ...[
-          _buildGooglePayButton(),
-          const SizedBox(height: 12),
-        ],
-        if ((widget.enableApplePay || widget.enableGooglePay)) ...[
-          Row(
-            children: [
-              Expanded(child: Divider(color: Colors.grey[300])),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'or',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ),
-              Expanded(child: Divider(color: Colors.grey[300])),
-            ],
-          ),
-          const SizedBox(height: 12),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildApplePayButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: _processApplePay,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.apple, size: 20),
-            const SizedBox(width: 8),
-            Text('Pay with Apple Pay'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGooglePayButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: _processGooglePay,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          side: BorderSide(color: Colors.grey[300]!),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('G',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(width: 8),
-            Text('Pay with Google Pay'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentButton() {
-    final isFormValid =
-        _selectedSavedMethod != null || (_cardDetails?.complete == true);
-
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: isFormValid && !_isProcessing ? _processPayment : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor:
-              widget.primaryColor ?? Theme.of(context).primaryColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-        ),
-        child: _isProcessing
-            ? const SizedBox(
-                width: 24,
-                height: 24,
+            if (isLoading)
+              SizedBox(
+                width: 20,
+                height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.primaryColor,
+                  ),
                 ),
               )
-            : Text(
-                widget.customButtonText ??
-                    'Pay ${widget.paymentRequest.currency.symbol}${widget.paymentRequest.amount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+            else
+              Icon(
+                CupertinoIcons.chevron_right,
+                color: AppColors.lightText.withValues(alpha: 0.6),
+                size: 20,
               ),
-      ),
-    );
-  }
-
-  Widget _buildErrorMessage() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.error_outline,
-            color: Colors.red[700],
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _errorMessage!,
-              style: TextStyle(
-                color: Colors.red[700],
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Event handlers
-
-  void _selectSavedMethod(stripe_service.PaymentMethodData method) {
-    setState(() {
-      _selectedSavedMethod = method;
-      _showNewCardForm = false;
-      _errorMessage = null;
-    });
-  }
-
-  Future<void> _processPayment() async {
-    if (_isProcessing) return;
-
-    setState(() {
-      _isProcessing = true;
-      _errorMessage = null;
-    });
-
-    try {
-      if (_selectedSavedMethod != null) {
-        await _processWithSavedMethod();
-      } else {
-        await _processWithNewCard();
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
-      widget.onPaymentFailure?.call();
-    } finally {
-      setState(() {
-        _isProcessing = false;
-      });
-    }
-  }
-
-  Future<void> _processWithSavedMethod() async {
-    // Process payment with saved method
-    context.read<PaymentBloc>().add(
-          ProcessPayment(
-            paymentId: widget.paymentRequest.id,
-            gateway: PaymentGateway.stripe,
-            paymentData: {
-              'payment_method_id': _selectedSavedMethod!.id,
-            },
-          ),
-        );
-  }
-
-  Future<void> _processWithNewCard() async {
-    if (_cardDetails?.complete != true) {
-      throw Exception('Please complete card information');
-    }
-
-    // First create the payment intent
-    final paymentResponse = await _stripeService.createReservationPayment(
-      reservationId: widget.paymentRequest.id,
-      amount: widget.paymentRequest.amount.amount,
-      currency: widget.paymentRequest.amount.currency,
-      customer: widget.paymentRequest.customer,
-      description: widget.paymentRequest.description,
-      metadata: widget.paymentRequest.metadata,
-    );
-
-    if (!paymentResponse.isSuccessful) {
-      throw Exception(
-          paymentResponse.errorMessage ?? 'Failed to create payment intent');
-    }
-
-    // Get the client secret from the payment response
-    final clientSecret =
-        paymentResponse.gatewayResponse?['client_secret'] as String?;
-    if (clientSecret == null) {
-      throw Exception('No client secret received from payment intent');
-    }
-
-    // Confirm the payment using Stripe SDK
-    try {
-      await stripe.Stripe.instance.confirmPayment(
-        paymentIntentClientSecret: clientSecret,
-        data: const stripe.PaymentMethodParams.card(
-          paymentMethodData: stripe.PaymentMethodData(),
+          ],
         ),
-      );
-
-      // If we get here, payment was successful
-      widget.onPaymentSuccess?.call();
-    } catch (e) {
-      debugPrint('Error confirming payment: $e');
-      if (e is stripe.StripeException) {
-        throw Exception(
-            e.error.localizedMessage ?? e.error.message ?? 'Payment failed');
-      }
-      throw Exception('Payment confirmation failed: $e');
-    }
-  }
-
-  Future<void> _processApplePay() async {
-    // Apple Pay processing logic
-    setState(() {
-      _isProcessing = true;
-      _errorMessage = null;
-    });
-
-    try {
-      // Implement Apple Pay logic here
-      await Future.delayed(const Duration(seconds: 2)); // Simulate processing
-      widget.onPaymentSuccess?.call();
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Apple Pay failed: $e';
-      });
-      widget.onPaymentFailure?.call();
-    } finally {
-      setState(() {
-        _isProcessing = false;
-      });
-    }
-  }
-
-  Future<void> _processGooglePay() async {
-    // Google Pay processing logic
-    setState(() {
-      _isProcessing = true;
-      _errorMessage = null;
-    });
-
-    try {
-      // Implement Google Pay logic here
-      await Future.delayed(const Duration(seconds: 2)); // Simulate processing
-      widget.onPaymentSuccess?.call();
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Google Pay failed: $e';
-      });
-      widget.onPaymentFailure?.call();
-    } finally {
-      setState(() {
-        _isProcessing = false;
-      });
-    }
-  }
-
-  void _handlePaymentStateChange(BuildContext context, PaymentState state) {
-    if (state is PaymentLoaded) {
-      if (state.lastPaymentResponse?.isSuccessful == true) {
-        widget.onPaymentSuccess?.call();
-      } else if (state.lastPaymentResponse?.isFailed == true) {
-        setState(() {
-          _errorMessage =
-              state.lastPaymentResponse?.errorMessage ?? 'Payment failed';
-          _isProcessing = false;
-        });
-        widget.onPaymentFailure?.call();
-      }
-    } else if (state is PaymentError) {
-      setState(() {
-        _errorMessage = state.message;
-        _isProcessing = false;
-      });
-      widget.onPaymentFailure?.call();
-    } else if (state is PaymentRequiresAction) {
-      // Handle 3D Secure or other required actions
-      setState(() {
-        _isProcessing = false;
-      });
-    }
-  }
-
-  // Helper methods
-
-  Color _getCardBrandColor(String? brand) {
-    switch (brand?.toLowerCase()) {
-      case 'visa':
-        return const Color(0xFF1A1F71);
-      case 'mastercard':
-        return const Color(0xFFEB001B);
-      case 'amex':
-        return const Color(0xFF006FCF);
-      default:
-        return Colors.grey[600]!;
-    }
-  }
-
-  String _getCardBrandText(String? brand) {
-    switch (brand?.toLowerCase()) {
-      case 'visa':
-        return 'VISA';
-      case 'mastercard':
-        return 'MC';
-      case 'amex':
-        return 'AMEX';
-      default:
-        return 'CARD';
-    }
+      ),
+    );
   }
 }

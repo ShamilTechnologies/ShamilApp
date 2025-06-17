@@ -123,8 +123,9 @@ class PaymentBloc extends Bloc<PaymentEvent, PaymentState> {
     ));
 
     try {
-      final response =
-          await _paymentOrchestrator.processPayment(paymentRequest);
+      final response = await PaymentOrchestrator.processPayment(
+        paymentRequest: paymentRequest,
+      );
 
       if (response.isSuccessful) {
         emit(PaymentSuccess(
@@ -205,8 +206,9 @@ class PaymentBloc extends Bloc<PaymentEvent, PaymentState> {
     ));
 
     try {
-      final response =
-          await _paymentOrchestrator.processPayment(paymentRequest);
+      final response = await PaymentOrchestrator.processPayment(
+        paymentRequest: paymentRequest,
+      );
 
       if (response.isSuccessful) {
         emit(PaymentSuccess(
@@ -340,7 +342,7 @@ class PaymentBloc extends Bloc<PaymentEvent, PaymentState> {
 
     try {
       final history = await _paymentOrchestrator.getPaymentHistory(
-        event.customerId ?? 'default_customer',
+        customerId: event.customerId ?? 'default_customer',
       );
 
       emit(currentState.copyWith(
@@ -367,7 +369,7 @@ class PaymentBloc extends Bloc<PaymentEvent, PaymentState> {
 
     try {
       final statistics = await _paymentOrchestrator.getPaymentStatistics(
-        event.customerId ?? 'default_customer',
+        customerId: event.customerId ?? 'default_customer',
       );
 
       emit(currentState.copyWith(statistics: statistics));

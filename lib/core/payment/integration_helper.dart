@@ -515,6 +515,6 @@ class PaymentIntegrationHelper {
 
   /// Process a payment directly
   static Future<PaymentResponse> processPayment(PaymentRequest request) async {
-    return await _orchestrator.processPayment(request);
+    return await PaymentOrchestrator.processPayment(paymentRequest: request);
   }
 }

@@ -581,8 +581,6 @@ class SavedPaymentMethod extends Equatable {
 
 /// Service for managing saved payment methods
 class SavedPaymentService {
-  static const String _storageKey = 'saved_payment_methods';
-
   /// Get saved payment methods for the current user
   Future<List<SavedPaymentMethod>> getSavedPaymentMethods() async {
     try {

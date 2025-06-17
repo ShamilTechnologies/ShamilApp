@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -102,6 +103,7 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
 
   @override
   void dispose() {
+    _capacityRefreshTimer?.cancel();
     _fadeController.dispose();
     _scaleController.dispose();
     _timeSlotController.dispose();
@@ -160,13 +162,18 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
     _timeSlotController.forward();
 
     try {
-      // Use the real TimeSlotService to generate slots
+      // Use the enhanced TimeSlotService with real Firebase data
       final timeSlotService = TimeSlotService();
+
+      debugPrint(
+          '🔄 Generating time slots for ${widget.provider.businessName} on ${DateFormat('yyyy-MM-dd').format(date)}');
+
       final slots = await timeSlotService.generateTimeSlots(
         date: date,
         provider: widget.provider,
         service: widget.service,
         plan: widget.plan,
+        forceRefresh: true, // Always get fresh data for better UX
       );
 
       if (mounted) {
@@ -174,6 +181,17 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
           _timeSlots = slots;
           _isLoadingTimeSlots = false;
         });
+
+        debugPrint(
+            '✅ Generated ${slots.length} time slots with real capacity data');
+
+        // Show helpful message if no slots available
+        if (slots.isEmpty) {
+          _showNoSlotsMessage();
+        } else {
+          // Auto-refresh capacity every 30 seconds for real-time updates
+          _startCapacityRefresh();
+        }
       }
     } catch (e) {
       debugPrint('❌ Error generating time slots: $e');
@@ -182,7 +200,133 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
           _timeSlots = [];
           _isLoadingTimeSlots = false;
         });
+        _showErrorMessage(
+            'Failed to load available time slots. Please try again.');
       }
+    }
+  }
+
+  void _showNoSlotsMessage() {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                CupertinoIcons.info_circle,
+                color: AppColors.orangeColor,
+                size: 20,
+              ),
+              const Gap(12),
+              Expanded(
+                child: Text(
+                  'No available time slots for this date. Try selecting another date.',
+                  style: app_text_style.getbodyStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.orangeColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _showErrorMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                CupertinoIcons.exclamationmark_triangle,
+                color: AppColors.redColor,
+                size: 20,
+              ),
+              const Gap(12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: app_text_style.getbodyStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.redColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: () => _generateTimeSlots(_selectedDate),
+          ),
+        ),
+      );
+    }
+  }
+
+  Timer? _capacityRefreshTimer;
+
+  void _startCapacityRefresh() {
+    _capacityRefreshTimer?.cancel();
+    _capacityRefreshTimer =
+        Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted && _timeSlots.isNotEmpty) {
+        _refreshCapacityOnly();
+      }
+    });
+  }
+
+  Future<void> _refreshCapacityOnly() async {
+    try {
+      final timeSlotService = TimeSlotService();
+      final updatedSlots = await timeSlotService.refreshSlots(
+        date: _selectedDate,
+        provider: widget.provider,
+        service: widget.service,
+        plan: widget.plan,
+      );
+
+      if (mounted && updatedSlots.isNotEmpty) {
+        setState(() {
+          // Update capacity data while preserving selection
+          final currentSelection = _selectedTimeSlot;
+          _timeSlots = updatedSlots;
+
+          // Restore selection if slot still exists and is available
+          if (currentSelection != null) {
+            final selectedSlot = _timeSlots.firstWhere(
+              (slot) => slot.time == currentSelection,
+              orElse: () => _timeSlots.first,
+            );
+
+            if (!selectedSlot.isAvailable || selectedSlot.isFull) {
+              // Clear selection if slot is no longer available
+              _selectedTimeSlot = null;
+              widget.onTimeChanged('');
+            }
+          }
+        });
+
+        debugPrint('🔄 Refreshed capacity data for ${_timeSlots.length} slots');
+      }
+    } catch (e) {
+      debugPrint('❌ Error refreshing capacity: $e');
+      // Silently fail for background refresh
     }
   }
 
@@ -529,25 +673,32 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Legend
-            _buildCapacityLegend(),
-            const Gap(16),
-            // Time slots grid
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 2.2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+            // Enhanced capacity legend
+            _buildEnhancedCapacityLegend(),
+            const Gap(20),
+
+            // Real-time update indicator
+            if (_timeSlots.isNotEmpty) _buildRealTimeIndicator(),
+
+            // Time slots grid with improved design - wrapped in Flexible to prevent overflow
+            Flexible(
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 2.0,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                ),
+                itemCount: _timeSlots.length,
+                itemBuilder: (context, index) {
+                  final slot = _timeSlots[index];
+                  return _buildEnhancedTimeSlotCard(slot, index);
+                },
               ),
-              itemCount: _timeSlots.length,
-              itemBuilder: (context, index) {
-                final slot = _timeSlots[index];
-                return _buildTimeSlotCard(slot);
-              },
             ),
           ],
         ),
@@ -555,40 +706,40 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
     );
   }
 
-  Widget _buildCapacityLegend() {
+  Widget _buildEnhancedCapacityLegend() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.1),
+            Colors.white.withValues(alpha: 0.05),
+          ],
+        ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: Colors.white.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            CupertinoIcons.info_circle,
-            color: AppColors.lightText.withValues(alpha: 0.7),
-            size: 16,
-          ),
-          const Gap(8),
-          Expanded(
-            child: Text(
-              'Capacity indicator: ',
-              style: app_text_style.getSmallStyle(
-                color: AppColors.lightText.withValues(alpha: 0.7),
-                fontSize: 12,
-              ),
+          Text(
+            'Availability Legend',
+            style: app_text_style.getbodyStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.lightText,
             ),
           ),
+          const Gap(12),
           Row(
             children: [
               _buildLegendItem(AppColors.greenColor, 'Available'),
-              const Gap(12),
-              _buildLegendItem(AppColors.orangeColor, 'Almost Full'),
-              const Gap(12),
+              const Gap(16),
+              _buildLegendItem(AppColors.orangeColor, 'Filling Up'),
+              const Gap(16),
               _buildLegendItem(AppColors.redColor, 'Full'),
             ],
           ),
@@ -602,28 +753,89 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 8,
-          height: 8,
+          width: 12,
+          height: 12,
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.3),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
           ),
         ),
-        const Gap(4),
+        const Gap(6),
         Text(
           label,
           style: app_text_style.getSmallStyle(
-            color: AppColors.lightText.withValues(alpha: 0.7),
-            fontSize: 10,
+            fontSize: 12,
+            color: AppColors.lightText.withValues(alpha: 0.8),
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTimeSlotCard(TimeSlotCapacity slot) {
+  Widget _buildRealTimeIndicator() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.greenColor.withValues(alpha: 0.2),
+            AppColors.greenColor.withValues(alpha: 0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.greenColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: AppColors.greenColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const Gap(8),
+          Text(
+            'Live availability • Updated ${_getLastUpdateTime()}',
+            style: app_text_style.getSmallStyle(
+              fontSize: 11,
+              color: AppColors.greenColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getLastUpdateTime() {
+    if (_timeSlots.isEmpty) return 'now';
+    final lastUpdate = _timeSlots.first.lastUpdated;
+    final now = DateTime.now();
+    final difference = now.difference(lastUpdate);
+
+    if (difference.inMinutes < 1) return 'now';
+    if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+    return '${difference.inHours}h ago';
+  }
+
+  Widget _buildEnhancedTimeSlotCard(TimeSlotCapacity slot, int index) {
     final isSelected = _selectedTimeSlot == slot.time;
-    final canBook = slot.isAvailable;
+    final canBook = slot.isAvailable && !slot.isFull;
 
     Color getStatusColor() {
       if (slot.isFull) return AppColors.redColor;
@@ -631,40 +843,66 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
       return AppColors.greenColor;
     }
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: canBook ? () => _onTimeSlotSelected(slot) : null,
-        borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(
-                    colors: [AppColors.primaryColor, AppColors.cyanColor],
-                  )
-                : null,
-            color: isSelected
-                ? null
-                : slot.isFull
-                    ? AppColors.redColor.withValues(alpha: 0.1)
-                    : Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected
-                  ? Colors.transparent
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300 + (index * 50)),
+      curve: Curves.easeOutCubic,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: canBook ? () => _onTimeSlotSelected(slot) : null,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primaryColor,
+                        AppColors.primaryColor.withValues(alpha: 0.8),
+                      ],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: canBook ? 0.12 : 0.06),
+                        Colors.white.withValues(alpha: canBook ? 0.08 : 0.04),
+                      ],
+                    ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.primaryColor.withValues(alpha: 0.5)
+                    : canBook
+                        ? getStatusColor().withValues(alpha: 0.3)
+                        : Colors.white.withValues(alpha: 0.1),
+                width: isSelected ? 2 : 1,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primaryColor.withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
                   : canBook
-                      ? getStatusColor().withValues(alpha: 0.3)
-                      : AppColors.redColor.withValues(alpha: 0.3),
-              width: 1,
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
             ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Time and status indicator - more compact
                 Row(
                   children: [
                     Expanded(
@@ -673,60 +911,33 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
                         style: app_text_style.getbodyStyle(
                           color: isSelected
                               ? Colors.white
-                              : slot.isFull
-                                  ? AppColors.lightText.withValues(alpha: 0.5)
-                                  : AppColors.lightText,
-                          fontSize: 14,
+                              : canBook
+                                  ? AppColors.lightText
+                                  : AppColors.lightText.withValues(alpha: 0.5),
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                     Container(
-                      width: 8,
-                      height: 8,
+                      width: 6,
+                      height: 6,
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : getStatusColor(),
+                        color: _getSlotStatusColor(slot),
                         shape: BoxShape.circle,
                       ),
                     ),
                   ],
                 ),
-                const Gap(6),
-                // Capacity bar
-                Container(
-                  height: 3,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: isSelected
-                        ? Colors.white.withValues(alpha: 0.3)
-                        : Colors.white.withValues(alpha: 0.1),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: slot.capacityPercentage.clamp(0.0, 1.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(2),
-                        color: isSelected ? Colors.white : getStatusColor(),
-                      ),
-                    ),
-                  ),
-                ),
+
                 const Gap(4),
-                Flexible(
-                  child: Text(
-                    slot.isFull
-                        ? slot.capacityStatus
-                        : '${slot.availableSpots}/${slot.totalCapacity} spots left',
-                    style: app_text_style.getSmallStyle(
-                      color: isSelected
-                          ? Colors.white.withValues(alpha: 0.9)
-                          : AppColors.lightText.withValues(alpha: 0.7),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+
+                // Capacity info - simplified
+                Text(
+                  '${slot.availableSpots}/${slot.totalCapacity}',
+                  style: app_text_style.getSmallStyle(
+                    fontSize: 10,
+                    color: AppColors.lightText.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -798,6 +1009,17 @@ class _DateTimeSelectorState extends State<DateTimeSelector>
         ],
       ),
     );
+  }
+
+  /// Get status color for time slot
+  Color _getSlotStatusColor(TimeSlotCapacity slot) {
+    if (slot.isFull) {
+      return Colors.red;
+    } else if (slot.isAlmostFull) {
+      return Colors.orange;
+    } else {
+      return Colors.green;
+    }
   }
 }
 

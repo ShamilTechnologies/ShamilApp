@@ -69,7 +69,8 @@ class OptionsConfigurationState extends Equatable {
     this.venueBookingConfig,
     this.costSplitConfig,
     this.addToCalendar = false,
-    this.paymentMethod = 'creditCard', // Default payment method
+    this.paymentMethod =
+        'stripeSheet', // Default payment method - uses Stripe Payment Sheet
     this.enableReminders = true, // Default to enabled
     this.reminderTimes = const [60, 1440], // Default to 1h and 24h before
     this.enableSharing = true, // Default to enabled

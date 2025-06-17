@@ -43,10 +43,17 @@ class StripeService {
     try {
       debugPrint('🔍 Checking if customer exists: ${customer.email}');
 
+      // Handle guest customers by creating them in Stripe
+      if (_isGuestCustomer(customer.id)) {
+        debugPrint('👤 Creating Stripe customer for guest: ${customer.email}');
+        return await _createStripeCustomer(customer);
+      }
+
       // Skip customer creation for demo/temp users to avoid API errors
       if (_isDemoCustomer(customer.id)) {
-        debugPrint('⚡ Using demo customer ID: ${customer.id}');
-        return customer.id;
+        debugPrint(
+            '⚡ Demo customer detected, creating in Stripe: ${customer.id}');
+        return await _createStripeCustomer(customer);
       }
 
       // Try to get existing customer by email
@@ -70,26 +77,7 @@ class StripeService {
       }
 
       debugPrint('➕ Creating new Stripe customer for: ${customer.email}');
-
-      // Create new customer if none exists
-      final createResponse = await _makeApiCall(
-        'POST',
-        '/customers',
-        body: {
-          'email': customer.email,
-          'name': customer.name,
-          'phone': customer.phone ?? '',
-          'metadata': {
-            'firebase_uid': customer.id,
-            'source': 'shamil_app',
-            'created_at': DateTime.now().toIso8601String(),
-          },
-        },
-      );
-
-      final customerData = json.decode(createResponse.body);
-      debugPrint('✅ Created new Stripe customer: ${customerData['id']}');
-      return customerData['id'];
+      return await _createStripeCustomer(customer);
     } catch (e) {
       debugPrint('❌ Error ensuring customer exists: $e');
       // For production, we should handle this more gracefully
@@ -98,12 +86,41 @@ class StripeService {
     }
   }
 
+  /// Check if customer is a guest customer
+  bool _isGuestCustomer(String customerId) {
+    return customerId.startsWith('guest_');
+  }
+
   /// Check if customer is a demo/temp customer
   bool _isDemoCustomer(String customerId) {
     return customerId.startsWith('temp_') ||
         customerId.startsWith('user_') ||
         customerId.startsWith('demo_') ||
         customerId == 'current_user_id';
+  }
+
+  /// Create a new customer in Stripe
+  Future<String> _createStripeCustomer(PaymentCustomer customer) async {
+    final createResponse = await _makeApiCall(
+      'POST',
+      '/customers',
+      body: {
+        'email': customer.email,
+        'name': customer.name,
+        'phone': customer.phone ?? '',
+        'metadata': {
+          'firebase_uid': customer.id,
+          'source': 'shamil_app',
+          'created_at': DateTime.now().toIso8601String(),
+          'customer_type':
+              _isGuestCustomer(customer.id) ? 'guest' : 'registered',
+        },
+      },
+    );
+
+    final customerData = json.decode(createResponse.body);
+    debugPrint('✅ Created new Stripe customer: ${customerData['id']}');
+    return customerData['id'];
   }
 
   /// Create payment intent for reservation
@@ -328,11 +345,35 @@ class StripeService {
     }
   }
 
+  /// Create payment intent (public method for UI widget)
+  Future<Map<String, dynamic>> createPaymentIntent({
+    required double amount,
+    required Currency currency,
+    required PaymentCustomer customer,
+    required String description,
+    Map<String, dynamic>? metadata,
+  }) async {
+    _ensureInitialized();
+
+    // Ensure customer exists in Stripe
+    final stripeCustomerId = await _ensureCustomerExists(customer);
+    debugPrint('✅ Stripe customer ID: $stripeCustomerId');
+
+    return await _createPaymentIntent(
+      amount: amount,
+      currency: currency,
+      customer: customer.copyWith(id: stripeCustomerId),
+      description: description,
+      metadata: metadata,
+    );
+  }
+
   // Private methods
 
   void _ensureInitialized() {
     if (!_isInitialized) {
-      throw StripeServiceException('Stripe service not initialized');
+      throw StripeServiceException(
+          'Stripe service not initialized. Call initialize() first.');
     }
   }
 

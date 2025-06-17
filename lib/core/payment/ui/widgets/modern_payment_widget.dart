@@ -47,7 +47,6 @@ class _ModernPaymentWidgetState extends State<ModernPaymentWidget>
   // Animations
   late Animation<Offset> _slideAnimation;
   late Animation<double> _pulseAnimation;
-  late Animation<double> _successAnimation;
 
   // State management
   bool _isLoading = false;
@@ -103,14 +102,6 @@ class _ModernPaymentWidgetState extends State<ModernPaymentWidget>
     ).animate(CurvedAnimation(
       parent: _pulseController,
       curve: Curves.easeInOut,
-    ));
-
-    _successAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _successController,
-      curve: Curves.elasticOut,
     ));
 
     _slideController.forward();
