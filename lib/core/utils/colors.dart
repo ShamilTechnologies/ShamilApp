@@ -17,6 +17,10 @@ class AppColors {
   /// Usage: Deep dark backgrounds, modern dark theme base
   static const Color deepSpaceNavy = Color(0xFF0A0E1A);
 
+  /// Splash Background - Premium splash screen background
+  /// Usage: Splash screen background, premium dark contexts
+  static const Color splashBackground = Color(0xFF080F21);
+
   /// Medium Blue - Secondary brand complement
   /// Usage: Secondary accents, complementary elements
   static const Color secondaryColor = Color(0xFF6385C3);

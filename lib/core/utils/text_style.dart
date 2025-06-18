@@ -10,35 +10,38 @@ TextStyle _baseTextStyle({
   FontWeight fontWeight = FontWeight.normal,
   Color? color,
   double? height,
-  String fontFamily = 'Cairo', // Default to theme font
+  String fontFamily =
+      'BalooBhaijaan2', // Default to BalooBhaijaan2 for entire app
 }) {
-  // Use GoogleFonts if needed: return GoogleFonts.cairo(...)
   return TextStyle(
     fontFamily: fontFamily,
     fontSize: fontSize,
     fontWeight: fontWeight,
-    color: color ?? AppColors.primaryColor.withOpacity(0.85), // Default text color slightly muted
+    color: color ??
+        AppColors.primaryColor
+            .withOpacity(0.85), // Default text color slightly muted
     height: height, // Line height
   );
 }
 
-
 // Headline Styles (Large text, typically for page titles)
-TextStyle getHeadlineTextStyle({
-    double fontSize = 28, // Adjusted default size
+TextStyle getHeadlineTextStyle(
+    {double fontSize = 28, // Adjusted default size
     FontWeight fontWeight = FontWeight.bold,
     Color? color}) {
   return _baseTextStyle(
     fontSize: fontSize,
     fontWeight: fontWeight,
-    color: color ?? AppColors.primaryColor, // Headlines often use primary color directly
+    color: color ??
+        AppColors.primaryColor, // Headlines often use primary color directly
   );
 }
 
 // Title Styles (Section headers, list tile titles)
-TextStyle getTitleStyle({
-    double fontSize = 18, // Adjusted default size
-    FontWeight fontWeight = FontWeight.w600, // Semi-bold is often good for titles
+TextStyle getTitleStyle(
+    {double fontSize = 18, // Adjusted default size
+    FontWeight fontWeight =
+        FontWeight.w600, // Semi-bold is often good for titles
     Color? color}) {
   return _baseTextStyle(
     fontSize: fontSize,
@@ -48,8 +51,8 @@ TextStyle getTitleStyle({
 }
 
 // Body Styles (Regular text content)
-TextStyle getbodyStyle({
-    double fontSize = 15, // Adjusted default size
+TextStyle getbodyStyle(
+    {double fontSize = 15, // Adjusted default size
     FontWeight fontWeight = FontWeight.normal,
     Color? color,
     double? height}) {
@@ -62,20 +65,22 @@ TextStyle getbodyStyle({
 }
 
 // Small Styles (Captions, helper text, metadata)
-TextStyle getSmallStyle({
-    double fontSize = 12, // Adjusted default size
+TextStyle getSmallStyle(
+    {double fontSize = 12, // Adjusted default size
     FontWeight fontWeight = FontWeight.normal,
     Color? color}) {
   return _baseTextStyle(
     fontSize: fontSize,
     fontWeight: fontWeight,
-    color: color ?? AppColors.secondaryColor, // Secondary color often suitable for small text
+    color: color ??
+        AppColors
+            .secondaryColor, // Secondary color often suitable for small text
   );
 }
 
 // Specific style for buttons (can be customized further)
-TextStyle getButtonStyle({
-    double fontSize = 16,
+TextStyle getButtonStyle(
+    {double fontSize = 16,
     FontWeight fontWeight = FontWeight.w600,
     Color? color}) {
   return _baseTextStyle(
@@ -85,11 +90,10 @@ TextStyle getButtonStyle({
   );
 }
 
-
 // Example of a specific style if needed (e.g., for home screen heading)
 // Kept for reference, but prefer using the main styles above for consistency
-TextStyle getHomeHeadingStyle({
-    double fontSize = 18,
+TextStyle getHomeHeadingStyle(
+    {double fontSize = 18,
     fontWeight = FontWeight.normal,
     Color? color,
     FontStyle? fontStyle, // Changed from fontFamily

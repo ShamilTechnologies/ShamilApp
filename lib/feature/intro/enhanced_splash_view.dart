@@ -5,33 +5,31 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
-import 'package:shamil_mobile_app/feature/intro/onBoarding/on_boarding_view.dart';
+import 'package:shamil_mobile_app/feature/intro/onBoarding/enhanced_onboarding_view.dart';
 import 'package:shamil_mobile_app/core/constants/assets_icons.dart';
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
 import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
+import 'package:shamil_mobile_app/core/utils/text_style.dart';
 
-class SplashView extends StatefulWidget {
-  const SplashView({super.key});
+class EnhancedSplashView extends StatefulWidget {
+  const EnhancedSplashView({super.key});
 
   @override
-  State<SplashView> createState() => _SplashViewState();
+  State<EnhancedSplashView> createState() => _EnhancedSplashViewState();
 }
 
-class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
+class _EnhancedSplashViewState extends State<EnhancedSplashView>
+    with TickerProviderStateMixin {
   // Animation Controllers
   late AnimationController _appNameController;
   late AnimationController _logoController;
-  late AnimationController _floatingElementsController;
-  late AnimationController _backgroundController;
 
   // Animations
   late Animation<double> _appNameFadeAnimation;
   late Animation<double> _appNameScaleAnimation;
   late Animation<double> _logoFadeAnimation;
   late Animation<double> _logoScaleAnimation;
-  late Animation<double> _floatingElementsAnimation;
-  late Animation<double> _backgroundAnimation;
 
   // Logo animation progress
   double _logoProgress = 0.0;
@@ -55,18 +53,6 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
     // Logo animation controller
     _logoController = AnimationController(
       duration: const Duration(milliseconds: 3000),
-      vsync: this,
-    );
-
-    // Floating elements controller
-    _floatingElementsController = AnimationController(
-      duration: const Duration(milliseconds: 4000),
-      vsync: this,
-    );
-
-    // Background animation controller
-    _backgroundController = AnimationController(
-      duration: const Duration(milliseconds: 5000),
       vsync: this,
     );
 
@@ -120,22 +106,6 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
       ),
     );
 
-    // Floating elements animation
-    _floatingElementsAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _floatingElementsController,
-        curve: Curves.easeInOut,
-      ),
-    );
-
-    // Background animation
-    _backgroundAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _backgroundController,
-        curve: Curves.easeInOut,
-      ),
-    );
-
     // Listen for app name animation completion
     _appNameController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -163,12 +133,6 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
   }
 
   void _startAnimationSequence() {
-    // Start floating elements immediately
-    _floatingElementsController.repeat(reverse: true);
-
-    // Start background animation
-    _backgroundController.forward();
-
     // Start app name animation after a brief delay
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -198,8 +162,11 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
           AppLocalStorage.getData(key: AppLocalStorage.isOnboardingShown) ??
               false;
 
+      debugPrint(
+          "EnhancedSplashView Navigating: OnboardingShown=$onboardingShown, AuthState=${state.runtimeType}");
+
       if (!onboardingShown) {
-        targetScreen = const OnBoardingView();
+        targetScreen = const EnhancedOnboardingView();
       } else if (state is LoginSuccessState) {
         targetScreen = const MainNavigationView();
       } else if (state is AwaitingVerificationState) {
@@ -208,13 +175,37 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
         targetScreen = const LoginView();
       }
 
-      // Smooth transition with fade
+      // Enhanced transition with slide and fade for onboarding
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
           pageBuilder: (context, animation, _) => targetScreen,
-          transitionDuration: const Duration(milliseconds: 800),
+          transitionDuration: const Duration(milliseconds: 1000),
           transitionsBuilder: (context, animation, _, child) {
+            // Special transition for onboarding to create continuity
+            if (targetScreen.runtimeType.toString() ==
+                'EnhancedOnboardingView') {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.0, 0.3),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                )),
+                child: FadeTransition(
+                  opacity: Tween<double>(
+                    begin: 0.0,
+                    end: 1.0,
+                  ).animate(CurvedAnimation(
+                    parent: animation,
+                    curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
+                  )),
+                  child: child,
+                ),
+              );
+            }
+            // Default fade transition for other screens
             return FadeTransition(
               opacity: animation,
               child: child,
@@ -223,7 +214,7 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
         ),
       );
     } catch (e) {
-      debugPrint("Error in splash navigation: $e");
+      debugPrint("Error in enhanced splash navigation: $e");
       if (mounted) {
         pushReplacement(context, const LoginView());
       }
@@ -234,8 +225,6 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
   void dispose() {
     _appNameController.dispose();
     _logoController.dispose();
-    _floatingElementsController.dispose();
-    _backgroundController.dispose();
     super.dispose();
   }
 
@@ -244,30 +233,16 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
     final size = MediaQuery.of(context).size;
     final isTablet = size.shortestSide >= 600;
     final logoSize = isTablet ? 320.0 : min(size.width * 0.7, 280.0);
+    final appNameSize = isTablet ? 32.0 : 28.0; // Smaller text size
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.splashBackground,
-              AppColors.splashBackground.withOpacity(0.9),
-              AppColors.deepSpaceNavy.withOpacity(0.8),
-              AppColors.splashBackground,
-            ],
-            stops: const [0.0, 0.3, 0.7, 1.0],
-          ),
-        ),
+        color: AppColors.splashBackground, // Simple dark background only
         child: Stack(
           children: [
-            // Animated background orbs
-            ..._buildFloatingOrbs(size),
-
             // Main content
             Center(
               child: AnimatedSwitcher(
@@ -275,7 +250,7 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
                 switchInCurve: Curves.easeInOut,
                 switchOutCurve: Curves.easeInOut,
                 child: _showAppName
-                    ? _buildAppNameSection()
+                    ? _buildAppNameSection(appNameSize)
                     : _buildLogoSection(logoSize),
               ),
             ),
@@ -285,88 +260,10 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
     );
   }
 
-  List<Widget> _buildFloatingOrbs(Size size) {
-    return [
-      // Large teal orb
-      AnimatedBuilder(
-        animation: _floatingElementsAnimation,
-        builder: (context, child) {
-          return Positioned(
-            top: 100 + (50 * sin(_floatingElementsAnimation.value * 2 * pi)),
-            right: -80 + (30 * cos(_floatingElementsAnimation.value * 2 * pi)),
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.tealColor.withOpacity(0.3),
-                    AppColors.tealColor.withOpacity(0.1),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-
-      // Medium premium blue orb
-      AnimatedBuilder(
-        animation: _floatingElementsAnimation,
-        builder: (context, child) {
-          return Positioned(
-            bottom: 150 + (40 * cos(_floatingElementsAnimation.value * 3 * pi)),
-            left: -60 + (25 * sin(_floatingElementsAnimation.value * 3 * pi)),
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.premiumBlue.withOpacity(0.2),
-                    AppColors.premiumBlue.withOpacity(0.05),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-
-      // Small accent orb
-      AnimatedBuilder(
-        animation: _floatingElementsAnimation,
-        builder: (context, child) {
-          return Positioned(
-            top: size.height * 0.3 +
-                (20 * sin(_floatingElementsAnimation.value * 4 * pi)),
-            left: 50 + (15 * cos(_floatingElementsAnimation.value * 4 * pi)),
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.accentColor.withOpacity(0.15),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    ];
-  }
-
-  Widget _buildAppNameSection() {
+  Widget _buildAppNameSection(double fontSize) {
     return AnimatedBuilder(
       animation: _appNameController,
+      key: const ValueKey('appName'),
       builder: (context, child) {
         return FadeTransition(
           opacity: _appNameFadeAnimation,
@@ -377,33 +274,12 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
               children: [
                 Text(
                   'ShamilApp',
-                  style: TextStyle(
-                    fontFamily: 'BaloooBhaijaan',
-                    fontSize: 48,
+                  style: getHeadlineTextStyle(
+                    fontSize: fontSize,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
+                  ).copyWith(
                     letterSpacing: -1.0,
-                    shadows: [
-                      Shadow(
-                        color: AppColors.tealColor.withOpacity(0.5),
-                        blurRadius: 20,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  height: 3,
-                  width: 100,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.tealColor,
-                        AppColors.premiumBlue,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ],
@@ -417,6 +293,7 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
   Widget _buildLogoSection(double logoSize) {
     return AnimatedBuilder(
       animation: _logoController,
+      key: const ValueKey('logo'),
       builder: (context, child) {
         return FadeTransition(
           opacity: _logoFadeAnimation,
@@ -425,24 +302,16 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  width: logoSize,
-                  height: logoSize,
-                  child: StrokeToFillLogo(
-                    logoPath: AssetsIcons.logoSvg,
-                    brandColor: AppColors.tealColor,
-                    progress: _logoProgress,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                Text(
-                  'shamil platform',
-                  style: TextStyle(
-                    fontFamily: 'BaloooBhaijaan',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withOpacity(0.9),
-                    letterSpacing: 1.0,
+                Hero(
+                  tag: 'app_logo',
+                  child: SizedBox(
+                    width: logoSize,
+                    height: logoSize,
+                    child: StrokeToFillLogo(
+                      logoPath: AssetsIcons.logoSvg,
+                      brandColor: AppColors.tealColor,
+                      progress: _logoProgress,
+                    ),
                   ),
                 ),
               ],
@@ -470,48 +339,81 @@ class StrokeToFillLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Stroke Layer (always visible at 30% opacity)
-        SvgPicture.asset(
-          logoPath,
-          fit: BoxFit.contain,
-          colorFilter: ColorFilter.mode(
-            brandColor.withOpacity(0.3),
-            BlendMode.srcIn,
-          ),
-        ),
-
-        // Fill Layer (progressively revealed)
-        ShaderMask(
-          shaderCallback: (Rect bounds) {
-            return LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [
-                brandColor, // Visible area
-                brandColor, // Visible area
-                Colors.transparent, // Hidden area
-                Colors.transparent, // Hidden area
-              ],
-              stops: [
-                0.0,
-                progress, // Dynamic boundary
-                progress, // Sharp transition
-                1.0,
-              ],
-            ).createShader(bounds);
-          },
-          child: SvgPicture.asset(
+    return RepaintBoundary(
+      child: Stack(
+        children: [
+          // Stroke Layer (always visible at 30% opacity)
+          SvgPicture.asset(
             logoPath,
             fit: BoxFit.contain,
             colorFilter: ColorFilter.mode(
-              brandColor,
+              brandColor.withOpacity(0.3),
               BlendMode.srcIn,
             ),
           ),
-        ),
-      ],
+
+          // Fill Layer (progressively revealed)
+          ShaderMask(
+            shaderCallback: (Rect bounds) {
+              return LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  brandColor, // Visible area
+                  brandColor, // Visible area
+                  Colors.transparent, // Hidden area
+                  Colors.transparent, // Hidden area
+                ],
+                stops: [
+                  0.0,
+                  progress, // Dynamic boundary
+                  progress, // Sharp transition
+                  1.0,
+                ],
+              ).createShader(bounds);
+            },
+            child: SvgPicture.asset(
+              logoPath,
+              fit: BoxFit.contain,
+              colorFilter: ColorFilter.mode(
+                brandColor,
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+
+          // Glow effect when filling
+          if (progress > 0.1)
+            ShaderMask(
+              shaderCallback: (Rect bounds) {
+                return LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    brandColor.withOpacity(0.5),
+                    brandColor.withOpacity(0.5),
+                    Colors.transparent,
+                    Colors.transparent,
+                  ],
+                  stops: [
+                    0.0,
+                    max(0.0, progress - 0.1),
+                    progress,
+                    1.0,
+                  ],
+                ).createShader(bounds);
+              },
+              child: SvgPicture.asset(
+                logoPath,
+                fit: BoxFit.contain,
+                colorFilter: ColorFilter.mode(
+                  brandColor,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

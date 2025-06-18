@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/core/utils/themes.dart';
-import 'package:shamil_mobile_app/feature/intro/splash_view.dart';
+import 'package:shamil_mobile_app/feature/intro/enhanced_splash_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/firebase_options.dart';
 // import 'package:shamil_mobile_app/storage_service.dart'; // Keep if used elsewhere
@@ -414,7 +414,7 @@ class _MainAppState extends State<MainApp> {
       debugShowCheckedModeBanner: false,
       title: 'Shamil App',
       theme: AppThemes.lightTheme,
-      home: const SplashView(),
+      home: const EnhancedSplashView(),
       routes: {
         '/login': (context) => const LoginView(),
         '/home': (context) => const MainNavigationView(),

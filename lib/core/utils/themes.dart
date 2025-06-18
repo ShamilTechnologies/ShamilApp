@@ -4,7 +4,8 @@ import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Import text st
 
 class AppThemes {
   static ThemeData lightTheme = ThemeData(
-      fontFamily: 'Cairo', // Consistent font family
+      fontFamily:
+          'BalooBhaijaan2', // Consistent font family using Baloo Bhaijaan
 
       // Set scaffoldBackgroundColor - Use accent color lightly or pure white
       scaffoldBackgroundColor:
