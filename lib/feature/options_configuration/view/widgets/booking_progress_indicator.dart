@@ -598,3 +598,4 @@ class _BookingProgressIndicatorState extends State<BookingProgressIndicator>
     );
   }
 }
+ 

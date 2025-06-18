@@ -7,6 +7,7 @@ import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_mo
     show AttendeeModel;
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/models/options_configuration_models.dart';
+import 'package:shamil_mobile_app/core/payment/models/payment_models.dart';
 
 abstract class OptionsConfigurationEvent extends Equatable {
   const OptionsConfigurationEvent();

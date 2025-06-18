@@ -260,6 +260,86 @@ class FirebaseDataOrchestrator {
     }
   }
 
+  /// Update reservation status directly (for already verified payments)
+  Future<void> updateReservationStatus({
+    required String reservationId,
+    required ReservationStatus status,
+    required String paymentStatus,
+  }) async {
+    if (currentUserId == null) throw Exception('User must be logged in');
+
+    final batch = _firestore.batch();
+
+    try {
+      // Get reservation details first
+      final reservationDoc = await _firestore
+          .collection(_endUsersCollection)
+          .doc(currentUserId!)
+          .collection('reservations')
+          .doc(reservationId)
+          .get();
+
+      if (!reservationDoc.exists) {
+        throw Exception('Reservation not found');
+      }
+
+      final reservationData = reservationDoc.data()!;
+      final providerId = reservationData['providerId'] as String;
+
+      // Update reservation status in user's collection
+      batch.update(reservationDoc.reference, {
+        'status': status.statusString,
+        'paymentStatus': paymentStatus,
+        'confirmedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // If confirming a pending reservation, move it to confirmed collection
+      if (status == ReservationStatus.confirmed) {
+        final pendingRef = _firestore
+            .collection(_serviceProvidersCollection)
+            .doc(providerId)
+            .collection('pendingReservations')
+            .doc(reservationId);
+
+        final confirmedRef = _firestore
+            .collection(_serviceProvidersCollection)
+            .doc(providerId)
+            .collection('confirmedReservations')
+            .doc(reservationId);
+
+        // Remove from pending
+        batch.delete(pendingRef);
+
+        // Add to confirmed
+        batch.set(confirmedRef, {
+          'reservationId': reservationId,
+          'userId': currentUserId!,
+          'confirmedAt': FieldValue.serverTimestamp(),
+          'status': 'confirmed',
+        });
+
+        // Update provider statistics
+        final providerStatsRef =
+            _firestore.collection(_serviceProvidersCollection).doc(providerId);
+
+        batch.update(providerStatsRef, {
+          'pendingReservations': FieldValue.increment(-1),
+          'confirmedReservations': FieldValue.increment(1),
+          'lastConfirmationAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      debugPrint(
+          '✅ Reservation $reservationId status updated to ${status.statusString}');
+    } catch (e) {
+      debugPrint('Error updating reservation status: $e');
+      rethrow;
+    }
+  }
+
   /// Fetches user reservations with real-time updates
   Stream<List<ReservationModel>> getUserReservationsStream() {
     if (currentUserId == null) return Stream.value([]);

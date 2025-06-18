@@ -41,9 +41,9 @@ class PaymentEnvironmentConfig {
         return PaymentEnvironment.production;
       case 'staging':
       case 'stage':
-      return PaymentEnvironment.staging;
+        return PaymentEnvironment.staging;
       default:
-      return PaymentEnvironment.development;
+        return PaymentEnvironment.development;
     }
   }
 
@@ -168,8 +168,8 @@ class PaymentEnvironmentConfig {
       debugPrint('Default currency: ${currencyConfig.defaultCurrency.name}');
       debugPrint('=============================');
     }
-    }
   }
+}
 
 /// Stripe configuration model
 class StripeConfig extends PaymentGatewayConfig {

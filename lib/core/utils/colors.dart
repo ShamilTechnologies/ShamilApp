@@ -39,6 +39,14 @@ class AppColors {
   /// Usage: Community navigation, electric highlights
   static const Color electricBlue = Color(0xFF00D4FF);
 
+  /// Premium Blue - Signature premium color from configuration screen
+  /// Usage: Premium buttons, premium containers, premium highlights
+  static const Color premiumBlue = Color(0xFF3B82F6);
+
+  /// Bottom Sheet Background - Deep dark blue for bottom sheets and feedback dialogs
+  /// Usage: Bottom sheets, feedback dialogs, modal backgrounds
+  static const Color bottomSheetBackground = Color(0xFF080F21);
+
   // ==================== BACKGROUND SYSTEM ====================
 
   /// Light Background - Off-white for light themes
@@ -208,6 +216,17 @@ class AppColors {
         colors: [
           tealColor,
           Color(0xCC20C997), // tealColor at 80%
+        ],
+      );
+
+  /// Premium Configuration Gradient
+  /// Usage: Premium buttons, cards, and containers to match configuration screen
+  static LinearGradient get premiumConfigGradient => const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          premiumBlue,
+          tealColor,
         ],
       );
 

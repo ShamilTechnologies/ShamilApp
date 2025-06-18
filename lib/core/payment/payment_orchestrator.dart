@@ -134,15 +134,15 @@ class PaymentOrchestrator {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: StripePaymentWidget(
-                          paymentRequest: paymentRequest,
+            paymentRequest: paymentRequest,
                           onPaymentComplete: (response) {
                             Navigator.of(context).pop(response);
                           },
                           onError: (error) {
                             debugPrint('Payment error: $error');
                           },
-                          showSavedMethods: showSavedMethods,
-                          customerId: customerId,
+            showSavedMethods: showSavedMethods,
+            customerId: customerId,
                           onCancel: () => Navigator.of(context).pop(),
                         ),
                       ),
@@ -184,7 +184,7 @@ class PaymentOrchestrator {
               opacity: fadeAnimation,
               child: ScaleTransition(
                 scale: scaleAnimation,
-                child: child,
+              child: child,
               ),
             ),
           );

@@ -70,7 +70,7 @@ class BookingPreferencesStep extends StatelessWidget {
       gradient: [
         const Color(0xFF0A0E1A),
         AppColors.cyanColor.withOpacity(0.15),
-        AppColors.primaryColor.withOpacity(0.1),
+        AppColors.premiumBlue.withOpacity(0.1),
       ],
       shadowColor: AppColors.cyanColor,
       child: _buildPreferencesContent(),
@@ -183,8 +183,8 @@ class BookingPreferencesStep extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    AppColors.primaryColor.withOpacity(0.3),
-                    AppColors.primaryColor.withOpacity(0.1),
+                    AppColors.premiumBlue.withOpacity(0.3),
+                    AppColors.premiumBlue.withOpacity(0.1),
                   ],
                 )
               : LinearGradient(
@@ -196,14 +196,14 @@ class BookingPreferencesStep extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
-                ? AppColors.primaryColor.withOpacity(0.5)
+                ? AppColors.premiumBlue.withOpacity(0.5)
                 : Colors.white.withOpacity(0.1),
             width: isSelected ? 2 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.primaryColor.withOpacity(0.2),
+                    color: AppColors.premiumBlue.withOpacity(0.2),
                     blurRadius: 15,
                     offset: const Offset(0, 6),
                   ),
@@ -217,12 +217,7 @@ class BookingPreferencesStep extends StatelessWidget {
               height: 52,
               decoration: BoxDecoration(
                 gradient: isSelected
-                    ? LinearGradient(
-                        colors: [
-                          AppColors.primaryColor,
-                          AppColors.primaryColor.withOpacity(0.8),
-                        ],
-                      )
+                    ? AppColors.premiumConfigGradient
                     : LinearGradient(
                         colors: [
                           Colors.white.withOpacity(0.2),
@@ -233,7 +228,7 @@ class BookingPreferencesStep extends StatelessWidget {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: AppColors.primaryColor.withOpacity(0.3),
+                          color: AppColors.premiumBlue.withOpacity(0.3),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),

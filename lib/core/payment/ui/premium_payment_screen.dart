@@ -1079,3 +1079,4 @@ class PaymentSummaryItem {
     this.color,
   });
 }
+ 

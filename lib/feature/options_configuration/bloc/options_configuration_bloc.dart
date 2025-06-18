@@ -19,6 +19,8 @@ import 'package:shamil_mobile_app/feature/options_configuration/models/options_c
 import 'package:shamil_mobile_app/feature/reservation/services/email_template_service.dart';
 import 'package:shamil_mobile_app/feature/reservation/services/notification_service.dart';
 import 'package:shamil_mobile_app/feature/reservation/services/calendar_integration_service.dart';
+import 'package:shamil_mobile_app/core/payment/models/payment_models.dart'
+    as payment;
 import 'package:flutter/foundation.dart';
 
 part 'options_configuration_state.dart';
@@ -577,6 +579,29 @@ class OptionsConfigurationBloc
         newReservation = reservation.copyWith(id: confirmationId);
 
         print('✅ Reservation created successfully with ID: $confirmationId');
+
+        // Since we're only calling ConfirmConfiguration after successful payment,
+        // we should automatically confirm the reservation payment
+        if (event.paymentSuccessful == true) {
+          print(
+              '💳 Payment was successful, updating reservation status to confirmed...');
+
+          // Since payment was already verified during the payment process,
+          // we can directly update the reservation status to confirmed
+          await firebaseDataOrchestrator.updateReservationStatus(
+            reservationId: confirmationId,
+            status: ReservationStatus.confirmed,
+            paymentStatus: 'completed',
+          );
+
+          print('✅ Reservation status updated to confirmed');
+
+          // Update the reservation object to reflect confirmed status
+          newReservation = newReservation!.copyWith(
+            status: ReservationStatus.confirmed,
+            paymentStatus: 'completed',
+          );
+        }
 
         // Add to calendar if enabled
         if (state.addToCalendar && state.selectedDate != null) {

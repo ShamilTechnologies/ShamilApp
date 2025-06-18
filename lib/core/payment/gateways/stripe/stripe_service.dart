@@ -313,36 +313,64 @@ class StripeService {
     }
   }
 
-  /// Verify payment status
+  /// Verify payment status with retry logic for timing issues
   Future<PaymentResponse> verifyPayment({
     required String paymentIntentId,
+    int maxRetries = 3,
+    Duration retryDelay = const Duration(seconds: 2),
   }) async {
     _ensureInitialized();
 
-    try {
-      final response = await _makeApiCall(
-        'GET',
-        '/payment_intents/$paymentIntentId',
-      );
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        final response = await _makeApiCall(
+          'GET',
+          '/payment_intents/$paymentIntentId',
+        );
 
-      final data = json.decode(response.body);
+        final data = json.decode(response.body);
+        final status = data['status'] as String;
 
-      return PaymentResponse(
-        id: data['id'],
-        status: _mapStripeStatus(data['status']),
-        amount: (data['amount'] as int) / 100.0,
-        currency: Currency.values.firstWhere(
-          (c) => c.name.toLowerCase() == data['currency'],
-          orElse: () => Currency.egp,
-        ),
-        gateway: PaymentGateway.stripe,
-        gatewayResponse: data,
-        timestamp: DateTime.fromMillisecondsSinceEpoch(data['created'] * 1000),
-      );
-    } catch (e) {
-      debugPrint('Error verifying payment: $e');
-      rethrow;
+        debugPrint(
+            '🔍 Payment verification attempt $attempt: status = $status');
+
+        // If payment is still processing and we have retries left, wait and retry
+        if ((status == 'processing' || status == 'requires_action') &&
+            attempt < maxRetries) {
+          debugPrint(
+              '⏳ Payment still processing, waiting ${retryDelay.inSeconds}s before retry...');
+          await Future.delayed(retryDelay);
+          continue;
+        }
+
+        final paymentResponse = PaymentResponse(
+          id: data['id'],
+          status: _mapStripeStatus(status),
+          amount: (data['amount'] as int) / 100.0,
+          currency: Currency.values.firstWhere(
+            (c) => c.name.toLowerCase() == data['currency'],
+            orElse: () => Currency.egp,
+          ),
+          gateway: PaymentGateway.stripe,
+          gatewayResponse: data,
+          timestamp:
+              DateTime.fromMillisecondsSinceEpoch(data['created'] * 1000),
+        );
+
+        debugPrint(
+            '✅ Payment verification final result: ${paymentResponse.status.name}');
+        return paymentResponse;
+      } catch (e) {
+        debugPrint('❌ Payment verification attempt $attempt failed: $e');
+        if (attempt == maxRetries) {
+          debugPrint('❌ All payment verification attempts failed');
+          rethrow;
+        }
+        await Future.delayed(retryDelay);
+      }
     }
+
+    throw Exception('Payment verification failed after $maxRetries attempts');
   }
 
   /// Create payment intent (public method for UI widget)
@@ -531,18 +559,30 @@ class StripeService {
   }
 
   PaymentStatus _mapStripeStatus(String status) {
+    debugPrint('🔍 Mapping Stripe status: $status');
+
     switch (status) {
       case 'succeeded':
+        debugPrint('✅ Status mapped to: completed');
         return PaymentStatus.completed;
       case 'processing':
+        debugPrint('⏳ Status mapped to: processing');
         return PaymentStatus.processing;
       case 'requires_payment_method':
+        debugPrint('❓ Status mapped to: pending (requires_payment_method)');
+        return PaymentStatus.pending;
       case 'requires_confirmation':
+        debugPrint('❓ Status mapped to: pending (requires_confirmation)');
+        return PaymentStatus.pending;
       case 'requires_action':
+        debugPrint('❓ Status mapped to: pending (requires_action)');
         return PaymentStatus.pending;
       case 'canceled':
+      case 'cancelled':
+        debugPrint('❌ Status mapped to: cancelled');
         return PaymentStatus.cancelled;
       default:
+        debugPrint('❌ Unknown status "$status" mapped to: failed');
         return PaymentStatus.failed;
     }
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart' as app_text_style;
@@ -8,10 +7,11 @@ import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
 import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_configuration_bloc.dart';
-import 'package:shamil_mobile_app/core/payment/payment_orchestrator.dart';
 import 'package:shamil_mobile_app/core/payment/models/payment_models.dart';
+import 'package:shamil_mobile_app/feature/options_configuration/view/components/payment_method_selector.dart';
+import '../shared/step_header.dart';
 
-/// Ultra-premium payment step with full Stripe integration and fintech-grade UI
+/// Ultra-premium payment step using the new PaymentMethodSelector
 class BookingPaymentStep extends StatefulWidget {
   final OptionsConfigurationState state;
   final ServiceProviderModel provider;
@@ -24,6 +24,7 @@ class BookingPaymentStep extends StatefulWidget {
   final VoidCallback onPaymentSuccess;
   final Function(String?) onPaymentFailure;
   final Function(VoidCallback?)? onPaymentTriggerReady;
+  final Function(String)? onPaymentMethodChanged;
 
   const BookingPaymentStep({
     super.key,
@@ -38,100 +39,25 @@ class BookingPaymentStep extends StatefulWidget {
     required this.onPaymentSuccess,
     required this.onPaymentFailure,
     this.onPaymentTriggerReady,
+    this.onPaymentMethodChanged,
   });
 
   @override
   State<BookingPaymentStep> createState() => _BookingPaymentStepState();
 }
 
-class _BookingPaymentStepState extends State<BookingPaymentStep>
-    with TickerProviderStateMixin {
-  late AnimationController _shimmerController;
-  late AnimationController _pulseController;
-  late Animation<double> _shimmerAnimation;
-  late Animation<double> _pulseAnimation;
-
-  String _selectedPaymentMethod = 'stripe_card';
-  bool _isProcessingPayment = false;
-
-  final List<PaymentMethodOption> _paymentMethods = [
-    PaymentMethodOption(
-      id: 'stripe_card',
-      name: 'Card Payment',
-      description: 'Visa, Mastercard, Amex',
-      icon: CupertinoIcons.creditcard_fill,
-      color: AppColors.primaryColor,
-      isRecommended: true,
-    ),
-    PaymentMethodOption(
-      id: 'apple_pay',
-      name: 'Apple Pay',
-      description: 'Touch ID, Face ID, or Apple Watch',
-      icon: CupertinoIcons.device_phone_portrait,
-      color: AppColors.darkText,
-    ),
-    PaymentMethodOption(
-      id: 'google_pay',
-      name: 'Google Pay',
-      description: 'Quick & secure Google payments',
-      icon: CupertinoIcons.money_dollar_circle,
-      color: AppColors.successColor,
-    ),
-    PaymentMethodOption(
-      id: 'cash',
-      name: 'Pay on Arrival',
-      description: 'Cash payment at the venue',
-      icon: CupertinoIcons.money_dollar_circle_fill,
-      color: AppColors.orangeColor,
-    ),
-  ];
+class _BookingPaymentStepState extends State<BookingPaymentStep> {
+  String _selectedPaymentMethod = 'stripeSheet';
 
   @override
   void initState() {
     super.initState();
-    _initializeAnimations();
 
-    // Set up the payment trigger callback
+    // Set up the payment trigger callback if needed
     if (widget.onPaymentTriggerReady != null) {
-      widget.onPaymentTriggerReady!(processPayment);
+      widget.onPaymentTriggerReady!(
+          null); // No external trigger needed with PaymentMethodSelector
     }
-  }
-
-  void _initializeAnimations() {
-    _shimmerController = AnimationController(
-      duration: const Duration(milliseconds: 2200),
-      vsync: this,
-    );
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-
-    _shimmerAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _shimmerController,
-      curve: Curves.easeInOut,
-    ));
-
-    _pulseAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.03,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
-
-    _shimmerController.repeat(reverse: true);
-    _pulseController.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _shimmerController.dispose();
-    _pulseController.dispose();
-    super.dispose();
   }
 
   @override
@@ -145,16 +71,18 @@ class _BookingPaymentStepState extends State<BookingPaymentStep>
             opacity: widget.contentAnimation.value,
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(20),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildPaymentHeader(),
-                  const Gap(32),
-                  _buildBookingSummary(),
-                  const Gap(28),
-                  _buildPaymentMethods(),
+                  const StepHeader(
+                    title: 'Complete Payment',
+                    subtitle: 'Secure payment to confirm your booking',
+                  ),
                   const Gap(24),
-                  _buildSecurityBadge(),
-                  const Gap(32),
+                  _buildBookingSummary(),
+                  const Gap(24),
+                  _buildPaymentMethodSelection(),
                 ],
               ),
             ),
@@ -164,113 +92,12 @@ class _BookingPaymentStepState extends State<BookingPaymentStep>
     );
   }
 
-  Widget _buildPaymentHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF0A0E1A),
-            AppColors.primaryColor.withOpacity(0.12),
-            AppColors.tealColor.withOpacity(0.08),
-          ],
-          stops: const [0.0, 0.7, 1.0],
-        ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.15),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 25,
-            offset: const Offset(0, 12),
-          ),
-          BoxShadow(
-            color: AppColors.primaryColor.withOpacity(0.15),
-            blurRadius: 40,
-            offset: const Offset(0, 20),
-            spreadRadius: 5,
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _pulseAnimation.value,
-                child: Container(
-                  width: 84,
-                  height: 84,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppColors.primaryColor,
-                        AppColors.tealColor,
-                        AppColors.successColor,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primaryColor.withOpacity(0.5),
-                        blurRadius: 25,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    CupertinoIcons.lock_shield_fill,
-                    color: Colors.white,
-                    size: 42,
-                  ),
-                ),
-              );
-            },
-          ),
-          const Gap(28),
-          Text(
-            'Secure Payment',
-            style: app_text_style.getTitleStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w900,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const Gap(12),
-          Text(
-            'Your payment is protected by enterprise-grade security',
-            style: app_text_style.getbodyStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildBookingSummary() {
-    final itemName = widget.plan?.name ?? widget.service?.name ?? 'Service';
+    final itemName = widget.service?.name ?? widget.plan?.name ?? 'Service';
+    final totalAttendees = widget.state.selectedAttendees.length +
+        (widget.state.includeUserInBooking ? 1 : 0);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -278,20 +105,28 @@ class _BookingPaymentStepState extends State<BookingPaymentStep>
           end: Alignment.bottomRight,
           colors: [
             const Color(0xFF0A0E1A),
-            Colors.white.withOpacity(0.05),
-            AppColors.tealColor.withOpacity(0.03),
+            AppColors.tealColor.withOpacity(0.15),
+            AppColors.successColor.withOpacity(0.1),
           ],
+          stops: const [0.0, 0.6, 1.0],
         ),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.white.withOpacity(0.15),
-          width: 1.5,
+          color: Colors.white.withOpacity(0.2),
+          width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 50,
+            offset: const Offset(0, 25),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: AppColors.tealColor.withOpacity(0.15),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+            spreadRadius: 5,
           ),
         ],
       ),
@@ -349,24 +184,21 @@ class _BookingPaymentStepState extends State<BookingPaymentStep>
             _buildSummaryRow('Time', widget.state.selectedTime!),
           ],
           const Gap(16),
-          _buildSummaryRow(
-            'Attendees',
-            '${widget.state.selectedAttendees.length + (widget.state.includeUserInBooking ? 1 : 0)} person(s)',
-          ),
-          const Gap(24),
+          _buildSummaryRow('Attendees', '$totalAttendees person(s)'),
+          const Gap(20),
           Container(
-            height: 1.5,
+            height: 1,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
                   Colors.transparent,
-                  Colors.white.withOpacity(0.3),
+                  Colors.white.withOpacity(0.2),
                   Colors.transparent,
                 ],
               ),
             ),
           ),
-          const Gap(24),
+          const Gap(20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -374,39 +206,17 @@ class _BookingPaymentStepState extends State<BookingPaymentStep>
                 'Total Amount',
                 style: app_text_style.getTitleStyle(
                   color: Colors.white,
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              AnimatedBuilder(
-                animation: _shimmerAnimation,
-                builder: (context, child) {
-                  return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.tealColor.withOpacity(0.2),
-                          AppColors.successColor.withOpacity(0.2),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: AppColors.tealColor.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      'EGP ${widget.state.totalPrice.toStringAsFixed(2)}',
-                      style: app_text_style.getTitleStyle(
-                        color: AppColors.tealColor,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  );
-                },
+              Text(
+                'EGP ${widget.state.totalPrice.toStringAsFixed(2)}',
+                style: app_text_style.getTitleStyle(
+                  color: AppColors.tealColor,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
@@ -432,244 +242,287 @@ class _BookingPaymentStepState extends State<BookingPaymentStep>
           style: app_text_style.getbodyStyle(
             color: Colors.white,
             fontSize: 15,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPaymentMethods() {
+  Widget _buildPaymentMethodSelection() {
+    final paymentMethods = [
+      PaymentMethodInfo(
+        id: 'stripeSheet',
+        name: 'Card Payment',
+        description: 'Visa, Mastercard, Amex - Powered by Stripe',
+        icon: CupertinoIcons.creditcard_fill,
+        color: AppColors.premiumBlue,
+        isRecommended: true,
+      ),
+      PaymentMethodInfo(
+        id: 'applePay',
+        name: 'Apple Pay',
+        description: 'Touch ID, Face ID, or Apple Watch',
+        icon: CupertinoIcons.device_phone_portrait,
+        color: AppColors.darkText,
+        isRecommended: false,
+      ),
+      PaymentMethodInfo(
+        id: 'googlePay',
+        name: 'Google Pay',
+        description: 'Quick & secure Google payments',
+        icon: CupertinoIcons.money_dollar_circle,
+        color: AppColors.successColor,
+        isRecommended: false,
+      ),
+      PaymentMethodInfo(
+        id: 'cash',
+        name: 'Pay on Arrival',
+        description: 'Cash payment at the venue',
+        icon: CupertinoIcons.money_dollar_circle_fill,
+        color: AppColors.orangeColor,
+        isRecommended: false,
+      ),
+    ];
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF0A0E1A),
+            AppColors.premiumBlue.withOpacity(0.15),
+            AppColors.tealColor.withOpacity(0.1),
+          ],
+          stops: const [0.0, 0.6, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 50,
+            offset: const Offset(0, 25),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: AppColors.premiumBlue.withOpacity(0.15),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+            spreadRadius: 5,
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Choose Payment Method',
-            style: app_text_style.getTitleStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.premiumBlue,
+                      AppColors.tealColor,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.premiumBlue.withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  CupertinoIcons.creditcard_fill,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const Gap(16),
+              Text(
+                'Choose Payment Method',
+                style: app_text_style.getTitleStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const Gap(24),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 2.2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
             ),
+            itemCount: paymentMethods.length,
+            itemBuilder: (context, index) {
+              return _buildPaymentMethodCard(paymentMethods[index]);
+            },
           ),
-          const Gap(20),
-          Column(
-            children: _paymentMethods
-                .map((method) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildPaymentMethodCard(method),
-                    ))
-                .toList(),
-          ),
+          const Gap(24),
+          _buildPaymentNote(),
         ],
       ),
     );
   }
 
-  Widget _buildPaymentMethodCard(PaymentMethodOption method) {
+  Widget _buildPaymentMethodCard(PaymentMethodInfo method) {
     final isSelected = _selectedPaymentMethod == method.id;
 
     return GestureDetector(
       onTap: () {
-        HapticFeedback.lightImpact();
         setState(() {
           _selectedPaymentMethod = method.id;
         });
+        widget.onPaymentMethodChanged?.call(method.id);
       },
       child: Container(
-        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    method.color.withOpacity(0.25),
-                    method.color.withOpacity(0.10),
-                    method.color.withOpacity(0.05),
+                    method.color.withOpacity(0.3),
+                    method.color.withOpacity(0.1),
                   ],
                 )
               : LinearGradient(
                   colors: [
                     Colors.white.withOpacity(0.08),
-                    Colors.white.withOpacity(0.04),
+                    Colors.white.withOpacity(0.03),
                   ],
                 ),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
-                ? method.color.withOpacity(0.6)
-                : Colors.white.withOpacity(0.15),
-            width: isSelected ? 2 : 1.5,
+                ? method.color.withOpacity(0.5)
+                : Colors.white.withOpacity(0.1),
+            width: isSelected ? 2 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: method.color.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                    spreadRadius: 0,
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
+                    color: method.color.withOpacity(0.2),
+                    blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                ],
+                ]
+              : null,
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: isSelected
-                    ? LinearGradient(
-                        colors: [
-                          method.color,
-                          method.color.withOpacity(0.8),
-                        ],
-                      )
-                    : LinearGradient(
-                        colors: [
-                          Colors.white.withOpacity(0.15),
-                          Colors.white.withOpacity(0.08),
-                        ],
-                      ),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isSelected
-                      ? Colors.white.withOpacity(0.3)
-                      : Colors.white.withOpacity(0.1),
-                  width: 1.5,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: method.color.withOpacity(0.4),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Icon(
-                method.icon,
-                color: Colors.white,
-                size: 26,
-              ),
-            ),
-            const Gap(20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        method.name,
+                  Icon(
+                    method.icon,
+                    color: isSelected
+                        ? method.color
+                        : Colors.white.withOpacity(0.7),
+                    size: 20,
+                  ),
+                  const Spacer(),
+                  if (isSelected)
+                    Icon(
+                      CupertinoIcons.checkmark_circle_fill,
+                      color: method.color,
+                      size: 18,
+                    ),
+                  if (method.isRecommended && !isSelected)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.successColor,
+                            AppColors.tealColor,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'TOP',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.3,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                      if (method.isRecommended) ...[
-                        const Gap(8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppColors.successColor,
-                                AppColors.tealColor,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'RECOMMENDED',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const Gap(4),
-                  Text(
-                    method.description,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
                     ),
-                  ),
                 ],
               ),
-            ),
-            if (isSelected)
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.successColor,
-                      AppColors.tealColor,
-                    ],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  CupertinoIcons.checkmark,
-                  color: Colors.white,
-                  size: 16,
-                  weight: 700,
+              const Gap(8),
+              Text(
+                method.name,
+                style: TextStyle(
+                  color:
+                      isSelected ? Colors.white : Colors.white.withOpacity(0.8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-          ],
+              Text(
+                method.description.split(' - ').first,
+                style: TextStyle(
+                  color: isSelected
+                      ? Colors.white.withOpacity(0.7)
+                      : Colors.white.withOpacity(0.5),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSecurityBadge() {
+  Widget _buildPaymentNote() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
           colors: [
-            AppColors.primaryColor.withOpacity(0.1),
-            AppColors.tealColor.withOpacity(0.08),
+            AppColors.premiumBlue.withOpacity(0.1),
+            AppColors.tealColor.withOpacity(0.1),
           ],
         ),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: AppColors.primaryColor.withOpacity(0.3),
-          width: 1.5,
+          color: AppColors.premiumBlue.withOpacity(0.2),
+          width: 1,
         ),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppColors.primaryColor,
+                  AppColors.premiumBlue,
                   AppColors.tealColor,
                 ],
               ),
@@ -678,28 +531,28 @@ class _BookingPaymentStepState extends State<BookingPaymentStep>
             child: const Icon(
               CupertinoIcons.shield_lefthalf_fill,
               color: Colors.white,
-              size: 20,
+              size: 16,
             ),
           ),
-          const Gap(16),
+          const Gap(12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Secure Payment by Stripe',
+                  'Payment will be processed when you tap "Complete Booking"',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const Gap(6),
+                const Gap(4),
                 Text(
-                  'Your payment is protected by bank-level security and encryption',
+                  'Your payment is secured by Stripe\'s bank-level encryption',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -710,89 +563,9 @@ class _BookingPaymentStepState extends State<BookingPaymentStep>
       ),
     );
   }
-
-  PaymentMethod _getPaymentMethodFromSelection() {
-    switch (_selectedPaymentMethod) {
-      case 'stripe_card':
-        return PaymentMethod.creditCard;
-      case 'apple_pay':
-        return PaymentMethod.applePay;
-      case 'google_pay':
-        return PaymentMethod.googlePay;
-      case 'cash':
-        return PaymentMethod.cash;
-      default:
-        return PaymentMethod.creditCard;
-    }
-  }
-
-  Future<void> processPayment() async {
-    if (_isProcessingPayment) return;
-
-    setState(() => _isProcessingPayment = true);
-    HapticFeedback.mediumImpact();
-
-    try {
-      if (_selectedPaymentMethod == 'cash') {
-        // Handle cash payment
-        await Future.delayed(const Duration(seconds: 2));
-        widget.onPaymentSuccess();
-      } else {
-        // Create payment request
-        final paymentRequest = PaymentRequest(
-          id: 'booking_${DateTime.now().millisecondsSinceEpoch}',
-          amount: PaymentAmount(
-            amount: widget.state.totalPrice,
-            currency: Currency.egp,
-          ),
-          customer: PaymentCustomer(
-            id: widget.userId ?? 'guest_user',
-            name: widget.userName ?? 'Guest User',
-            email: widget.userEmail ?? 'guest@shamil.app',
-          ),
-          method: _getPaymentMethodFromSelection(),
-          description:
-              'Booking payment for ${widget.service?.name ?? widget.plan?.name ?? 'service'}',
-          gateway: PaymentGateway.stripe,
-          createdAt: DateTime.now(),
-          metadata: {
-            'provider_id': widget.provider.id,
-            'service_id': widget.service?.id ?? '',
-            'plan_id': widget.plan?.id ?? '',
-            'booking_date': widget.state.selectedDate?.toIso8601String() ?? '',
-            'booking_time': widget.state.selectedTime ?? '',
-            'attendees_count': widget.state.selectedAttendees.length.toString(),
-            'payment_method': _selectedPaymentMethod,
-          },
-        );
-
-        // Show payment screen
-        final response = await PaymentOrchestrator.showPaymentScreen(
-          context: context,
-          paymentRequest: paymentRequest,
-          title: 'Complete Payment',
-          showSavedMethods: true,
-          customerId: widget.userId,
-        );
-
-        if (response != null && response.isSuccessful) {
-          widget.onPaymentSuccess();
-        } else {
-          widget
-              .onPaymentFailure(response?.errorMessage ?? 'Payment cancelled');
-        }
-      }
-    } catch (e) {
-      widget.onPaymentFailure('Payment failed: ${e.toString()}');
-    } finally {
-      if (mounted) {
-        setState(() => _isProcessingPayment = false);
-      }
-    }
-  }
 }
 
-class PaymentMethodOption {
+class PaymentMethodInfo {
   final String id;
   final String name;
   final String description;
@@ -800,7 +573,7 @@ class PaymentMethodOption {
   final Color color;
   final bool isRecommended;
 
-  PaymentMethodOption({
+  PaymentMethodInfo({
     required this.id,
     required this.name,
     required this.description,

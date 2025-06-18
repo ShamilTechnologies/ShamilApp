@@ -1,11 +1,14 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 import 'package:gap/gap.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/payment/models/payment_models.dart';
 import 'package:shamil_mobile_app/core/payment/payment_orchestrator.dart';
-import 'package:shamil_mobile_app/core/payment/ui/premium_card_details_sheet.dart';
+import 'package:shamil_mobile_app/core/payment/gateways/stripe/stripe_service.dart';
+// Premium card details sheet no longer needed - using direct Stripe payment sheet
+// import 'package:shamil_mobile_app/core/payment/ui/premium_card_details_sheet.dart';
 import 'package:shamil_mobile_app/feature/details/data/plan_model.dart';
 import 'package:shamil_mobile_app/feature/details/data/service_model.dart';
 import 'package:shamil_mobile_app/feature/home/data/service_provider_model.dart';
@@ -61,7 +64,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
       name: 'Card Payment',
       description: 'Visa, Mastercard, Amex - Powered by Stripe',
       icon: CupertinoIcons.creditcard_fill,
-      color: AppColors.primaryColor,
+      color: AppColors.premiumBlue,
       processingFee: 2.9,
       isInstant: true,
       gatewayMethod: PaymentMethod.creditCard,
@@ -155,6 +158,11 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
 
   @override
   void dispose() {
+    // Stop all animations to prevent callbacks after dispose
+    _containerController.stop();
+    _shimmerController.stop();
+    _pulseController.stop();
+
     _containerController.dispose();
     _shimmerController.dispose();
     _pulseController.dispose();
@@ -196,7 +204,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
           end: Alignment.bottomRight,
           colors: [
             const Color(0xFF0A0E1A),
-            AppColors.primaryColor.withOpacity(0.15),
+            AppColors.premiumBlue.withOpacity(0.15),
             AppColors.tealColor.withOpacity(0.1),
           ],
           stops: const [0.0, 0.6, 1.0],
@@ -220,7 +228,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
             spreadRadius: 5,
           ),
           BoxShadow(
-            color: AppColors.primaryColor.withOpacity(0.1),
+            color: AppColors.premiumBlue.withOpacity(0.1),
             blurRadius: 80,
             offset: const Offset(0, 40),
             spreadRadius: 10,
@@ -279,30 +287,30 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
                 child: Container(
                   width: 64,
                   height: 64,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        selectedMethod.color,
+                colors: [
+                  selectedMethod.color,
                         selectedMethod.color.withOpacity(0.7),
-                      ],
-                    ),
+                ],
+              ),
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
+              boxShadow: [
+                BoxShadow(
                         color: selectedMethod.color.withOpacity(0.4),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    selectedMethod.icon,
-                    color: Colors.white,
-                    size: 32,
-                  ),
                 ),
+              ],
+            ),
+            child: Icon(
+              selectedMethod.icon,
+              color: Colors.white,
+                    size: 32,
+            ),
+          ),
               );
             },
           ),
@@ -354,14 +362,14 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
               ),
               child: Text(
                 'RECOMMENDED',
-                style: const TextStyle(
-                  color: Colors.white,
+                    style: const TextStyle(
+                      color: Colors.white,
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.5,
-                ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -414,7 +422,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Processing Fee (${selectedMethod.processingFee}%)',
+              'Processing Fee (${selectedMethod.processingFee}%)',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.5),
                     fontSize: 13,
@@ -422,7 +430,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
                   ),
                 ),
                 Text(
-                  'EGP ${processingFee.toStringAsFixed(2)}',
+              'EGP ${processingFee.toStringAsFixed(2)}',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 13,
@@ -450,7 +458,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total Amount',
+            'Total Amount',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -458,7 +466,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
                 ),
               ),
               Text(
-                'EGP ${totalWithFee.toStringAsFixed(2)}',
+            'EGP ${totalWithFee.toStringAsFixed(2)}',
                 style: TextStyle(
                   color: AppColors.tealColor,
                   fontSize: 22,
@@ -477,12 +485,12 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
       margin: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      children: [
           const Text(
             'Choose Payment Method',
             style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
+                  color: Colors.white,
+                  fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -518,12 +526,12 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
         widget.onPaymentMethodChanged(method.id);
       },
       child: Container(
-        decoration: BoxDecoration(
+      decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
                     method.color.withOpacity(0.3),
                     method.color.withOpacity(0.1),
                   ],
@@ -535,7 +543,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
                   ],
                 ),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
+        border: Border.all(
             color: isSelected
                 ? method.color.withOpacity(0.5)
                 : Colors.white.withOpacity(0.1),
@@ -552,21 +560,21 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
               : null,
         ),
         child: Stack(
-          children: [
+        children: [
             // Shimmer effect for selected item
             if (isSelected)
               AnimatedBuilder(
                 animation: _shimmerAnimation,
                 builder: (context, child) {
                   return Container(
-                    decoration: BoxDecoration(
+                decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      gradient: LinearGradient(
+                  gradient: LinearGradient(
                         begin: Alignment(
                             -1.0 + 2.0 * _shimmerAnimation.value, 0.0),
                         end:
                             Alignment(1.0 + 2.0 * _shimmerAnimation.value, 0.0),
-                        colors: [
+                    colors: [
                           Colors.transparent,
                           Colors.white.withOpacity(0.1),
                           Colors.transparent,
@@ -597,13 +605,13 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
                           CupertinoIcons.checkmark_circle_fill,
                           color: method.color,
                           size: 18,
-                        ),
-                    ],
-                  ),
+              ),
+            ],
+          ),
                   const Gap(8),
-                  Text(
+          Text(
                     method.name,
-                    style: TextStyle(
+            style: TextStyle(
                       color: isSelected
                           ? Colors.white
                           : Colors.white.withOpacity(0.8),
@@ -646,32 +654,27 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
+        decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.primaryColor.withOpacity(0.1),
+            AppColors.premiumBlue.withOpacity(0.1),
             AppColors.tealColor.withOpacity(0.1),
           ],
         ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.primaryColor.withOpacity(0.2),
-          width: 1,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+          color: AppColors.premiumBlue.withOpacity(0.2),
+            width: 1,
+          ),
         ),
-      ),
-      child: Row(
-        children: [
+        child: Row(
+          children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primaryColor,
-                  AppColors.tealColor,
-                ],
-              ),
+              gradient: AppColors.premiumConfigGradient,
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(
@@ -696,14 +699,14 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
                 const Gap(4),
                 Text(
                   'Your payment is protected by Stripe\'s world-class security',
-                  style: TextStyle(
+                style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
-                    fontSize: 12,
+                  fontSize: 12,
                     fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+              ),
             ),
+          ],
+        ),
           ),
         ],
       ),
@@ -800,9 +803,9 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                          ),
+                          fontWeight: FontWeight.w800,
                         ),
+                      ),
                       ],
                     ),
             ),
@@ -813,6 +816,8 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
   }
 
   Future<void> _processPayment() async {
+    if (!mounted) return;
+
     setState(() => _isProcessingPayment = true);
     HapticFeedback.mediumImpact();
 
@@ -830,6 +835,9 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
       if (_selectedMethod == 'cash') {
         // Simulate cash payment processing
         await Future.delayed(const Duration(seconds: 2));
+
+        if (!mounted) return;
+
         final response = PaymentResponse(
           id: 'cash_${DateTime.now().millisecondsSinceEpoch}',
           status: PaymentStatus.completed,
@@ -838,20 +846,31 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
           gateway: PaymentGateway.stripe,
           timestamp: DateTime.now(),
         );
+
+        // Call completion handler first, then clean up
         widget.onPaymentCompleted(response);
+
+        if (mounted) {
+          setState(() => _isProcessingPayment = false);
+        }
       } else {
-        // Use premium swipable credit card details sheet
-        final paymentRequest = PaymentOrchestrator.createReservationPayment(
-          reservationId: 'booking_${DateTime.now().millisecondsSinceEpoch}',
+        // Use Stripe Payment Sheet for card payments
+        final paymentRequest = PaymentRequest(
+          id: 'booking_${DateTime.now().millisecondsSinceEpoch}',
+          amount: PaymentAmount(
           amount: totalAmount,
           currency: Currency.egp,
+          ),
           customer: PaymentCustomer(
             id: widget.userId ?? 'guest_user',
             name: widget.userName ?? 'Guest User',
             email: widget.userEmail ?? 'guest@shamil.app',
           ),
+          method: selectedPaymentMethod.gatewayMethod,
           description:
               'Booking payment for ${widget.service?.name ?? widget.plan?.name ?? 'service'}',
+          gateway: PaymentGateway.stripe,
+          createdAt: DateTime.now(),
           metadata: {
             'provider_id': widget.provider.id,
             'service_id': widget.service?.id ?? '',
@@ -863,30 +882,28 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
           },
         );
 
-        // Show premium swipable card details bottom sheet
-        final response = await showModalBottomSheet<PaymentResponse>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          barrierColor: Colors.black.withOpacity(0.8),
-          builder: (context) => PremiumCardDetailsSheet(
-            paymentRequest: paymentRequest,
-            onPaymentComplete: (response) =>
-                Navigator.of(context).pop(response),
-            onError: (error) => debugPrint('Payment error: $error'),
-          ),
-        );
+        if (!mounted) return;
+
+        // Process payment directly through Stripe Payment Sheet with dark theme
+        final response = await _processStripePayment(paymentRequest);
+
+        if (!mounted) return;
 
         if (response != null) {
+          // Call completion handler first, then clean up
           widget.onPaymentCompleted(response);
-        }
       }
 
       if (mounted) {
         setState(() => _isProcessingPayment = false);
+        }
+      }
+
+      if (mounted) {
         HapticFeedback.heavyImpact();
       }
     } catch (e) {
+      debugPrint('Payment error: $e');
       if (mounted) {
         setState(() => _isProcessingPayment = false);
         HapticFeedback.heavyImpact();
@@ -895,7 +912,161 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
     }
   }
 
+  /// Process payment directly through Stripe Payment Sheet
+  Future<PaymentResponse?> _processStripePayment(
+      PaymentRequest paymentRequest) async {
+    try {
+      debugPrint('🚀 Starting direct Stripe payment process...');
+
+      // Initialize Stripe Service
+      final stripeService = StripeService();
+      await stripeService.initialize();
+
+      // Create Payment Intent
+      final paymentIntent = await stripeService.createPaymentIntent(
+        amount: paymentRequest.amount.amount,
+        currency: paymentRequest.amount.currency,
+        customer: paymentRequest.customer,
+        description: paymentRequest.description,
+        metadata: paymentRequest.metadata,
+      );
+
+      if (!mounted) return null;
+      debugPrint('✅ Payment Intent created: ${paymentIntent['id']}');
+
+      // Initialize Stripe Payment Sheet with dark theme
+      await stripe.Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: stripe.SetupPaymentSheetParameters(
+          paymentIntentClientSecret: paymentIntent['client_secret'],
+          merchantDisplayName: 'Shamil App',
+          customerId: paymentRequest.customer.id,
+          style: ThemeMode.dark,
+          appearance: stripe.PaymentSheetAppearance(
+            colors: stripe.PaymentSheetAppearanceColors(
+              primary: AppColors.premiumBlue,
+              background: const Color(0xFF0A0E1A),
+              componentBackground: AppColors.premiumBlue.withOpacity(0.1),
+              componentBorder: Colors.white.withOpacity(0.1),
+              componentDivider: Colors.white.withOpacity(0.1),
+              primaryText: Colors.white,
+              secondaryText: Colors.white.withOpacity(0.7),
+              componentText: Colors.white,
+              placeholderText: Colors.white.withOpacity(0.5),
+            ),
+            shapes: stripe.PaymentSheetShape(
+              borderRadius: 8,
+              borderWidth: 1,
+            ),
+            primaryButton: stripe.PaymentSheetPrimaryButtonAppearance(
+              colors: stripe.PaymentSheetPrimaryButtonTheme(
+                light: stripe.PaymentSheetPrimaryButtonThemeColors(
+                  background: AppColors.premiumBlue,
+                  text: Colors.white,
+                  border: AppColors.premiumBlue,
+                ),
+                dark: stripe.PaymentSheetPrimaryButtonThemeColors(
+                  background: AppColors.premiumBlue,
+                  text: Colors.white,
+                  border: AppColors.premiumBlue,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      if (!mounted) return null;
+      debugPrint('💳 Presenting Stripe Payment Sheet...');
+
+      // Present the Stripe Payment Sheet
+      await stripe.Stripe.instance.presentPaymentSheet();
+
+      if (!mounted) return null;
+      debugPrint('✅ Payment Sheet completed successfully');
+
+      // Small delay to allow Stripe to process the payment
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Verify payment completion
+      final verificationResponse = await stripeService.verifyPayment(
+        paymentIntentId: paymentIntent['id'],
+      );
+
+      if (!mounted) return null;
+
+      if (verificationResponse.isConfirmedByGateway) {
+        debugPrint('🎉 Payment verification successful!');
+        debugPrint('💳 Payment Status: ${verificationResponse.status.name}');
+        debugPrint('💰 Payment Amount: ${verificationResponse.amount}');
+        debugPrint('🏦 Payment Gateway: ${verificationResponse.gateway.name}');
+
+        // Create response
+        final response = PaymentResponse(
+          id: verificationResponse.id,
+          status: verificationResponse.status,
+          amount: verificationResponse.amount,
+          currency: verificationResponse.currency,
+          gateway: verificationResponse.gateway,
+          gatewayResponse: verificationResponse.gatewayResponse,
+          metadata: {
+            ...?verificationResponse.metadata,
+            'payment_intent_id': paymentIntent['id'],
+            'payment_flow': 'direct_stripe_sheet_dark_theme',
+            'checkout_completed': 'true',
+          },
+          timestamp: verificationResponse.timestamp,
+        );
+
+        return response;
+      } else {
+        debugPrint('❌ Payment verification failed');
+        debugPrint('💳 Payment Status: ${verificationResponse.status.name}');
+        debugPrint(
+            '🔍 Gateway Response: ${verificationResponse.gatewayResponse}');
+        throw Exception(
+            'Payment verification failed: ${verificationResponse.status.name}');
+      }
+    } on stripe.StripeException catch (e) {
+      debugPrint('❌ Stripe error: ${e.error.localizedMessage}');
+
+      if (mounted) {
+        _showErrorDialog(_getStripeErrorMessage(e));
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Payment processing error: $e');
+
+      if (mounted) {
+        _showErrorDialog('Payment failed. Please try again.');
+      }
+      return null;
+    }
+  }
+
+  /// Get user-friendly error message from Stripe exception
+  String _getStripeErrorMessage(stripe.StripeException e) {
+    final errorMessage = e.error.localizedMessage ??
+        e.error.message ??
+        'Payment failed. Please try again.';
+
+    // Return user-friendly message based on error content
+    if (errorMessage.toLowerCase().contains('declined')) {
+      return 'Your card was declined. Please try a different card.';
+    } else if (errorMessage.toLowerCase().contains('expired')) {
+      return 'Your card has expired. Please use a different card.';
+    } else if (errorMessage.toLowerCase().contains('cvc') ||
+        errorMessage.toLowerCase().contains('security')) {
+      return 'Your card\'s security code is incorrect.';
+    } else if (errorMessage.toLowerCase().contains('number')) {
+      return 'Your card number is incorrect.';
+    } else {
+      return errorMessage;
+    }
+  }
+
   void _showErrorDialog(String message) {
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -935,7 +1106,11 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector>
               borderRadius: BorderRadius.circular(8),
             ),
             child: TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
               style: TextButton.styleFrom(
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(

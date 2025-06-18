@@ -27,6 +27,7 @@ class BookingStepContent extends StatelessWidget {
   final VoidCallback onPaymentSuccess;
   final Function(String?) onPaymentFailure;
   final Function(VoidCallback?)? onPaymentTriggerReady;
+  final Function(String)? onPaymentMethodChanged;
 
   const BookingStepContent({
     super.key,
@@ -47,6 +48,7 @@ class BookingStepContent extends StatelessWidget {
     required this.onPaymentSuccess,
     required this.onPaymentFailure,
     this.onPaymentTriggerReady,
+    this.onPaymentMethodChanged,
   });
 
   @override
@@ -95,6 +97,7 @@ class BookingStepContent extends StatelessWidget {
           onPaymentSuccess: onPaymentSuccess,
           onPaymentFailure: onPaymentFailure,
           onPaymentTriggerReady: onPaymentTriggerReady,
+          onPaymentMethodChanged: onPaymentMethodChanged,
         );
       default:
         return const SizedBox.shrink();

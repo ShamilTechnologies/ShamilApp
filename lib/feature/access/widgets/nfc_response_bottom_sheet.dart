@@ -198,9 +198,9 @@ class _NFCResponseBottomSheetState extends State<NFCResponseBottomSheet>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Colors.white.withOpacity(0.3),
-                          Colors.white.withOpacity(0.15),
-                          Colors.white.withOpacity(0.08),
+                          AppColors.bottomSheetBackground.withOpacity(0.95),
+                          AppColors.bottomSheetBackground.withOpacity(0.9),
+                          AppColors.bottomSheetBackground.withOpacity(0.85),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(28),

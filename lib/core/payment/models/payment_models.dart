@@ -413,10 +413,21 @@ class PaymentResponse extends Equatable {
   });
 
   bool get isSuccessful => status == PaymentStatus.completed;
+  bool get isSuccessfulOrProcessing =>
+      status == PaymentStatus.completed || status == PaymentStatus.processing;
   bool get isPending =>
       status == PaymentStatus.pending || status == PaymentStatus.processing;
   bool get isFailed =>
       status == PaymentStatus.failed || status == PaymentStatus.cancelled;
+
+  /// Check if payment is confirmed based on Stripe gateway response
+  bool get isConfirmedByGateway {
+    if (gateway == PaymentGateway.stripe && gatewayResponse != null) {
+      final stripeStatus = gatewayResponse!['status'] as String?;
+      return stripeStatus == 'succeeded' || stripeStatus == 'processing';
+    }
+    return isSuccessful;
+  }
 
   Map<String, dynamic> toJson() {
     return {
