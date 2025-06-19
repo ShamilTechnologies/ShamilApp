@@ -3,9 +3,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart'; // For App Check
 import 'package:firebase_messaging/firebase_messaging.dart'; // Import FCM
+import 'package:firebase_auth/firebase_auth.dart'; // Add explicit Firebase Auth import
 // Required for kDebugMode check
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Add this import
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart'; // Add this import
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -64,6 +66,8 @@ import 'package:shamil_mobile_app/feature/access/data/nfc_sound_service.dart';
 import 'package:shamil_mobile_app/services/shamil_nfc_service.dart';
 import 'package:shamil_mobile_app/services/notification_service.dart'
     as global_notification;
+// Import Firebase App Check service
+import 'package:shamil_mobile_app/core/services/firebase_app_check_service.dart';
 
 // --- FCM Background Handler ---
 @pragma('vm:entry-point')
@@ -134,6 +138,58 @@ Future<void> _initializeNFCServices() async {
   }
 }
 
+/// Configure Firebase Auth for proper email delivery
+Future<void> _configureFirebaseAuthEmails() async {
+  try {
+    debugPrint('📧 Configuring Firebase Auth email settings...');
+
+    final FirebaseAuth auth = FirebaseAuth.instance;
+
+    // Configure Firebase Auth settings for better email delivery
+    await auth.setSettings(
+      appVerificationDisabledForTesting: kDebugMode, // Only disable in debug
+      forceRecaptchaFlow: !kDebugMode, // Enable reCAPTCHA in production
+    );
+
+    // Set language code to ensure proper email templates
+    auth.setLanguageCode(
+        'en'); // You can change this to your preferred language
+
+    debugPrint('✅ Firebase Auth email settings configured');
+    debugPrint('🔧 Debug mode: $kDebugMode');
+    debugPrint('🌐 Language code: ${auth.languageCode}');
+    debugPrint('🏗️ App: ${auth.app.name}');
+    debugPrint('📱 Project: ${auth.app.options.projectId}');
+
+    // Verify email settings
+    _verifyEmailConfiguration();
+  } catch (e) {
+    debugPrint('❌ Failed to configure Firebase Auth emails: $e');
+  }
+}
+
+/// Verify Firebase email configuration
+void _verifyEmailConfiguration() {
+  debugPrint('🔍 Firebase Auth Email Configuration Check:');
+  debugPrint('--------------------------------------------------');
+  debugPrint(
+      '✅ App Check: ${kDebugMode ? 'DISABLED (Debug)' : 'ENABLED (Production)'}');
+  debugPrint(
+      '📧 Email Templates: Check Firebase Console > Authentication > Templates');
+  debugPrint(
+      '🌐 Authorized Domains: Verify in Firebase Console > Authentication > Settings');
+  debugPrint('🔗 Action URL: Should be configured in Firebase Console');
+  debugPrint('--------------------------------------------------');
+  debugPrint('📋 If emails still don\'t work, check:');
+  debugPrint(
+      '   1. Firebase Console > Authentication > Templates (Enable all)');
+  debugPrint(
+      '   2. Firebase Console > Authentication > Settings > Authorized domains');
+  debugPrint('   3. Check spam folder in email client');
+  debugPrint('   4. Verify email address exists and is correct');
+  debugPrint('--------------------------------------------------');
+}
+
 // Background task callback dispatcher removed due to WorkManager issues
 
 Future<void> main() async {
@@ -155,12 +211,24 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Initialize App Check
-  await FirebaseAppCheck.instance.activate(
-    webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
-    androidProvider: AndroidProvider.debug,
-    appleProvider: AppleProvider.appAttest,
-  );
+  // Configure Firebase Auth for proper email delivery
+  await _configureFirebaseAuthEmails();
+
+  // Completely disable App Check in debug mode
+  if (!kDebugMode) {
+    // Only initialize App Check in production/release mode
+    try {
+      await FirebaseAppCheckService().initialize();
+    } catch (e) {
+      print(
+          "⚠️ Firebase App Check initialization failed, continuing without it: $e");
+      // Continue without App Check in case of failure
+    }
+  } else {
+    print("🔧 DEBUG MODE: App Check completely disabled - no initialization");
+    print(
+        "📧 Email operations will use standard Firebase Auth without App Check");
+  }
 
   // Initialize Firebase Messaging Background Handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

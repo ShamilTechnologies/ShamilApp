@@ -121,3 +121,12 @@ class CheckNationalIdAsFamilyMember extends AuthEvent {
   @override
   List<Object?> get props => [nationalId];
 }
+
+/// Event dispatched during registration to check if the entered username
+/// is available and not already taken by another user.
+class CheckUsernameAvailability extends AuthEvent {
+  final String username;
+  const CheckUsernameAvailability({required this.username});
+  @override
+  List<Object?> get props => [username];
+}

@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shamil_mobile_app/core/constants/assets_icons.dart';
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
+import 'package:shamil_mobile_app/core/navigation/enhanced_navigation_service.dart';
 import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart';
@@ -502,7 +503,7 @@ class _EnhancedOnboardingViewState extends State<EnhancedOnboardingView>
                           value: true,
                         );
                         if (mounted) {
-                          pushReplacement(context, const LoginView());
+                          context.toSignIn(const LoginView());
                         }
                       } catch (e) {
                         debugPrint('Error completing onboarding: $e');

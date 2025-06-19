@@ -1,9 +1,11 @@
 import 'dart:io';
-import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gap/gap.dart'; // Use Gap
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:gap/gap.dart';
 import 'package:image_picker/image_picker.dart';
+
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
 import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
@@ -11,106 +13,683 @@ import 'package:shamil_mobile_app/core/utils/text_style.dart';
 import 'package:shamil_mobile_app/core/widgets/custom_button.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart';
-// Import LoginSuccessAnimationView
 import 'package:shamil_mobile_app/feature/auth/views/page/login_success_animation_view.dart';
-// Import AuthModel to access user data from state
+import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
+import 'package:shamil_mobile_app/core/navigation/enhanced_navigation_service.dart';
 
+// Removed complex camera widget - now using simple upload fields like profile photo
 
-// --- ModernUploadField Widget (Updated) ---
-// This widget provides a styled area for users to tap and upload an image,
-// showing a preview or icon based on the state.
-class ModernUploadField extends StatelessWidget {
+// Modern Upload Field with Dark Theme
+class ModernUploadField extends StatefulWidget {
   final String title;
   final String description;
-  final File? file; // The selected image file (if any)
-  final VoidCallback onTap; // Action to trigger when tapped
-  final bool isLoading; // Flag to disable interaction during loading
+  final IconData icon;
+  final File? file;
+  final VoidCallback onTap;
+  final bool isLoading;
+  final bool isActive;
 
   const ModernUploadField({
     super.key,
     required this.title,
     required this.description,
+    required this.icon,
     required this.file,
     required this.onTap,
-    this.isLoading = false, // Default to not loading
+    this.isLoading = false,
+    this.isActive = true,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final bool hasFile = file != null; // Check if a file has been selected
+  State<ModernUploadField> createState() => _ModernUploadFieldState();
+}
 
-    return Material( // Use Material for InkWell splash effect
-      color: Colors.transparent,
-      child: InkWell( // Use InkWell for ripple effect on tap
-        onTap: isLoading ? null : onTap, // Disable tap when loading
-        borderRadius: BorderRadius.circular(12), // Match border radius for tap effect
-        splashColor: theme.colorScheme.primary.withOpacity(0.1),
-        highlightColor: theme.colorScheme.primary.withOpacity(0.05),
-        child: AnimatedOpacity( // Fade the widget slightly if disabled
-          duration: const Duration(milliseconds: 200),
-          opacity: isLoading ? 0.5 : 1.0,
-          child: Container( // Removed AnimatedContainer, decoration changes instantly
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20), // Adjust padding
-            constraints: const BoxConstraints(minHeight: 120), // Set min height
+class _ModernUploadFieldState extends State<ModernUploadField>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _hoverController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _hoverController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.02,
+    ).animate(CurvedAnimation(
+      parent: _hoverController,
+      curve: Curves.easeOutCubic,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _hoverController.dispose();
+    super.dispose();
+  }
+
+  void _handleHover(bool isHovered) {
+    if (isHovered && !widget.isLoading) {
+      _hoverController.forward();
+    } else {
+      _hoverController.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasFile = widget.file != null;
+    final isDisabled = widget.isLoading || !widget.isActive;
+
+    return AnimatedBuilder(
+      animation: _hoverController,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
-              // Use theme's fill color or a fallback accent color
-              color: theme.inputDecorationTheme.fillColor ?? AppColors.accentColor.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(12),
-              // Change border based on whether a file is selected
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: hasFile
-                    ? Colors.green.shade400 // Brighter green border if file selected
-                    : (theme.inputDecorationTheme.enabledBorder?.borderSide.color ?? AppColors.secondaryColor.withOpacity(0.3)),
-                width: hasFile ? 1.5 : 1.0,
+                    ? AppColors.tealColor.withOpacity(0.6)
+                    : Colors.white.withOpacity(0.2),
+                width: 1.5,
               ),
-               // Add subtle shadow when file selected for emphasis
-               boxShadow: hasFile ? [
-                  BoxShadow( color: Colors.green.withOpacity(0.1), blurRadius: 4, spreadRadius: 1)
-               ] : [],
+              color: Colors.white.withOpacity(0.05),
+              boxShadow: [
+                if (hasFile)
+                  BoxShadow(
+                    color: AppColors.tealColor.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+              ],
             ),
-            child: Row(
-              children: [
-                // Animated Icon Container (changes background and icon)
-                AnimatedContainer(
-                   duration: const Duration(milliseconds: 300),
-                   width: 50, height: 50,
-                   decoration: BoxDecoration(
-                     color: hasFile ? Colors.green.withOpacity(0.15) : AppColors.accentColor.withOpacity(0.2),
-                     shape: BoxShape.circle, // Circular background for icon
-                   ),
-                   child: Icon(
-                      // Show checkmark if file exists, upload icon otherwise
-                      hasFile ? Icons.check_circle_outline_rounded : Icons.cloud_upload_outlined,
-                      size: 28,
-                      color: hasFile ? Colors.green.shade700 : AppColors.primaryColor.withOpacity(0.8),
-                   ),
-                 ),
-                const Gap(16), // Use Gap
-                // Text content (Title and Description)
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text( title, style: theme.textTheme.titleMedium?.copyWith( color: AppColors.primaryColor, fontWeight: FontWeight.w600, ), ),
-                      const Gap(6),
-                      Text( description, style: theme.textTheme.bodyMedium?.copyWith( color: AppColors.secondaryColor, fontSize: 13, ), ),
-                    ],
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: isDisabled ? null : widget.onTap,
+                onHover: _handleHover,
+                borderRadius: BorderRadius.circular(16),
+                splashColor: AppColors.tealColor.withOpacity(0.2),
+                highlightColor: AppColors.tealColor.withOpacity(0.1),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 300),
+                  opacity: isDisabled ? 0.6 : 1.0,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        // Icon Container
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeOutCubic,
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: hasFile
+                                  ? [
+                                      AppColors.tealColor,
+                                      AppColors.tealColor.withOpacity(0.8)
+                                    ]
+                                  : [
+                                      AppColors.tealColor.withOpacity(0.8),
+                                      AppColors.tealColor.withOpacity(0.6),
+                                    ],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.tealColor.withOpacity(0.4),
+                                blurRadius: hasFile ? 8 : 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: Icon(
+                              hasFile
+                                  ? Icons.check_circle_rounded
+                                  : widget.icon,
+                              key: ValueKey(hasFile),
+                              size: 28,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const Gap(16),
+
+                        // Content Area
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.title,
+                                style: getbodyStyle(
+                                  color: hasFile
+                                      ? AppColors.tealColor
+                                      : Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Gap(4),
+                              Text(
+                                widget.description,
+                                style: getbodyStyle(
+                                  color: Colors.white.withOpacity(0.7),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                              if (hasFile) ...[
+                                const Gap(6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.tealColor.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    "✓ Uploaded",
+                                    style: getbodyStyle(
+                                      color: AppColors.tealColor,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        // Image Preview
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOutCubic,
+                          width: hasFile ? 60 : 48,
+                          height: hasFile ? 60 : 48,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(11),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 400),
+                              transitionBuilder: (child, animation) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: ScaleTransition(
+                                    scale: animation,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: widget.file != null
+                                  ? Container(
+                                      key: ValueKey(widget.file!.path),
+                                      child: Image.file(
+                                        widget.file!,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                      ),
+                                    )
+                                  : Container(
+                                      key: const ValueKey('placeholder'),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            Colors.white.withOpacity(0.1),
+                                            Colors.white.withOpacity(0.05),
+                                          ],
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.add_photo_alternate_outlined,
+                                        color: Colors.white.withOpacity(0.5),
+                                        size: 20,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const Gap(10), // Spacing
-                // Image Preview Area (animates presence)
-                AnimatedSwitcher(
-                   duration: const Duration(milliseconds: 400),
-                   transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-                   child: file != null
-                    // Show image preview if file exists
-                    ? ClipRRect( key: ValueKey(file!.path), borderRadius: BorderRadius.circular(8),
-                        child: Image.file( file!, width: 70, height: 70, fit: BoxFit.cover, ),
-                      )
-                    // Otherwise, show a sized container as placeholder
-                    : Container(key: const ValueKey('no_image'), width: 70, height: 70, decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: Colors.grey.shade200)),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Modern Progress Stepper with Dark Theme
+class ModernProgressStepper extends StatefulWidget {
+  final int currentStep;
+  final int totalSteps;
+  final List<String> stepTitles;
+
+  const ModernProgressStepper({
+    super.key,
+    required this.currentStep,
+    required this.totalSteps,
+    required this.stepTitles,
+  });
+
+  @override
+  State<ModernProgressStepper> createState() => _ModernProgressStepperState();
+}
+
+class _ModernProgressStepperState extends State<ModernProgressStepper>
+    with TickerProviderStateMixin {
+  late AnimationController _progressController;
+  late Animation<double> _progressAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _progressController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _progressAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _progressController,
+      curve: Curves.easeOutCubic,
+    ));
+  }
+
+  @override
+  void didUpdateWidget(ModernProgressStepper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentStep != widget.currentStep) {
+      _progressController.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _progressController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.08),
+            Colors.white.withOpacity(0.04),
+          ],
+        ),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.15),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Progress Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Complete Your Profile",
+                style: getbodyStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.tealColor,
+                      AppColors.tealColor.withOpacity(0.8)
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.tealColor.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  "${((widget.currentStep + 1) / widget.totalSteps * 100).round()}%",
+                  style: getbodyStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Gap(16),
+
+          // Step Indicators
+          Row(
+            children: List.generate(widget.totalSteps, (index) {
+              final isCompleted = index < widget.currentStep;
+              final isCurrent = index == widget.currentStep;
+              final isActive = isCompleted || isCurrent;
+
+              return Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        children: [
+                          // Step Circle
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeOutCubic,
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              gradient: isActive
+                                  ? LinearGradient(
+                                      colors: [
+                                        AppColors.tealColor,
+                                        AppColors.tealColor.withOpacity(0.8)
+                                      ],
+                                    )
+                                  : null,
+                              color: isActive
+                                  ? null
+                                  : Colors.white.withOpacity(0.15),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isActive
+                                    ? Colors.transparent
+                                    : Colors.white.withOpacity(0.3),
+                                width: 1.5,
+                              ),
+                              boxShadow: isActive
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.tealColor
+                                            .withOpacity(0.4),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : [],
+                            ),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              child: Icon(
+                                isCompleted
+                                    ? Icons.check_rounded
+                                    : _getStepIcon(index),
+                                key: ValueKey('$index-$isCompleted'),
+                                color: isActive
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.5),
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          const Gap(8),
+
+                          // Step Title
+                          Text(
+                            widget.stepTitles[index],
+                            style: getbodyStyle(
+                              color: isActive
+                                  ? Colors.white
+                                  : Colors.white.withOpacity(0.5),
+                              fontSize: 10,
+                              fontWeight:
+                                  isActive ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Connecting Line
+                    if (index < widget.totalSteps - 1)
+                      Expanded(
+                        child: Container(
+                          height: 2,
+                          margin: const EdgeInsets.only(bottom: 24),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.easeOutCubic,
+                            decoration: BoxDecoration(
+                              gradient: index < widget.currentStep
+                                  ? LinearGradient(
+                                      colors: [
+                                        AppColors.tealColor,
+                                        AppColors.tealColor.withOpacity(0.8)
+                                      ],
+                                    )
+                                  : null,
+                              color: index < widget.currentStep
+                                  ? null
+                                  : Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(1),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getStepIcon(int index) {
+    switch (index) {
+      case 0:
+        return Icons.person_outline_rounded;
+      case 1:
+        return Icons.badge_outlined;
+      case 2:
+        return Icons.verified_user_outlined;
+      default:
+        return Icons.info_outline;
+    }
+  }
+}
+
+// Enhanced Bottom Sheet for Image Source Selection
+class ModernImageSourceSheet extends StatelessWidget {
+  const ModernImageSourceSheet({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.splashBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Gap(20),
+
+          // Title
+          Text(
+            "Choose Image Source",
+            style: getbodyStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Gap(8),
+          Text(
+            "Select your preferred method to upload the image",
+            style: getbodyStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const Gap(24),
+
+          // Options
+          Row(
+            children: [
+              Expanded(
+                child: _buildSourceOption(
+                  context,
+                  icon: Icons.camera_alt_rounded,
+                  title: "Camera",
+                  subtitle: "Take a photo",
+                  onTap: () => Navigator.of(context).pop(ImageSource.camera),
+                ),
+              ),
+              const Gap(16),
+              Expanded(
+                child: _buildSourceOption(
+                  context,
+                  icon: Icons.photo_library_rounded,
+                  title: "Gallery",
+                  subtitle: "Choose from gallery",
+                  onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+                ),
+              ),
+            ],
+          ),
+          const Gap(24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSourceOption(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+        color: Colors.white.withOpacity(0.05),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: AppColors.tealColor.withOpacity(0.2),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.tealColor,
+                        AppColors.tealColor.withOpacity(0.8)
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const Gap(12),
+                Text(
+                  title,
+                  style: getbodyStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Gap(4),
+                Text(
+                  subtitle,
+                  style: getbodyStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -120,283 +699,877 @@ class ModernUploadField extends StatelessWidget {
     );
   }
 }
-// --- End ModernUploadField Widget ---
 
-
-/// OneMoreStepScreen: Handles profile picture selection and ID scanning.
+/// Modern OneMoreStep Screen with Dark Theme
 class OneMoreStepScreen extends StatefulWidget {
   const OneMoreStepScreen({super.key});
-  @override State<OneMoreStepScreen> createState() => _OneMoreStepScreenState();
+
+  @override
+  State<OneMoreStepScreen> createState() => _OneMoreStepScreenState();
 }
 
-class _OneMoreStepScreenState extends State<OneMoreStepScreen> with TickerProviderStateMixin {
-  // State variables to hold selected image files
+class _OneMoreStepScreenState extends State<OneMoreStepScreen>
+    with TickerProviderStateMixin {
+  // State variables
   File? _profilePic;
   File? _idFront;
   File? _idBack;
-  // Tracks the current step in the process (0: Pic, 1: ID Front, 2: ID Back)
   int _currentStep = 0;
-  final ImagePicker _picker = ImagePicker(); // Instance of image picker
+  final ImagePicker _picker = ImagePicker();
 
-  // Animation controller for fade-in effect
+  // Animation controllers
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  final List<String> _stepTitles = [
+    "Profile Picture",
+    "Egyptian ID Scan",
+  ];
 
   @override
   void initState() {
     super.initState();
-    // Initialize and start fade-in animation
-    _fadeController = AnimationController( vsync: this, duration: const Duration(milliseconds: 600));
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
+    _initializeAnimations();
+  }
+
+  void _initializeAnimations() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+    ));
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+    ));
+
     _fadeController.forward();
   }
 
   @override
   void dispose() {
-    _fadeController.dispose(); // Dispose animation controller
+    _fadeController.dispose();
     super.dispose();
   }
 
-  /// Shows a themed bottom sheet to select image source (Camera or Gallery).
   Future<ImageSource?> _showImageSourceSelector() async {
-     return showModalBottomSheet<ImageSource>(
-      context: context, backgroundColor: Colors.transparent, // Make sheet background transparent
-      builder: (BuildContext context) {
-        // Build the content of the bottom sheet
-        return Container(
-          margin: const EdgeInsets.all(16.0),
-          padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
-          decoration: BoxDecoration(
-            color: AppColors.white, // White background
-            borderRadius: BorderRadius.circular(20.0), // Rounded corners
-            boxShadow: const [ BoxShadow( color: Colors.black26, blurRadius: 10, offset: Offset(0, 5), ), ], // Subtle shadow
-          ),
-          child: Column( mainAxisSize: MainAxisSize.min, children: [
-              Text( 'Choose Image Source', style: getbodyStyle( color: AppColors.primaryColor, fontSize: 18, fontWeight: FontWeight.bold, ), ),
-              const Gap(15), // Spacing
-              ListTile( leading: const Icon(Icons.camera_alt_outlined, color: AppColors.primaryColor), title: Text('Camera', style: getbodyStyle(color: AppColors.primaryColor)), onTap: () => Navigator.of(context).pop(ImageSource.camera), ),
-              const Divider(height: 1), // Separator
-              ListTile( leading: const Icon(Icons.photo_library_outlined, color: AppColors.primaryColor), title: Text('Gallery', style: getbodyStyle(color: AppColors.primaryColor)), onTap: () => Navigator.of(context).pop(ImageSource.gallery), ),
-            ],
-          ),
-        );
-       }
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => const ModernImageSourceSheet(),
     );
-   }
+  }
 
-  /// Picks an image using the selected source and updates the state.
-  Future<void> _pickImage(int forStep) async {
-    final source = await _showImageSourceSelector(); // Show source selector
-    if (source == null) return; // Exit if user cancelled
-
+  Future<void> _pickProfilePicture() async {
     try {
-       // Use image_picker to get the image
-       final pickedImage = await _picker.pickImage( source: source, imageQuality: 80, maxWidth: 1024, );
-       // If an image was picked and the widget is still mounted
-       if (pickedImage != null && mounted) {
-         setState(() {
-           // Update the correct file variable based on the current step
-           if (forStep == 0) {
-             _profilePic = File(pickedImage.path);
-           } else if (forStep == 1) _idFront = File(pickedImage.path);
-           else if (forStep == 2) _idBack = File(pickedImage.path);
-         });
-       } else if (pickedImage == null) {
-         // Show feedback if selection was cancelled
-         showGlobalSnackBar(context, "Image selection cancelled.");
-       }
-    } catch (e) {
-       // Handle potential errors during image picking
-       print("Error picking image: $e");
-       showGlobalSnackBar(context, "Error picking image: ${e.toString()}", isError: true);
-    }
-  }
+      final source = await _showImageSourceSelector();
+      if (source == null) return;
 
-  /// Dispatches the UploadIdEvent to AuthBloc with the selected files.
-  void _uploadFiles() {
-    // Ensure all files have been selected
-    if (_profilePic != null && _idFront != null && _idBack != null) {
-      try {
-         // Dispatch the event using context.read (assumes AuthBloc provided above)
-         context.read<AuthBloc>().add( UploadIdEvent( profilePic: _profilePic!, idFront: _idFront!, idBack: _idBack!, ), );
-      } catch(e) {
-         // Handle error if Bloc is not found (shouldn't happen if provided correctly)
-         print("Error accessing AuthBloc: $e");
-         showGlobalSnackBar(context, "An error occurred. Could not start upload.", isError: true);
+      final pickedImage = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+
+      if (pickedImage != null && mounted) {
+        setState(() {
+          _profilePic = File(pickedImage.path);
+        });
       }
-    } else {
-       // This validation is mostly handled by the _continue button logic
-       showGlobalSnackBar(context, "Please select all required images.", isError: true);
+    } catch (e) {
+      if (mounted) {
+        showGlobalSnackBar(
+          context,
+          "Error selecting image: ${e.toString()}",
+          isError: true,
+        );
+      }
     }
   }
 
-  /// Handles the 'Continue' or 'Finish' button press.
+  Future<void> _pickIdImage(String side) async {
+    try {
+      final source = await _showImageSourceSelector();
+      if (source == null) return;
+
+      final pickedImage = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+
+      if (pickedImage != null && mounted) {
+        setState(() {
+          if (side == 'front') {
+            _idFront = File(pickedImage.path);
+          } else {
+            _idBack = File(pickedImage.path);
+          }
+        });
+
+        showGlobalSnackBar(
+          context,
+          "✅ Egyptian ID ${side} uploaded successfully!",
+          isError: false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showGlobalSnackBar(
+          context,
+          "Error selecting image: ${e.toString()}",
+          isError: true,
+        );
+      }
+    }
+  }
+
+  void _uploadFiles() {
+    if (_profilePic != null && _idFront != null && _idBack != null) {
+      context.read<AuthBloc>().add(UploadIdEvent(
+            profilePic: _profilePic!,
+            idFront: _idFront!,
+            idBack: _idBack!,
+          ));
+    }
+  }
+
   void _continue(bool isLoading) {
-    if (isLoading) return; // Prevent action if already loading
+    if (isLoading) return;
 
-    // Check which step we are on and validate the required file
-    if (_currentStep == 0) {
-      if (_profilePic == null) { showGlobalSnackBar(context, "Please upload your profile picture."); return; }
-      setState(() => _currentStep = 1); // Move to next step
-    } else if (_currentStep == 1) {
-      if (_idFront == null) { showGlobalSnackBar(context, "Please upload the front of your ID."); return; }
-      setState(() => _currentStep = 2); // Move to next step
-    } else if (_currentStep == 2) {
-      if (_idBack == null) { showGlobalSnackBar(context, "Please upload the back of your ID."); return; }
-      _uploadFiles(); // All files selected, trigger the upload event
+    switch (_currentStep) {
+      case 0:
+        if (_profilePic == null) {
+          showGlobalSnackBar(context, "Please upload your profile picture.");
+          return;
+        }
+        setState(() => _currentStep = 1);
+        break;
+      case 1:
+        if (_idFront == null || _idBack == null) {
+          showGlobalSnackBar(
+              context, "Please scan both sides of your Egyptian ID.");
+          return;
+        }
+        _uploadFiles();
+        break;
     }
   }
 
-  /// Handles the 'Back' button press.
   void _back(bool isLoading) {
-     if (isLoading) return; // Prevent action if already loading
-    if (_currentStep > 0) {
-      setState(() { _currentStep -= 1; }); // Decrement step index
-    }
+    if (isLoading || _currentStep <= 0) return;
+    setState(() => _currentStep--);
   }
 
-  /// Handles the 'Skip for now' button press.
   void _skip(bool isLoading) {
-     if (isLoading) return; // Prevent action if already loading
-    // Navigate to the main navigation view, replacing the current route
+    if (isLoading) return;
     pushReplacement(context, const MainNavigationView());
   }
 
-  /// Builds the icon for a specific step in the stepper.
-  Widget _buildStepIcon(int step, bool isActive, ThemeData theme) {
-    IconData iconData;
-    switch (step) { // Assign icons based on step index
-      case 0: iconData = Icons.person_outline_rounded; break;
-      case 1: iconData = Icons.badge_outlined; break;
-      case 2: iconData = Icons.document_scanner_outlined; break;
-      default: iconData = Icons.info_outline;
+  Widget _buildEmailVerificationReminder() {
+    // Check if current user email is verified
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.emailVerified) {
+      return const SizedBox.shrink(); // Don't show if verified or no user
     }
-    bool isCompleted = step < _currentStep; // Show checkmark for completed steps
-    if (isCompleted) { iconData = Icons.check_circle_rounded; }
-    return Icon( iconData, color: isActive ? Colors.white : theme.colorScheme.primary, size: 20);
-  }
 
-  /// Builds the horizontal stepper widget with animated transitions.
-  Widget _buildCustomStepper(ThemeData theme) {
-    List<Widget> indicators = [];
-    for (int i = 0; i < 3; i++) { // Loop through the 3 steps
-      bool isCompleted = i < _currentStep; bool isCurrent = i == _currentStep; bool isActive = isCompleted || isCurrent;
-      Widget circle = AnimatedContainer( // Animated circle for the step indicator
-        duration: const Duration(milliseconds: 300), width: 40, height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isActive ? theme.colorScheme.primary : theme.scaffoldBackgroundColor, // Animate background color
-          border: Border.all( color: isActive ? theme.colorScheme.primary : Colors.grey.shade400, width: 1.5 ), // Animate border color
-          boxShadow: isActive ? [ BoxShadow(color: theme.colorScheme.primary.withOpacity(0.3), blurRadius: 5, spreadRadius: 1) ] : [], // Add shadow to active step
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.orange.shade800.withOpacity(0.2),
+            Colors.orange.shade700.withOpacity(0.1),
+          ],
         ),
-        child: Center(child: _buildStepIcon(i, isActive, theme)), // Display the step icon
-      );
-      indicators.add(circle);
-      if (i < 2) { // Add animated connecting line between steps
-        indicators.add( Expanded( child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300), height: 2, margin: const EdgeInsets.symmetric(horizontal: 4.0),
-              color: i < _currentStep ? theme.colorScheme.primary : Colors.grey.shade300, // Animate line color
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.orange.shade600.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.email_outlined,
+            color: Colors.orange.shade300,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "📧 Email Verification Reminder",
+                  style: getbodyStyle(
+                    color: Colors.orange.shade200,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "Please verify your email (${user.email}) for full account access.",
+                  style: getbodyStyle(
+                    color: Colors.orange.shade300,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      }
-    }
-    return Padding( padding: const EdgeInsets.symmetric(horizontal: 20.0), child: Row(children: indicators), ); // Return the indicators in a Row
+          TextButton(
+            onPressed: () => _resendVerificationEmail(user),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+            child: Text(
+              "Resend",
+              style: getbodyStyle(
+                color: Colors.orange.shade200,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  /// Builds the main content area (the upload field) for the current step.
-  Widget _buildCurrentStepContent(bool isLoading, ThemeData theme) {
-    // Use AnimatedSwitcher for smooth transition between step content
-    return AnimatedSwitcher(
-       duration: const Duration(milliseconds: 400),
-       transitionBuilder: (child, animation) {
-          // Define slide-in animation
-          final offsetAnimation = Tween<Offset>( begin: const Offset(1.0, 0.0), end: Offset.zero ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
-          return FadeTransition( opacity: animation, child: SlideTransition(position: offsetAnimation, child: child), ); // Combine Fade and Slide
-       },
-       child: Container( // Use Key based on the current step for AnimatedSwitcher
-          key: ValueKey<int>(_currentStep),
-          child: Column( children: [
-              const Gap(10),
-              Text( // Display title for the current step
-                 _currentStep == 0 ? "Upload Profile Picture" : (_currentStep == 1 ? "Upload ID Front" : "Upload ID Back"),
-                 style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+  void _resendVerificationEmail(User user) async {
+    try {
+      await user.sendEmailVerification();
+      showGlobalSnackBar(
+        context,
+        "📧 Verification email sent to ${user.email}",
+        isError: false,
+      );
+    } catch (e) {
+      showGlobalSnackBar(
+        context,
+        "Failed to send verification email. Please try again.",
+        isError: true,
+      );
+    }
+  }
+
+  Widget _buildCurrentStepContent(bool isLoading) {
+    if (_currentStep == 0) {
+      // Profile Picture Step
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmallScreen = constraints.maxHeight < 400;
+
+          return Column(
+            children: [
+              Gap(isSmallScreen ? 12.0 : 20.0),
+              Text(
+                "Upload Profile Picture",
+                style: getbodyStyle(
+                  color: Colors.white,
+                  fontSize: isSmallScreen ? 20 : 24,
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
               ),
-              const Gap(15),
-              // Display the appropriate ModernUploadField based on the current step
-              if (_currentStep == 0) ModernUploadField( title: "Profile Picture", description: "Tap to capture or select a headshot.", file: _profilePic, onTap: () => _pickImage(0), isLoading: isLoading, )
-              else if (_currentStep == 1) ModernUploadField( title: "ID Front", description: "Tap to upload the front of your ID.", file: _idFront, onTap: () => _pickImage(1), isLoading: isLoading, )
-              else ModernUploadField( title: "ID Back", description: "Tap to upload the back of your ID.", file: _idBack, onTap: () => _pickImage(2), isLoading: isLoading, ),
-             ],
-          ),
-       ),
-    );
+              Gap(isSmallScreen ? 4.0 : 8.0),
+              Text(
+                "Choose a clear photo of yourself for your profile",
+                style: getbodyStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: isSmallScreen ? 12 : 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              Gap(isSmallScreen ? 16.0 : 24.0),
+              ModernUploadField(
+                title: "Profile Picture",
+                description: "Tap to upload or take a photo",
+                icon: Icons.person_outline_rounded,
+                file: _profilePic,
+                onTap: _pickProfilePicture,
+                isLoading: isLoading,
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      // Egyptian ID Scan Step
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmallScreen = constraints.maxHeight < 500;
+          final availableHeight = constraints.maxHeight;
+          final headerHeight = isSmallScreen ? 80.0 : 100.0;
+          final statusHeight = (_idFront != null && _idBack != null)
+              ? (isSmallScreen ? 60.0 : 80.0)
+              : 0.0;
+          final cameraHeight =
+              availableHeight - headerHeight - statusHeight - 32; // 32 for gaps
+
+          return Column(
+            children: [
+              // Header Section
+              Container(
+                height: headerHeight,
+                child: Column(
+                  children: [
+                    Gap(isSmallScreen ? 8.0 : 12.0),
+                    Text(
+                      "Scan Egyptian ID",
+                      style: getbodyStyle(
+                        color: Colors.white,
+                        fontSize: isSmallScreen ? 20 : 24,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    Gap(isSmallScreen ? 4.0 : 8.0),
+                    Text(
+                      "Using main camera for best quality - position your Egyptian ID to capture both sides",
+                      style: getbodyStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: isSmallScreen ? 11 : 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+
+              Gap(isSmallScreen ? 12.0 : 16.0),
+
+              // Egyptian ID Upload Fields - Simple like profile photo
+              Column(
+                children: [
+                  ModernUploadField(
+                    title: "Egyptian ID - Front Side",
+                    description: "Upload a clear photo of the front side",
+                    icon: Icons.badge_outlined,
+                    file: _idFront,
+                    onTap: () => _pickIdImage('front'),
+                    isLoading: isLoading,
+                  ),
+                  const Gap(16),
+                  ModernUploadField(
+                    title: "Egyptian ID - Back Side",
+                    description: "Upload a clear photo of the back side",
+                    icon: Icons.flip_to_back_outlined,
+                    file: _idBack,
+                    onTap: () => _pickIdImage('back'),
+                    isLoading: isLoading,
+                  ),
+                ],
+              ),
+
+              if (statusHeight > 0) Gap(isSmallScreen ? 8.0 : 12.0),
+
+              // Status Display - Only show if both captured
+              if (_idFront != null && _idBack != null)
+                Container(
+                  height: statusHeight,
+                  padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
+                  decoration: BoxDecoration(
+                    color: AppColors.tealColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.tealColor.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.verified,
+                        color: AppColors.tealColor,
+                        size: isSmallScreen ? 20 : 24,
+                      ),
+                      Gap(isSmallScreen ? 8.0 : 12.0),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Egyptian ID Successfully Captured",
+                              style: getbodyStyle(
+                                color: AppColors.tealColor,
+                                fontSize: isSmallScreen ? 12 : 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (!isSmallScreen) const Gap(4),
+                            if (!isSmallScreen)
+                              Text(
+                                "Both front and back sides have been captured",
+                                style: getbodyStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-     final theme = Theme.of(context);
-    // Listen for Bloc state changes for navigation and feedback
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
-        // Handle navigation and snackbars based on Bloc state
         if (state is UploadIdSuccessState) {
           showGlobalSnackBar(context, "Documents uploaded successfully!");
-          // Extract data needed for animation screen from the state
+
           final userModel = state.user;
           String? firstName;
-          if (userModel.name.isNotEmpty) { firstName = userModel.name.split(' ').firstWhere((s) => s.isNotEmpty, orElse: () => ''); }
+          if (userModel.name.isNotEmpty) {
+            firstName = userModel.name.split(' ').firstWhere(
+                  (s) => s.isNotEmpty,
+                  orElse: () => '',
+                );
+          }
           String? profileUrl = userModel.profilePicUrl ?? userModel.image;
-          // Navigate to LoginSuccessAnimationView
-          pushReplacement(context, LoginSuccessAnimationView( profilePicUrl: profileUrl, firstName: firstName, ));
+
+          pushReplacement(
+              context,
+              LoginSuccessAnimationView(
+                profilePicUrl: profileUrl,
+                firstName: firstName,
+              ));
         } else if (state is AuthErrorState) {
-          // Show error message if upload fails
           showGlobalSnackBar(context, state.message, isError: true);
         }
       },
-      // Build UI based on Bloc state (primarily for loading state)
       child: BlocBuilder<AuthBloc, AuthState>(
-         builder: (context, state) {
-            // Determine if an upload operation is in progress
-            final isLoading = state is AuthLoadingState;
+        builder: (context, state) {
+          final isLoading = state is AuthLoadingState;
 
-            return Scaffold(
-              backgroundColor: theme.scaffoldBackgroundColor,
-              appBar: AppBar( title: const Text("Complete Your Profile"), elevation: 0.5, backgroundColor: theme.appBarTheme.backgroundColor, foregroundColor: theme.appBarTheme.foregroundColor, ),
-              body: SafeArea(
-                child: FadeTransition( // Apply fade-in to the whole body
+          return Scaffold(
+            backgroundColor: AppColors.splashBackground,
+            body: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF1a1a2e),
+                    const Color(0xFF16213e),
+                    AppColors.splashBackground,
+                  ],
+                ),
+              ),
+              child: SafeArea(
+                child: FadeTransition(
                   opacity: _fadeAnimation,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                    child: Column(
-                      children: [
-                        const Gap(20),
-                        _buildCustomStepper(theme), // Display stepper
-                        const Gap(30),
-                        Expanded( child: _buildCurrentStepContent(isLoading, theme) ), // Display upload field
-                        const Gap(20),
-                        Row( children: [ // Action buttons
-                            if (_currentStep > 0) Expanded( flex: 1, child: TextButton( onPressed: isLoading ? null : () => _back(isLoading), child: Text("Back", style: getbodyStyle(color: AppColors.secondaryColor)), ), ),
-                            if (_currentStep > 0) const Gap(10),
-                            Expanded( flex: 2, child: CustomButton( onPressed: isLoading ? null : () => _continue(isLoading), text: isLoading ? "Uploading..." : (_currentStep == 2 ? "Finish" : "Continue"), ), ),
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final screenHeight = constraints.maxHeight;
+                        final isSmallScreen = screenHeight < 700;
+
+                        return Column(
+                          children: [
+                            // Premium App Bar - Responsive sizing
+                            Container(
+                              margin: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: isSmallScreen ? 16 : 20,
+                                  vertical: isSmallScreen ? 12 : 16),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.15),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.2),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: isLoading
+                                            ? null
+                                            : () {
+                                                context.toSignIn(
+                                                    const LoginView());
+                                              },
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: const Icon(
+                                          Icons.arrow_back_ios_new_rounded,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Center(
+                                      child: Text(
+                                        "Complete Profile",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: isSmallScreen ? 16 : 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          AppColors.tealColor,
+                                          AppColors.tealColor.withOpacity(0.8)
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      "Step ${_currentStep + 1}/2",
+                                      style: getbodyStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Email Verification Reminder (if needed) - Responsive
+                            _buildEmailVerificationReminder(),
+
+                            // Progress Stepper - Responsive
+                            Padding(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: isSmallScreen ? 16 : 20),
+                              child: ModernProgressStepper(
+                                currentStep: _currentStep,
+                                totalSteps: 2,
+                                stepTitles: _stepTitles,
+                              ),
+                            ),
+
+                            // Main Content - Scrollable to prevent overflow
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: isSmallScreen ? 16 : 20),
+                                child: _buildCurrentStepContent(isLoading),
+                              ),
+                            ),
+
+                            // Action Buttons - Fixed at bottom
+                            Container(
+                              margin: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                              padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.white.withOpacity(0.08),
+                                    Colors.white.withOpacity(0.04),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.15),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Row(
+                                    children: [
+                                      if (_currentStep > 0) ...[
+                                        Expanded(
+                                          child: Container(
+                                            height: isSmallScreen ? 48 : 52,
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: AppColors.tealColor
+                                                    .withOpacity(0.5),
+                                                width: 1.5,
+                                              ),
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  AppColors.tealColor
+                                                      .withOpacity(0.1),
+                                                  AppColors.tealColor
+                                                      .withOpacity(0.05),
+                                                ],
+                                              ),
+                                            ),
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                onTap: isLoading
+                                                    ? null
+                                                    : () => _back(isLoading),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                child: Center(
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.arrow_back,
+                                                        color:
+                                                            AppColors.tealColor,
+                                                        size: 18,
+                                                      ),
+                                                      const Gap(8),
+                                                      Text(
+                                                        "Back",
+                                                        style: getbodyStyle(
+                                                          color: AppColors
+                                                              .tealColor,
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const Gap(12),
+                                      ],
+                                      Expanded(
+                                        flex: 2,
+                                        child: Container(
+                                          height: isSmallScreen ? 48 : 52,
+                                          decoration: BoxDecoration(
+                                            gradient: isLoading
+                                                ? LinearGradient(
+                                                    colors: [
+                                                      Colors.grey
+                                                          .withOpacity(0.3),
+                                                      Colors.grey
+                                                          .withOpacity(0.2),
+                                                    ],
+                                                  )
+                                                : LinearGradient(
+                                                    colors: [
+                                                      AppColors.tealColor,
+                                                      AppColors.tealColor
+                                                          .withOpacity(0.8)
+                                                    ],
+                                                  ),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            boxShadow: isLoading
+                                                ? []
+                                                : [
+                                                    BoxShadow(
+                                                      color: AppColors.tealColor
+                                                          .withOpacity(0.4),
+                                                      blurRadius: 12,
+                                                      offset:
+                                                          const Offset(0, 4),
+                                                    ),
+                                                  ],
+                                          ),
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: isLoading
+                                                  ? null
+                                                  : () => _continue(isLoading),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              child: Center(
+                                                child: isLoading
+                                                    ? Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          SizedBox(
+                                                            width: 18,
+                                                            height: 18,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                              color:
+                                                                  Colors.white,
+                                                              strokeWidth: 2,
+                                                            ),
+                                                          ),
+                                                          const Gap(12),
+                                                          Text(
+                                                            "Processing...",
+                                                            style: getbodyStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontSize: 14,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      )
+                                                    : Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          Text(
+                                                            _currentStep == 1
+                                                                ? "Complete Setup"
+                                                                : "Continue",
+                                                            style: getbodyStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontSize: 14,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                          const Gap(8),
+                                                          Icon(
+                                                            _currentStep == 1
+                                                                ? Icons
+                                                                    .check_circle
+                                                                : Icons
+                                                                    .arrow_forward,
+                                                            color: Colors.white,
+                                                            size: 18,
+                                                          ),
+                                                        ],
+                                                      ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Gap(isSmallScreen ? 12.0 : 16.0),
+
+                                  // Skip Button
+                                  TextButton(
+                                    onPressed: isLoading
+                                        ? null
+                                        : () => _skip(isLoading),
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: isSmallScreen ? 8.0 : 12.0),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.skip_next,
+                                          color: Colors.white.withOpacity(0.7),
+                                          size: 16,
+                                        ),
+                                        const Gap(6),
+                                        Text(
+                                          "Skip for now",
+                                          style: getbodyStyle(
+                                            color:
+                                                Colors.white.withOpacity(0.7),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
-                        ),
-                         const Gap(10), // Space below buttons
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ),
               ),
-              // Skip button at the bottom
-              bottomNavigationBar: Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
-                child: TextButton(
-                  onPressed: isLoading ? null : () => _skip(isLoading),
-                  child: Text( "Skip for now", style: getbodyStyle( color: AppColors.secondaryColor, fontWeight: FontWeight.w600, fontSize: 15, ), ),
-                ),
-              ),
-            );
-         }
+            ),
+          );
+        },
       ),
     );
   }

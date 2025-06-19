@@ -11,6 +11,7 @@ import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
 // Import FamilyMember model for the check event state
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
 import 'package:shamil_mobile_app/cloudinary_service.dart'; // Cloudinary upload service
+import 'package:shamil_mobile_app/core/services/enhanced_email_service.dart'; // Enhanced email service
 
 // *** ADDED part directives ***
 part 'auth_event.dart';
@@ -37,6 +38,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<CheckEmailVerificationStatus>(_onCheckEmailVerificationStatus);
     on<UpdateUserProfile>(_onUpdateUserProfile);
     on<CheckNationalIdAsFamilyMember>(_onCheckNationalIdAsFamilyMember);
+    on<CheckUsernameAvailability>(_onCheckUsernameAvailability);
   }
 
   /// Handler for checking auth status on app start
@@ -68,43 +70,57 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           return;
         }
 
-        // Check if email is verified
-        if (!freshUser.emailVerified) {
+        // Fetch corresponding Firestore profile
+        print("AuthBloc: Initial check - Fetching Firestore data...");
+        final DocumentSnapshot doc =
+            await _firestore.collection("endUsers").doc(freshUser.uid).get();
+        if (!doc.exists) {
+          // Firestore document missing - potential data issue
           print(
-              "AuthBloc: Initial check - Email not verified for ${freshUser.email}.");
-          await AppLocalStorage.cacheData(
-              key: "isLoggedIn", value: false); // Treat as not fully logged in
-          emit(AwaitingVerificationState(freshUser.email!));
-        } else {
-          // Email is verified, fetch corresponding Firestore profile
-          print(
-              "AuthBloc: Initial check - Email verified. Fetching Firestore data...");
-          final DocumentSnapshot doc =
-              await _firestore.collection("endUsers").doc(freshUser.uid).get();
-          if (doc.exists) {
-            final authModel = AuthModel.fromFirestore(doc);
-            print(
-                "AuthBloc: Initial check - Firestore data found for ${authModel.name}.");
-            await AppLocalStorage.cacheData(
-                key: "isLoggedIn", value: true); // Set logged in flag
-            emit(LoginSuccessState(
-                user: authModel)); // Emit success with user data
-            // Optionally update FCM token here after successful login/initial check
-            _fcm
-                .getToken()
-                .then((token) => _updateTokenInFirestore(token, freshUser.uid));
-          } else {
-            // Firestore document missing for a verified user - potential data issue
-            print(
-                "AuthBloc: Error - User document not found for verified user ${freshUser.uid}.");
-            emit(const AuthErrorState(
-                "User profile data missing. Please log in again or contact support."));
-            await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
-            await _auth.signOut(); // Sign out if profile is corrupt/missing
-            emit(
-                const AuthInitial()); // Go back to initial state after sign out
-          }
+              "AuthBloc: Error - User document not found for user ${freshUser.uid}.");
+          emit(const AuthErrorState(
+              "User profile data missing. Please log in again or contact support."));
+          await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
+          await _auth.signOut(); // Sign out if profile is corrupt/missing
+          emit(const AuthInitial()); // Go back to initial state after sign out
+          return;
         }
+
+        final authModel = AuthModel.fromFirestore(doc);
+        print(
+            "AuthBloc: Initial check - Firestore data found for ${authModel.name}.");
+
+        // Check user status and route accordingly
+        final isEmailVerified = freshUser.emailVerified;
+        final hasCompletedProfile = authModel.uploadedId;
+
+        print(
+            "Initial check - Email verified: $isEmailVerified, Profile completed: $hasCompletedProfile");
+
+        if (!hasCompletedProfile) {
+          // User needs to complete profile setup - take to OneMoreStep
+          print("Initial check - User needs to complete profile setup");
+          await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
+          emit(IncompleteProfileState(
+              user: authModel, isEmailVerified: isEmailVerified));
+        } else if (!isEmailVerified) {
+          // User has completed profile but email not verified - show reminder
+          print(
+              "Initial check - User has completed profile but email not verified");
+          await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
+          emit(AwaitingVerificationState(freshUser.email!, user: authModel));
+        } else {
+          // User is fully set up - proceed to main app
+          print("Initial check - User is fully authenticated and set up");
+          await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
+          emit(LoginSuccessState(
+              user: authModel)); // Emit success with user data
+        }
+
+        // Optionally update FCM token here after successful login/initial check
+        _fcm
+            .getToken()
+            .then((token) => _updateTokenInFirestore(token, freshUser.uid));
       } catch (e, s) {
         // Handle errors during the check process (e.g., network issues)
         print("AuthBloc: Error during initial auth check: $e\n$s");
@@ -130,19 +146,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final User user = userCredential.user!;
       print("User logged in: ${user.uid}");
 
-      // Check email verification status immediately after login
+      // Reload user to get fresh verification status
       await user.reload();
       final freshUser = _auth.currentUser;
-      if (freshUser != null && !freshUser.emailVerified) {
-        print(
-            "Login successful but email not verified for ${freshUser.email}. Emitting AwaitingVerificationState.");
-        emit(AwaitingVerificationState(freshUser.email!));
-        return; // Stop until verified
+      if (freshUser == null) {
+        print("User became null after reload");
+        emit(const AuthErrorState("Authentication failed. Please try again."));
+        return;
       }
-
-      // Proceed if verified
-      await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
-      print("isLoggedIn flag cached");
 
       // Fetch the user document from Firestore
       final DocumentSnapshot doc =
@@ -152,15 +163,42 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             "Error: User document not found in Firestore after login for UID: ${user.uid}");
         emit(const AuthErrorState(
             "User profile not found. Please contact support."));
-        await AppLocalStorage.cacheData(key: "isLoggedIn", value: false);
         await _auth.signOut();
-        emit(const AuthInitial()); // Go back to initial state
+        emit(const AuthInitial());
         return;
       }
+
       final authModel = AuthModel.fromFirestore(doc);
       print("User data fetched from Firestore: ${authModel.name}");
-      emit(LoginSuccessState(user: authModel));
-      print("LoginSuccessState emitted");
+
+      // Check user status and route accordingly
+      final isEmailVerified = freshUser.emailVerified;
+      final hasCompletedProfile = authModel.uploadedId;
+
+      print(
+          "Email verified: $isEmailVerified, Profile completed: $hasCompletedProfile");
+
+      if (!hasCompletedProfile) {
+        // User needs to complete profile setup - take to OneMoreStep
+        print("User needs to complete profile setup - routing to OneMoreStep");
+        await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
+        emit(IncompleteProfileState(
+            user: authModel, isEmailVerified: isEmailVerified));
+      } else if (!isEmailVerified) {
+        // User has completed profile but email not verified - show reminder
+        print(
+            "User has completed profile but email not verified - showing reminder");
+        await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
+        emit(AwaitingVerificationState(freshUser.email!, user: authModel));
+      } else {
+        // User is fully set up - proceed to main app
+        print(
+            "User is fully authenticated and set up - proceeding to main app");
+        await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
+        emit(LoginSuccessState(user: authModel));
+      }
+
+      print("Login flow completed");
       // Update FCM token on successful login
       _fcm.getToken().then((token) => _updateTokenInFirestore(token, user.uid));
     } on FirebaseAuthException catch (e) {
@@ -492,24 +530,40 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       SendPasswordResetEmail event, Emitter<AuthState> emit) async {
     emit(const AuthLoadingState());
     print("AuthBloc: Sending password reset email to ${event.email}...");
+
     try {
-      await _auth.sendPasswordResetEmail(email: event.email);
+      // Use Enhanced Email Service for better error handling and diagnostics
+      await EnhancedEmailService().sendPasswordResetEmail(event.email);
+
       print("AuthBloc: Password reset email sent successfully.");
       emit(const PasswordResetEmailSentState());
     } on FirebaseAuthException catch (e) {
-      String errorMessage = "Failed to send password reset email.";
-      if (e.code == 'user-not-found' || e.code == 'invalid-email') {
-        errorMessage = "No user found for that email, or email is invalid.";
-      } else {
-        errorMessage = e.message ?? errorMessage;
+      print("AuthBloc: Firebase Auth error - ${e.code}: ${e.message}");
+
+      String userMessage;
+      switch (e.code) {
+        case 'invalid-email':
+          userMessage = "Please enter a valid email address.";
+          break;
+        case 'too-many-requests':
+          userMessage = e.message ??
+              "Too many requests. Please wait before trying again.";
+          break;
+        case 'user-not-found':
+          // Show success message for security (prevent account enumeration)
+          userMessage =
+              "If an account exists with this email, a password reset link has been sent.";
+          break;
+        default:
+          userMessage = e.message ??
+              "Failed to send password reset email. Please try again.";
       }
-      print(
-          "AuthBloc: Error sending password reset email: ${e.code} - ${e.message}");
-      emit(AuthErrorState(errorMessage));
-    } catch (e, s) {
-      print("AuthBloc: Generic error sending password reset email: $e\n$s");
-      emit(AuthErrorState(
-          "Failed to send password reset email: ${e.toString()}"));
+
+      emit(AuthErrorState(userMessage));
+    } catch (e) {
+      print("AuthBloc: Unexpected error sending password reset email: $e");
+      emit(const AuthErrorState(
+          "An error occurred. Please check your connection and try again."));
     }
   }
 
@@ -561,7 +615,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (state is! AwaitingVerificationState) {
           print(
               "AuthBloc: Email still not verified. Emitting AwaitingVerificationState.");
-          emit(AwaitingVerificationState(user.email!));
+
+          // Fetch user data for the state
+          final DocumentSnapshot doc =
+              await _firestore.collection("endUsers").doc(user.uid).get();
+          AuthModel? authModel;
+          if (doc.exists) {
+            authModel = AuthModel.fromFirestore(doc);
+          }
+
+          emit(AwaitingVerificationState(user.email!, user: authModel));
         } else {
           print("AuthBloc: State is already AwaitingVerification.");
         }
@@ -742,6 +805,50 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         // Generic error
         emit(NationalIdCheckFailed(
             message: "Error checking National ID: ${e.toString()}"));
+      }
+    }
+  }
+
+  /// Handles checking username availability during registration.
+  Future<void> _onCheckUsernameAvailability(
+      CheckUsernameAvailability event, Emitter<AuthState> emit) async {
+    emit(const AuthLoadingState(
+        message:
+            "Checking username availability...")); // Specific loading message
+
+    try {
+      final String username = event.username.trim();
+      print("AuthBloc: Checking username availability for '$username'...");
+
+      // Check if username already exists in endUsers collection
+      // *** Firestore Index Required: on 'endUsers' collection for 'username' field (ASC) ***
+      final usernameQuerySnapshot = await _firestore
+          .collection('endUsers')
+          .where('username', isEqualTo: username)
+          .limit(1)
+          .get();
+
+      if (usernameQuerySnapshot.docs.isNotEmpty) {
+        // Username is already taken
+        print("AuthBloc: Username '$username' is already taken.");
+        emit(const UsernameAlreadyTaken());
+        return;
+      }
+
+      // Username is available
+      print("AuthBloc: Username '$username' is available for registration.");
+      emit(const UsernameAvailable());
+    } catch (e, s) {
+      print("AuthBloc: Error checking username availability: $e\n$s");
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        // Specific error for missing index
+        emit(const UsernameCheckFailed(
+            message:
+                "Database index missing for username check. Please check Firestore indexes in Firebase console."));
+      } else {
+        // Generic error
+        emit(UsernameCheckFailed(
+            message: "Error checking username availability: ${e.toString()}"));
       }
     }
   }

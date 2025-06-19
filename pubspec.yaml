@@ -10,6 +10,7 @@ dependencies:
   animations: ^2.0.11
   bloc: ^9.0.0
   cached_network_image: ^3.3.1
+  camera: ^0.10.5+9
   card_swiper: ^3.0.1
   carousel_slider: ^5.0.0
   cloud_firestore: ^5.6.5
@@ -39,6 +40,9 @@ dependencies:
   geolocator: ^14.0.1
   google_fonts: ^6.2.1
   google_nav_bar: ^5.0.7
+  google_mlkit_text_recognition: ^0.13.0
+  google_mlkit_document_scanner: ^0.2.1
+  google_mlkit_barcode_scanning: ^0.11.0
   image_picker: ^1.0.4
   intl: ^0.20.2
   line_icons: ^2.0.3
@@ -95,6 +99,7 @@ dev_dependencies:
   bloc_test: ^10.0.0
   fake_cloud_firestore: ^3.1.0
   firebase_auth_mocks: ^0.14.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
@@ -124,3 +129,24 @@ flutter:
           weight: 600
         - asset: assets/fonts/Cairo-Bold.ttf
           weight: 700
+
+# Flutter launcher icons configuration
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/AppIcon.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/images/AppIcon.png"
+    background_color: "#ffffff"
+    theme_color: "#20c997"
+  windows:
+    generate: true
+    image_path: "assets/images/AppIcon.png"
+    icon_size: 48
+  macos:
+    generate: true
+    image_path: "assets/images/AppIcon.png"
+  adaptive_icon_background: "#20c997"
+  adaptive_icon_foreground: "assets/images/AppIcon.png"

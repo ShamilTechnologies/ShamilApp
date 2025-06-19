@@ -5,9 +5,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shamil_mobile_app/feature/auth/views/bloc/auth_bloc.dart';
 import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart';
 import 'package:shamil_mobile_app/feature/auth/views/page/login_view.dart';
+import 'package:shamil_mobile_app/feature/auth/views/page/oneMoreStep_view.dart';
 import 'package:shamil_mobile_app/feature/intro/onBoarding/enhanced_onboarding_view.dart';
 import 'package:shamil_mobile_app/core/constants/assets_icons.dart';
 import 'package:shamil_mobile_app/core/functions/navigation.dart';
+import 'package:shamil_mobile_app/core/navigation/enhanced_navigation_service.dart';
 import 'package:shamil_mobile_app/core/services/local_storage.dart';
 import 'package:shamil_mobile_app/core/utils/colors.dart';
 import 'package:shamil_mobile_app/core/utils/text_style.dart';
@@ -150,6 +152,7 @@ class _EnhancedSplashViewState extends State<EnhancedSplashView>
         (s) =>
             s is AuthInitial ||
             s is LoginSuccessState ||
+            s is IncompleteProfileState ||
             s is AwaitingVerificationState ||
             s is AuthErrorState,
         orElse: () => const AuthInitial(),
@@ -169,50 +172,34 @@ class _EnhancedSplashViewState extends State<EnhancedSplashView>
         targetScreen = const EnhancedOnboardingView();
       } else if (state is LoginSuccessState) {
         targetScreen = const MainNavigationView();
+      } else if (state is IncompleteProfileState) {
+        // User needs to complete profile setup - go to OneMoreStep
+        targetScreen = const OneMoreStepScreen();
       } else if (state is AwaitingVerificationState) {
-        targetScreen = const LoginView();
+        // User has completed profile but email not verified - go to main app with reminder
+        targetScreen = const MainNavigationView();
       } else {
         targetScreen = const LoginView();
       }
 
-      // Enhanced transition with slide and fade for onboarding
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, _) => targetScreen,
-          transitionDuration: const Duration(milliseconds: 1000),
-          transitionsBuilder: (context, animation, _, child) {
-            // Special transition for onboarding to create continuity
-            if (targetScreen.runtimeType.toString() ==
-                'EnhancedOnboardingView') {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0.0, 0.3),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                )),
-                child: FadeTransition(
-                  opacity: Tween<double>(
-                    begin: 0.0,
-                    end: 1.0,
-                  ).animate(CurvedAnimation(
-                    parent: animation,
-                    curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
-                  )),
-                  child: child,
-                ),
-              );
-            }
-            // Default fade transition for other screens
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
-          },
-        ),
-      );
+      // Use enhanced navigation for stable, premium transitions
+      if (targetScreen.runtimeType.toString() == 'EnhancedOnboardingView') {
+        // Special slide-up transition for onboarding continuity
+        GlobalNavigation.replaceSlide(
+          context,
+          targetScreen,
+          direction: SlideDirection.up,
+        );
+      } else if (targetScreen.runtimeType.toString() == 'LoginView') {
+        // Smooth fade transition to auth
+        GlobalNavigation.replaceFade(context, targetScreen);
+      } else if (targetScreen.runtimeType.toString() == 'OneMoreStepScreen') {
+        // Smooth transition to profile completion
+        GlobalNavigation.replaceFade(context, targetScreen);
+      } else {
+        // Premium fade for main app
+        AuthNavigation.toMainApp(context, targetScreen);
+      }
     } catch (e) {
       debugPrint("Error in enhanced splash navigation: $e");
       if (mounted) {
@@ -231,9 +218,27 @@ class _EnhancedSplashViewState extends State<EnhancedSplashView>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final screenHeight = size.height;
+    final screenWidth = size.width;
     final isTablet = size.shortestSide >= 600;
-    final logoSize = isTablet ? 320.0 : min(size.width * 0.7, 280.0);
-    final appNameSize = isTablet ? 32.0 : 28.0; // Smaller text size
+
+    // Responsive logo sizing based on screen dimensions
+    double logoSize;
+    if (isTablet) {
+      logoSize = min(screenWidth * 0.5, screenHeight * 0.35);
+    } else {
+      // For phones: use 40-50% of screen width, capped at 45% of screen height
+      logoSize = min(
+        screenWidth * 0.45,
+        screenHeight * 0.35,
+      );
+      // Minimum size to ensure visibility on smaller screens
+      logoSize = max(logoSize, 120.0);
+      // Maximum size to prevent oversizing on larger phones
+      logoSize = min(logoSize, 280.0);
+    }
+
+    final appNameSize = isTablet ? 32.0 : 28.0;
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
@@ -302,16 +307,13 @@ class _EnhancedSplashViewState extends State<EnhancedSplashView>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Hero(
-                  tag: 'app_logo',
-                  child: SizedBox(
-                    width: logoSize,
-                    height: logoSize,
-                    child: StrokeToFillLogo(
-                      logoPath: AssetsIcons.logoSvg,
-                      brandColor: AppColors.tealColor,
-                      progress: _logoProgress,
-                    ),
+                SizedBox(
+                  width: logoSize,
+                  height: logoSize,
+                  child: StrokeToFillLogo(
+                    logoPath: AssetsIcons.logoSvg,
+                    brandColor: const Color(0xFF20C997),
+                    progress: _logoProgress,
                   ),
                 ),
               ],
