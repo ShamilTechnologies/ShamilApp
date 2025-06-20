@@ -184,10 +184,7 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
 
       final state = await authBloc.stream.firstWhere(
         (s) =>
-            s is AuthInitial ||
-            s is LoginSuccessState ||
-            s is AwaitingVerificationState ||
-            s is AuthErrorState,
+            s is AuthInitial || s is LoginSuccessState || s is AuthErrorState,
         orElse: () => const AuthInitial(),
       );
 
@@ -202,8 +199,6 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
         targetScreen = const OnBoardingView();
       } else if (state is LoginSuccessState) {
         targetScreen = const MainNavigationView();
-      } else if (state is AwaitingVerificationState) {
-        targetScreen = const LoginView();
       } else {
         targetScreen = const LoginView();
       }

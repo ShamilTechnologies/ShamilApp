@@ -10,6 +10,7 @@ import 'package:shamil_mobile_app/feature/options_configuration/bloc/options_con
 import 'package:shamil_mobile_app/feature/reservation/data/models/reservation_model.dart';
 import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
 import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
+import 'package:shamil_mobile_app/feature/profile/repository/profile_repository.dart';
 
 /// Attendee Manager Component
 class AttendeeManager extends StatefulWidget {
@@ -57,6 +58,7 @@ class _AttendeeManagerState extends State<AttendeeManager>
     // Initialize social bloc with data orchestrator
     _socialBloc = SocialBloc(
       dataOrchestrator: FirebaseDataOrchestrator(),
+      profileRepository: ProfileRepository(),
     );
   }
 

@@ -133,3 +133,57 @@ class RefreshSocialSection extends SocialEvent {
 }
 
 enum SocialSection { family, friends }
+
+// --- Suggestion Events ---
+class LoadSuggestions extends SocialEvent {
+  final SuggestionContext context;
+  final SuggestionConfig? config;
+
+  const LoadSuggestions({
+    required this.context,
+    this.config,
+  });
+
+  @override
+  List<Object?> get props => [context, config];
+}
+
+class RefreshSuggestions extends SocialEvent {
+  final SuggestionContext context;
+
+  const RefreshSuggestions({required this.context});
+
+  @override
+  List<Object?> get props => [context];
+}
+
+class InteractWithSuggestion extends SocialEvent {
+  final String suggestionId;
+  final String suggestedUserId;
+  final SuggestionInteractionType interactionType;
+  final Map<String, dynamic>? metadata;
+
+  const InteractWithSuggestion({
+    required this.suggestionId,
+    required this.suggestedUserId,
+    required this.interactionType,
+    this.metadata,
+  });
+
+  @override
+  List<Object?> get props =>
+      [suggestionId, suggestedUserId, interactionType, metadata];
+}
+
+class DismissSuggestion extends SocialEvent {
+  final String suggestionId;
+  final String suggestedUserId;
+
+  const DismissSuggestion({
+    required this.suggestionId,
+    required this.suggestedUserId,
+  });
+
+  @override
+  List<Object?> get props => [suggestionId, suggestedUserId];
+}

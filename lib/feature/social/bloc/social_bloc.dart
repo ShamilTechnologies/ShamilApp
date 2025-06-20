@@ -4,7 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:shamil_mobile_app/feature/social/data/family_member_model.dart';
+import 'package:shamil_mobile_app/feature/social/data/suggestion_models.dart';
+import 'package:shamil_mobile_app/feature/social/services/suggestion_engine.dart';
 import 'package:shamil_mobile_app/feature/auth/data/authModel.dart';
+import 'package:shamil_mobile_app/feature/profile/repository/profile_repository.dart';
+import 'package:shamil_mobile_app/feature/profile/data/profile_models.dart'
+    as profile_models;
 import 'dart:async';
 import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
 
@@ -13,12 +18,17 @@ part 'social_state.dart';
 
 class SocialBloc extends Bloc<SocialEvent, SocialState> {
   final FirebaseDataOrchestrator _dataOrchestrator;
+  final ProfileRepository _profileRepository;
+  final SuggestionEngine _suggestionEngine = SuggestionEngine();
   final fb_auth.FirebaseAuth _auth = fb_auth.FirebaseAuth.instance;
 
   String? get _currentUserId => _auth.currentUser?.uid;
 
-  SocialBloc({required FirebaseDataOrchestrator dataOrchestrator})
-      : _dataOrchestrator = dataOrchestrator,
+  SocialBloc({
+    required FirebaseDataOrchestrator dataOrchestrator,
+    required ProfileRepository profileRepository,
+  })  : _dataOrchestrator = dataOrchestrator,
+        _profileRepository = profileRepository,
         super(SocialInitial()) {
     on<LoadFamilyMembers>(_onLoadFamilyMembers);
     on<AddFamilyMember>(_onAddFamilyMember);
@@ -35,6 +45,12 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
     on<RemoveFriend>(_onRemoveFriend);
     on<UnsendFriendRequest>(_onUnsendFriendRequest);
     on<RefreshSocialSection>(_onRefreshSocialSection);
+
+    // Suggestion event handlers
+    on<LoadSuggestions>(_onLoadSuggestions);
+    on<RefreshSuggestions>(_onRefreshSuggestions);
+    on<InteractWithSuggestion>(_onInteractWithSuggestion);
+    on<DismissSuggestion>(_onDismissSuggestion);
   }
 
   Future<AuthModel?> _getCurrentAuthModel() async {
@@ -132,9 +148,61 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
     }
     emit(const SocialLoading(isLoadingList: false)); // Not a full list load
     try {
-      // Note: User search functionality needs to be implemented in the orchestrator
+      // Use ProfileRepository for search
+      final profiles = await _profileRepository.searchUsers(event.query.trim());
+
+      // Convert UserProfile list to UserSearchResultWithStatus
+      final results = <UserSearchResultWithStatus>[];
+
+      for (final profile in profiles) {
+        // Convert UserProfile to AuthModel for compatibility
+        final authModel = AuthModel(
+          uid: profile.uid,
+          name: profile.name,
+          username: profile.username,
+          email: profile.email,
+          profilePicUrl: profile.profilePicUrl,
+          phone: profile.phone,
+          gender: profile.gender,
+          dob: profile.dateOfBirth?.toIso8601String(),
+          isVerified: profile.isVerified,
+          isBlocked: profile.isBlocked,
+          createdAt: Timestamp.fromDate(profile.createdAt),
+          lastSeen: profile.lastSeen != null
+              ? Timestamp.fromDate(profile.lastSeen!)
+              : null,
+        );
+
+        // Determine friendship status (convert from profile to social enum)
+        FriendshipStatus status = FriendshipStatus.none;
+        if (profile.friendshipStatus != null) {
+          switch (profile.friendshipStatus!) {
+            case profile_models.FriendshipStatus.friends:
+              status = FriendshipStatus.friends;
+              break;
+            case profile_models.FriendshipStatus.requestSent:
+              status = FriendshipStatus.requestSent;
+              break;
+            case profile_models.FriendshipStatus.requestReceived:
+              status = FriendshipStatus.requestReceived;
+              break;
+            case profile_models.FriendshipStatus.blocked:
+              // Social enum doesn't have blocked, treat as none
+              status = FriendshipStatus.none;
+              break;
+            default:
+              status = FriendshipStatus.none;
+          }
+        }
+
+        results.add(UserSearchResultWithStatus(
+          user: authModel,
+          status: status,
+        ));
+      }
+
       emit(FriendSearchResultsLoaded(
-          results: const [], query: event.query.trim()));
+          results: results, query: event.query.trim()));
     } catch (e) {
       emit(SocialError(message: "Failed to search users: ${e.toString()}"));
       emit(FriendSearchResultsLoaded(
@@ -332,6 +400,105 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
       add(SearchUsers(query: (state as FriendSearchResultsLoaded).query));
     } else {
       add(const LoadFriendsAndRequests());
+    }
+  }
+
+  // --- Suggestion Event Handlers ---
+
+  Future<void> _onLoadSuggestions(
+      LoadSuggestions event, Emitter<SocialState> emit) async {
+    if (_currentUserId == null) {
+      emit(SuggestionsError(
+        message: "User not logged in.",
+        context: event.context,
+      ));
+      return;
+    }
+
+    emit(SuggestionsLoading(context: event.context));
+
+    try {
+      final config = event.config ?? _getDefaultConfig(event.context);
+      final batch = await _suggestionEngine.generateSuggestions(config);
+
+      emit(SuggestionsLoaded(
+        batch: batch,
+        context: event.context,
+      ));
+    } catch (e) {
+      emit(SuggestionsError(
+        message: "Failed to load suggestions: ${e.toString()}",
+        context: event.context,
+      ));
+    }
+  }
+
+  Future<void> _onRefreshSuggestions(
+      RefreshSuggestions event, Emitter<SocialState> emit) async {
+    // Clear cache and reload suggestions
+    final config = _getDefaultConfig(event.context);
+    add(LoadSuggestions(context: event.context, config: config));
+  }
+
+  Future<void> _onInteractWithSuggestion(
+      InteractWithSuggestion event, Emitter<SocialState> emit) async {
+    if (_currentUserId == null) return;
+
+    try {
+      // Log the interaction for analytics/ML
+      // This would typically be sent to a analytics service or stored in Firestore
+
+      String message;
+      switch (event.interactionType) {
+        case SuggestionInteractionType.connected:
+          // Send friend request
+          add(SendFriendRequest(
+            targetUserId: event.suggestedUserId,
+            targetUserName: event.metadata?['userName'] ?? 'User',
+            targetUserPicUrl: event.metadata?['profilePicUrl'],
+          ));
+          message = "Friend request sent!";
+          break;
+        case SuggestionInteractionType.dismissed:
+          message = "Suggestion dismissed";
+          break;
+        case SuggestionInteractionType.viewed:
+          message = "Suggestion viewed";
+          break;
+        default:
+          message = "Interaction recorded";
+      }
+
+      emit(SuggestionInteractionProcessed(
+        suggestionId: event.suggestionId,
+        interactionType: event.interactionType,
+        message: message,
+      ));
+    } catch (e) {
+      emit(SocialError(
+          message: "Failed to process interaction: ${e.toString()}"));
+    }
+  }
+
+  Future<void> _onDismissSuggestion(
+      DismissSuggestion event, Emitter<SocialState> emit) async {
+    // Record dismissal and remove from current suggestions
+    add(InteractWithSuggestion(
+      suggestionId: event.suggestionId,
+      suggestedUserId: event.suggestedUserId,
+      interactionType: SuggestionInteractionType.dismissed,
+    ));
+  }
+
+  /// Get default suggestion config for different contexts
+  SuggestionConfig _getDefaultConfig(SuggestionContext context) {
+    switch (context) {
+      case SuggestionContext.homeQuickAccess:
+        return SuggestionConfig.homeQuickAccess;
+      case SuggestionContext.socialHub:
+        return SuggestionConfig.socialHub;
+      default:
+        return SuggestionConfig.socialHub;
     }
   }
 }

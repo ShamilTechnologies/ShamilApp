@@ -16,8 +16,12 @@ import 'package:shamil_mobile_app/feature/home/views/home_view.dart';
 import 'package:shamil_mobile_app/feature/passes/bloc/my_passes_bloc.dart';
 import 'package:shamil_mobile_app/feature/passes/view/passes_screen.dart';
 
-import 'package:shamil_mobile_app/feature/profile/views/profile_view.dart'; // Import Notifier
+import 'package:shamil_mobile_app/feature/profile/views/user_profile_view.dart';
+import 'package:shamil_mobile_app/feature/profile/data/profile_models.dart';
+import 'package:shamil_mobile_app/feature/profile/bloc/profile_bloc.dart';
+import 'package:shamil_mobile_app/feature/profile/repository/profile_repository.dart';
 import 'package:shamil_mobile_app/feature/user/repository/user_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:ui' as ui;
 
 // ... other imports (screens, etc.) ...
@@ -59,7 +63,20 @@ class _MainNavigationViewState extends State<MainNavigationView>
     // --- Favorites Screen (Index 3) ---
     const FavoritesScreen(),
     // --- Profile Screen (Index 4) ---
-    const ProfileScreen(),
+    BlocProvider<ProfileBloc>(
+      create: (context) => ProfileBloc(
+        profileRepository: ProfileRepository(),
+      ),
+      child: Builder(
+        builder: (context) {
+          final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+          return UserProfileView(
+            userId: currentUserId,
+            context: ProfileViewContext.ownProfile,
+          );
+        },
+      ),
+    ),
   ];
 
   final List<_NavItem> _navItems = [

@@ -180,3 +180,54 @@ class SocialError extends SocialState {
   @override
   List<Object?> get props => [message];
 }
+
+// --- Suggestion States ---
+class SuggestionsLoaded extends SocialState {
+  final SuggestionBatch batch;
+  final SuggestionContext context;
+
+  const SuggestionsLoaded({
+    required this.batch,
+    required this.context,
+  });
+
+  @override
+  List<Object?> get props => [batch, context];
+}
+
+class SuggestionsLoading extends SocialState {
+  final SuggestionContext context;
+
+  const SuggestionsLoading({required this.context});
+
+  @override
+  List<Object?> get props => [context];
+}
+
+class SuggestionsError extends SocialState {
+  final String message;
+  final SuggestionContext context;
+
+  const SuggestionsError({
+    required this.message,
+    required this.context,
+  });
+
+  @override
+  List<Object?> get props => [message, context];
+}
+
+class SuggestionInteractionProcessed extends SocialState {
+  final String suggestionId;
+  final SuggestionInteractionType interactionType;
+  final String message;
+
+  const SuggestionInteractionProcessed({
+    required this.suggestionId,
+    required this.interactionType,
+    required this.message,
+  });
+
+  @override
+  List<Object?> get props => [suggestionId, interactionType, message];
+}
