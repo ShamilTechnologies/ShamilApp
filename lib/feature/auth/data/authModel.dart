@@ -70,11 +70,37 @@ class AuthModel extends Equatable {
       uploadedId: data['uploadedId'] as bool? ?? false,
       isVerified: firebaseVerified,
       isBlocked: data['isBlocked'] as bool? ?? false,
-      createdAt: data['createdAt'] as Timestamp? ??
-          Timestamp.now(), // Fallback for createdAt
-      updatedAt: data['updatedAt'] as Timestamp?,
-      lastSeen: data['lastSeen'] as Timestamp?,
+      createdAt: _parseTimestamp(data['createdAt']) ?? Timestamp.now(),
+      updatedAt: _parseTimestamp(data['updatedAt']),
+      lastSeen: _parseTimestamp(data['lastSeen']),
     );
+  }
+
+  /// Helper method to safely parse timestamp fields from Firestore data
+  static Timestamp? _parseTimestamp(dynamic value) {
+    if (value == null) return null;
+
+    if (value is Timestamp) {
+      return value;
+    } else if (value is String) {
+      try {
+        // Try to parse ISO 8601 string
+        final DateTime dateTime = DateTime.parse(value);
+        return Timestamp.fromDate(dateTime);
+      } catch (e) {
+        print('Error parsing timestamp string: $value, error: $e');
+        return null;
+      }
+    } else if (value is Map<String, dynamic>) {
+      // Handle Firestore server timestamp format
+      if (value.containsKey('_seconds') && value.containsKey('_nanoseconds')) {
+        return Timestamp(
+            value['_seconds'] as int, value['_nanoseconds'] as int);
+      }
+    }
+
+    print('Unknown timestamp format: $value (${value.runtimeType})');
+    return null;
   }
 
   Map<String, dynamic> toMap() {
