@@ -15,7 +15,7 @@ class AppColors {
 
   /// Deep Space Navy - Premium dark foundation
   /// Usage: Deep dark backgrounds, modern dark theme base
-  static const Color deepSpaceNavy = Color(0xFF0A0E1A);
+  static const Color deepSpaceNavy = Color(0xFF080F21);
 
   /// Splash Background - Premium splash screen background
   /// Usage: Splash screen background, premium dark contexts
