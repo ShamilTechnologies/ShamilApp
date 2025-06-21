@@ -43,6 +43,7 @@ import 'package:shamil_mobile_app/feature/community/repository/community_reposit
 
 // Import the new centralized data orchestrator
 import 'package:shamil_mobile_app/core/data/firebase_data_orchestrator.dart';
+import 'package:shamil_mobile_app/feature/profile/repository/profile_repository.dart';
 
 // Payment system imports
 import 'package:shamil_mobile_app/core/payment/bloc/payment_bloc.dart';
@@ -264,6 +265,9 @@ Future<void> main() async {
         Provider<CommunityRepository>(
           create: (_) => CommunityRepositoryImpl(),
         ),
+        Provider<ProfileRepository>(
+          create: (_) => ProfileRepository(),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -275,6 +279,7 @@ Future<void> main() async {
           BlocProvider<SocialBloc>(
             create: (context) => SocialBloc(
               dataOrchestrator: context.read<FirebaseDataOrchestrator>(),
+              profileRepository: context.read<ProfileRepository>(),
             ),
             lazy: true,
           ),

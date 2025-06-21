@@ -25,6 +25,13 @@ import 'package:shamil_mobile_app/core/navigation/navigation_notifier.dart'; // 
 import 'package:shamil_mobile_app/feature/access/views/access_code_view.dart';
 // REMOVED: import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
 import 'package:shamil_mobile_app/feature/favorites/bloc/favorites_bloc.dart';
+// Import social suggestion system
+import 'package:shamil_mobile_app/feature/social/bloc/social_bloc.dart';
+import 'package:shamil_mobile_app/feature/social/data/suggestion_models.dart';
+import 'package:shamil_mobile_app/feature/social/widgets/suggestion_cards.dart';
+import 'package:shamil_mobile_app/feature/social/views/enhanced_find_friends_view.dart';
+import 'package:shamil_mobile_app/feature/profile/views/user_profile_view.dart';
+import 'package:shamil_mobile_app/feature/profile/data/profile_models.dart';
 import 'package:shamil_mobile_app/feature/home/views/notifications/notifications_view.dart';
 import 'package:shamil_mobile_app/feature/reservation/presentation/pages/queue_reservation_page.dart';
 import 'package:shamil_mobile_app/feature/details/views/service_provider_detail_screen.dart';
@@ -1030,6 +1037,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
         _buildPremiumQuickAccess(),
         const SizedBox(height: 24),
 
+        // Social suggestions section
+        _buildSocialSuggestions(),
+        const SizedBox(height: 24),
+
         // Premium categories showcase
         _buildPremiumCategoriesShowcase(),
         const SizedBox(height: 32),
@@ -1122,6 +1133,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 AppColors.accentColor,
                 () => _navigateToSeeAll("Popular Places", []),
               ),
+              const SizedBox(width: 12),
+              _buildQuickAccessCard(
+                "Find Friends",
+                Icons.people_alt_rounded,
+                const Color(0xFF8B5CF6),
+                () {
+                  HapticFeedback.mediumImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BlocProvider.value(
+                        value: context.read<SocialBloc>(),
+                        child: const EnhancedFindFriendsView(),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ],
@@ -1186,6 +1215,376 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSocialSuggestions() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF8B5CF6),
+                          const Color(0xFFEC4899),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.people_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Connect & Discover",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        "Find friends and expand your network",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BlocProvider.value(
+                        value: context.read<SocialBloc>(),
+                        child: const EnhancedFindFriendsView(),
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    "See All",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Social suggestions content
+          BlocConsumer<SocialBloc, SocialState>(
+            listener: (context, state) {
+              if (state is SocialError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content:
+                        Text('Error loading suggestions: ${state.message}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            builder: (context, state) {
+              // Load suggestions when the widget is first built
+              if (state is SocialInitial) {
+                context.read<SocialBloc>().add(
+                      const LoadSuggestions(
+                        context: SuggestionContext.homeQuickAccess,
+                        config: SuggestionConfig(
+                          context: SuggestionContext.homeQuickAccess,
+                          enabledTypes: [
+                            SuggestionType.nearby,
+                            SuggestionType.governorate,
+                            SuggestionType.mutualFriends,
+                            SuggestionType.trending,
+                          ],
+                          maxSuggestions: 4,
+                        ),
+                      ),
+                    );
+                return _buildSuggestionsLoading();
+              }
+
+              if (state is SuggestionsLoaded) {
+                if (state.batch.suggestions.isEmpty) {
+                  return _buildEmptySuggestions();
+                }
+
+                return SizedBox(
+                  height: 140,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    itemCount: state.batch.suggestions.length,
+                    itemBuilder: (context, index) {
+                      final suggestion = state.batch.suggestions[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: _buildSuggestionCard(suggestion),
+                      );
+                    },
+                  ),
+                );
+              }
+
+              if (state is SuggestionsLoading) {
+                return _buildSuggestionsLoading();
+              }
+
+              return _buildEmptySuggestions();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionCard(UserSuggestion suggestion) {
+    final colors = _getSuggestionColors(suggestion.type);
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UserProfileView(
+              userId: suggestion.suggestedUser.uid,
+              context: ProfileViewContext.friendProfile,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        width: 120,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colors[0].withOpacity(0.2),
+              colors[1].withOpacity(0.1),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: colors[0].withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Avatar
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: colors),
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: colors[0].withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: suggestion.suggestedUser.profilePicUrl?.isNotEmpty ==
+                        true
+                    ? Image.network(
+                        suggestion.suggestedUser.profilePicUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildInitialsAvatar(suggestion.suggestedUser.name),
+                      )
+                    : _buildInitialsAvatar(suggestion.suggestedUser.name),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Name
+            Text(
+              suggestion.suggestedUser.name.split(' ').first,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+
+            // Suggestion reason
+            if (suggestion.reasons.isNotEmpty)
+              Text(
+                suggestion.reasons.first.displayText,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInitialsAvatar(String name) {
+    final initials = name.isNotEmpty
+        ? (name.split(' ').length > 1
+            ? '${name.split(' ')[0][0]}${name.split(' ')[1][0]}'
+            : name[0])
+        : '?';
+
+    return Center(
+      child: Text(
+        initials.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  List<Color> _getSuggestionColors(SuggestionType type) {
+    switch (type) {
+      case SuggestionType.nearby:
+        return [const Color(0xFF06B6D4), const Color(0xFF00D4FF)];
+      case SuggestionType.governorate:
+        return [const Color(0xFF10B981), const Color(0xFF06B6D4)];
+      case SuggestionType.mutualFriends:
+        return [const Color(0xFF8B5CF6), const Color(0xFFEC4899)];
+      case SuggestionType.trending:
+        return [const Color(0xFFEC4899), const Color(0xFFF97316)];
+      case SuggestionType.newToApp:
+        return [const Color(0xFF22C55E), const Color(0xFF16A34A)];
+      default:
+        return [AppColors.primaryColor, AppColors.tealColor];
+    }
+  }
+
+  Widget _buildSuggestionsLoading() {
+    return SizedBox(
+      height: 140,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        itemCount: 3,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Shimmer.fromColors(
+              baseColor: Colors.white.withOpacity(0.1),
+              highlightColor: Colors.white.withOpacity(0.2),
+              child: Container(
+                width: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptySuggestions() {
+    return Container(
+      height: 140,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.people_outline_rounded,
+            color: Colors.white.withOpacity(0.6),
+            size: 32,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "No suggestions available",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            "Check back later for friend suggestions",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.6),
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -153,7 +153,6 @@ class _EnhancedSplashViewState extends State<EnhancedSplashView>
             s is AuthInitial ||
             s is LoginSuccessState ||
             s is IncompleteProfileState ||
-            s is AwaitingVerificationState ||
             s is AuthErrorState,
         orElse: () => const AuthInitial(),
       );
@@ -175,9 +174,6 @@ class _EnhancedSplashViewState extends State<EnhancedSplashView>
       } else if (state is IncompleteProfileState) {
         // User needs to complete profile setup - go to OneMoreStep
         targetScreen = const OneMoreStepScreen();
-      } else if (state is AwaitingVerificationState) {
-        // User has completed profile but email not verified - go to main app with reminder
-        targetScreen = const MainNavigationView();
       } else {
         targetScreen = const LoginView();
       }

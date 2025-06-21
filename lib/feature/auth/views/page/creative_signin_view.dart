@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // Core imports
 import 'package:shamil_mobile_app/core/constants/assets_icons.dart';
@@ -547,7 +548,7 @@ class _CreativeSignInViewState extends State<CreativeSignInView>
         message: state.message ?? 'Signing in...',
       );
     } else if (state is LoginSuccessState) {
-      // Show success overlay with auto-dismiss - user is fully verified and setup
+      // Show success overlay with auto-dismiss - user has completed profile
       LoadingOverlay.showSuccess(
         context,
         message: 'Welcome back!',
@@ -572,6 +573,18 @@ class _CreativeSignInViewState extends State<CreativeSignInView>
               firstName: firstName,
             ),
           );
+
+          // Show email verification reminder if email is not verified
+          final currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser != null && !currentUser.emailVerified) {
+            Future.delayed(const Duration(seconds: 1), () {
+              showGlobalSnackBar(
+                context,
+                "📧 Reminder: Please verify your email (${currentUser.email}) for full account access.",
+                isError: false,
+              );
+            });
+          }
         },
       );
     } else if (state is IncompleteProfileState) {

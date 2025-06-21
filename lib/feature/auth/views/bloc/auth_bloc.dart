@@ -103,18 +103,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
           emit(IncompleteProfileState(
               user: authModel, isEmailVerified: isEmailVerified));
-        } else if (!isEmailVerified) {
-          // User has completed profile but email not verified - show reminder
-          print(
-              "Initial check - User has completed profile but email not verified");
-          await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
-          emit(AwaitingVerificationState(freshUser.email!, user: authModel));
         } else {
-          // User is fully set up - proceed to main app
-          print("Initial check - User is fully authenticated and set up");
+          // User has completed profile - proceed to main app regardless of email verification
+          print(
+              "Initial check - User has completed profile - proceeding to main app");
           await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
-          emit(LoginSuccessState(
-              user: authModel)); // Emit success with user data
+
+          // Proceed to main app regardless of email verification status
+          emit(LoginSuccessState(user: authModel));
         }
 
         // Optionally update FCM token here after successful login/initial check
@@ -184,17 +180,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
         emit(IncompleteProfileState(
             user: authModel, isEmailVerified: isEmailVerified));
-      } else if (!isEmailVerified) {
-        // User has completed profile but email not verified - show reminder
-        print(
-            "User has completed profile but email not verified - showing reminder");
-        await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
-        emit(AwaitingVerificationState(freshUser.email!, user: authModel));
       } else {
-        // User is fully set up - proceed to main app
-        print(
-            "User is fully authenticated and set up - proceeding to main app");
+        // User has completed profile - proceed to main app regardless of email verification
+        print("User has completed profile - proceeding to main app");
         await AppLocalStorage.cacheData(key: "isLoggedIn", value: true);
+
+        // Proceed to main app regardless of email verification status
         emit(LoginSuccessState(user: authModel));
       }
 

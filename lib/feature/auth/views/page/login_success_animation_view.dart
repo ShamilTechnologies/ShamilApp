@@ -1,9 +1,11 @@
 import 'dart:math'; // Import for Random and pi
 import 'dart:typed_data'; // Import for Uint8List
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 // Keep for other potential uses
 import 'package:shamil_mobile_app/core/navigation/main_navigation_view.dart'; // Import main navigation
 import 'package:shamil_mobile_app/core/utils/text_style.dart'; // Import text styles
+import 'package:shamil_mobile_app/core/functions/snackbar_helper.dart';
 // Import AppColors if needed by placeholder
 
 // Placeholder for transparent image data (1x1 pixel PNG)
@@ -223,7 +225,8 @@ class _LoginSuccessAnimationViewState extends State<LoginSuccessAnimationView>
     _fgController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         // Use standard Navigator with PageRouteBuilder for custom transition duration
-        Navigator.of(context).pushAndRemoveUntil(
+        Navigator.of(context)
+            .pushAndRemoveUntil(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 const MainNavigationView(),
@@ -237,7 +240,22 @@ class _LoginSuccessAnimationViewState extends State<LoginSuccessAnimationView>
             },
           ),
           (Route<dynamic> route) => false, // Remove all previous routes
-        );
+        )
+            .then((_) {
+          // Show email verification reminder after navigation completes
+          final currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser != null && !currentUser.emailVerified) {
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted) {
+                showGlobalSnackBar(
+                  context,
+                  "📧 Reminder: Please verify your email (${currentUser.email}) for full account access.",
+                  isError: false,
+                );
+              }
+            });
+          }
+        });
       }
     });
 
@@ -341,8 +359,7 @@ class _LoginSuccessAnimationViewState extends State<LoginSuccessAnimationView>
                     children: [
                       // Hero Widget for the profile picture transition
                       Hero(
-                                               tag: 'userProfilePic_hero_main_explore',
-
+                        tag: 'userProfilePic_hero_main_explore',
                         child: Transform.scale(
                           // Apply scale animation
                           scale: _scaleAnimation.value,
