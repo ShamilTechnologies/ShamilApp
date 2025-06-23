@@ -16,30 +16,43 @@ class FirebaseAppCheckService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // COMPLETELY BLOCK App Check in debug mode
-    if (kDebugMode) {
-      debugPrint("🚫 DEBUG MODE: App Check initialization completely blocked");
-      debugPrint(
-          "📧 Firebase Auth will operate without App Check verification");
-      _isInitialized = false; // Keep as false to prevent any token requests
-      return;
-    }
-
     try {
-      debugPrint("🔧 Initializing Firebase App Check (Production Mode)...");
+      debugPrint("🔧 Initializing Firebase App Check...");
 
-      await FirebaseAppCheck.instance.activate(
-        // Use Play Integrity for Android in production
-        androidProvider: AndroidProvider.playIntegrity,
-        // Use App Attest for iOS in production
-        appleProvider: AppleProvider.appAttest,
-        // Web provider - replace with your actual reCAPTCHA site key
-        webProvider: ReCaptchaV3Provider(
-            '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'), // Test key
-      );
+      if (kDebugMode) {
+        debugPrint("🛠️ DEBUG MODE: Using debug App Check configuration");
+
+        // Use debug providers for development
+        await FirebaseAppCheck.instance.activate(
+          // Use debug provider for Android in debug mode
+          androidProvider: AndroidProvider.debug,
+          // Use debug provider for iOS in debug mode
+          appleProvider: AppleProvider.debug,
+          // Use reCAPTCHA for web (debug)
+          webProvider: ReCaptchaV3Provider(
+              '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'), // Test key
+        );
+
+        debugPrint("✅ Firebase App Check initialized for DEBUG mode");
+      } else {
+        debugPrint(
+            "🔧 PRODUCTION MODE: Using production App Check configuration");
+
+        await FirebaseAppCheck.instance.activate(
+          // Use Play Integrity for Android in production
+          androidProvider: AndroidProvider.playIntegrity,
+          // Use App Attest for iOS in production
+          appleProvider: AppleProvider.appAttest,
+          // Web provider - replace with your actual reCAPTCHA site key
+          webProvider: ReCaptchaV3Provider(
+              '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'), // Test key
+        );
+
+        debugPrint(
+            "✅ Firebase App Check initialized successfully (Production)");
+      }
 
       _isInitialized = true;
-      debugPrint("✅ Firebase App Check initialized successfully (Production)");
     } catch (e) {
       debugPrint("❌ Firebase App Check initialization failed: $e");
       // Continue without App Check in case of failure
@@ -50,6 +63,12 @@ class FirebaseAppCheckService {
 
   /// Get App Check token with retry logic
   Future<String?> getAppCheckToken({int maxRetries = 3}) async {
+    // Always return null in debug mode to avoid App Check conflicts
+    if (kDebugMode) {
+      debugPrint("🛠️ DEBUG MODE: Bypassing App Check token request");
+      return null;
+    }
+
     if (!_isInitialized) {
       debugPrint("⚠️ App Check not initialized, attempting to initialize...");
       try {
@@ -88,5 +107,11 @@ class FirebaseAppCheckService {
   void reset() {
     _isInitialized = false;
     debugPrint("🔄 App Check service reset");
+  }
+
+  /// Force disable App Check for troubleshooting
+  void forceDisable() {
+    _isInitialized = false;
+    debugPrint("🚫 App Check forcefully disabled");
   }
 }

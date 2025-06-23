@@ -93,14 +93,29 @@ class ProfileRepository {
 
       // Get user's last activity
       final userDoc = await _firestore.collection('endUsers').doc(userId).get();
-      final lastSeen = userDoc.data()?['lastSeen'] as Timestamp?;
+
+      // Handle lastSeen which could be stored as Timestamp or String
+      DateTime? lastSeenDate;
+      final lastSeenData = userDoc.data()?['lastSeen'];
+      if (lastSeenData != null) {
+        if (lastSeenData is Timestamp) {
+          lastSeenDate = lastSeenData.toDate();
+        } else if (lastSeenData is String) {
+          try {
+            lastSeenDate = DateTime.parse(lastSeenData);
+          } catch (e) {
+            print('Error parsing lastSeen string: $e');
+            lastSeenDate = null;
+          }
+        }
+      }
 
       return ProfileStats(
         friendsCount: friendsSnapshot.docs.length,
         reservationsCount: reservationsSnapshot.docs.length,
         achievementsCount: achievementsSnapshot.docs.length,
         profileViews: profileViews,
-        lastActiveDate: lastSeen?.toDate(),
+        lastActiveDate: lastSeenDate,
         accountType: userDoc.data()?['accountType'] as String? ?? 'basic',
       );
     } catch (e) {

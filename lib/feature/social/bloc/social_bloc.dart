@@ -51,6 +51,49 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
     on<RefreshSuggestions>(_onRefreshSuggestions);
     on<InteractWithSuggestion>(_onInteractWithSuggestion);
     on<DismissSuggestion>(_onDismissSuggestion);
+
+    // Debug event handler
+    on<TestFirebaseAuth>(_onTestFirebaseAuth);
+  }
+
+  Future<void> _onTestFirebaseAuth(
+      TestFirebaseAuth event, Emitter<SocialState> emit) async {
+    emit(const SocialLoading(isLoadingList: false));
+
+    try {
+      final result = await _dataOrchestrator.testFirebaseFunctionsAuth();
+
+      // Show detailed test results
+      final results = result['results'] as Map<String, dynamic>?;
+      String detailedMessage = result['message'] ?? 'Test completed';
+
+      if (results != null) {
+        detailedMessage += '\n\nDetailed Results:';
+        results.forEach((test, result) {
+          final status = result.toString().contains('SUCCESS') ? '✅' : '❌';
+          detailedMessage += '\n$status $test: $result';
+        });
+      }
+
+      if (result['success'] == true) {
+        // Check if any of the specific tests passed
+        bool anyTestPassed = false;
+        if (results != null) {
+          anyTestPassed = results.values
+              .any((result) => result.toString().contains('SUCCESS'));
+        }
+
+        if (anyTestPassed) {
+          emit(SocialSuccess(message: detailedMessage));
+        } else {
+          emit(SocialError(message: 'All tests failed:\n$detailedMessage'));
+        }
+      } else {
+        emit(SocialError(message: result['error'] ?? 'Test failed'));
+      }
+    } catch (e) {
+      emit(SocialError(message: 'Test error: $e'));
+    }
   }
 
   Future<AuthModel?> _getCurrentAuthModel() async {
@@ -235,17 +278,52 @@ class SocialBloc extends Bloc<SocialEvent, SocialState> {
           currentUserModel); // Execute call with current user data
 
       if (result['success'] == true) {
-        emit(SocialSuccess(
-            message: successMessageOverride ??
-                result['message'] as String? ??
-                "Operation successful."));
+        String successMessage = successMessageOverride ??
+            result['message'] as String? ??
+            "Operation successful.";
+
+        // Handle specific success types
+        final type = result['type'] as String?;
+        if (type == 'friend_request_sent') {
+          final targetUser = result['targetUser'] as String?;
+          if (targetUser != null) {
+            successMessage = "Friend request sent to $targetUser! 🎉";
+          }
+        }
+
+        emit(SocialSuccess(message: successMessage));
         if (sectionToRefresh != null) {
           add(RefreshSocialSection(sectionToRefresh));
         }
       } else {
-        emit(SocialError(
-            message:
-                result['error'] as String? ?? "An unknown error occurred."));
+        // Handle specific error types with appropriate messages
+        final errorType = result['errorType'] as String?;
+        final userMessage = result['message'] as String?;
+        String errorMessage;
+
+        switch (errorType) {
+          case 'already_friends':
+            errorMessage =
+                userMessage ?? "You are already friends with this user! 👥";
+            break;
+          case 'already_requested':
+            errorMessage = userMessage ?? "Friend request already sent! ⏳";
+            break;
+          case 'incoming_request':
+            errorMessage = userMessage ??
+                "This user has already sent you a friend request! Check your requests 📥";
+            break;
+          case 'firestore_error':
+            errorMessage =
+                userMessage ?? "Something went wrong. Please try again. ⚠️";
+            break;
+          default:
+            errorMessage = userMessage ??
+                result['error'] as String? ??
+                "An unknown error occurred.";
+        }
+
+        emit(SocialError(message: errorMessage));
         if (sectionToRefresh != null) {
           add(RefreshSocialSection(sectionToRefresh));
         }

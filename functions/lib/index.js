@@ -41,4 +41,9 @@ const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 // Export all notification functions
 __exportStar(require("./notifications"), exports);
+// Export all reservation-related functions
+__exportStar(require("./reservations/queue_management"), exports);
+__exportStar(require("./reservations/reminder_settings"), exports);
+// Export all social-related functions
+__exportStar(require("./social"), exports);
 //# sourceMappingURL=index.js.map

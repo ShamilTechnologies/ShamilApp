@@ -8,4 +8,7 @@ export * from './notifications';
 
 // Export all reservation-related functions
 export * from './reservations/queue_management';
-export * from './reservations/reminder_settings'; 
+export * from './reservations/reminder_settings';
+
+// Export all social-related functions
+export * from './social'; 

@@ -289,6 +289,17 @@ class _FriendsViewState extends State<FriendsView>
                     ),
                   ),
 
+                  // Debug test button (temporary)
+                  IconButton(
+                    icon: const Icon(
+                      CupertinoIcons.gear,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      context.read<SocialBloc>().add(const TestFirebaseAuth());
+                    },
+                  ),
+
                   // Refresh button
                   IconButton(
                     icon: const Icon(

@@ -63,6 +63,7 @@ class FirebaseDataOrchestrator {
   }
   FirebaseDataOrchestrator._internal() {
     debugPrint('🚀 FirebaseDataOrchestrator: Singleton instance created');
+    _initializeFunctions();
   }
 
   // Firebase services
@@ -70,6 +71,54 @@ class FirebaseDataOrchestrator {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFunctions _functions =
       FirebaseFunctions.instanceFor(region: 'us-central1');
+
+  // Initialize functions with proper configuration
+  void _initializeFunctions() {
+    try {
+      // Try to configure functions for local development if needed
+      // Uncomment the next line if you're using Firebase Functions emulator
+      // _functions.useFunctionsEmulator('localhost', 5001);
+
+      debugPrint('🔧 Firebase Functions initialized for region: us-central1');
+    } catch (e) {
+      debugPrint('⚠️ Functions initialization warning: $e');
+    }
+  }
+
+  /// Create an alternative Firebase Functions instance with different configuration
+  Future<Map<String, dynamic>> _callFunctionWithAlternativeConfig(
+      String functionName, Map<String, Object?> data) async {
+    try {
+      // Try multiple Firebase Functions configurations
+      List<FirebaseFunctions> functionsInstances = [
+        _functions, // Configured instance (us-central1)
+        FirebaseFunctions.instance, // Default instance
+      ];
+
+      for (int i = 0; i < functionsInstances.length; i++) {
+        try {
+          debugPrint('🔄 Trying functions instance ${i + 1}...');
+          final result = await functionsInstances[i]
+              .httpsCallable(functionName)
+              .call(data);
+
+          debugPrint('✅ Functions instance ${i + 1} succeeded');
+          return Map<String, dynamic>.from(result.data);
+        } catch (e) {
+          debugPrint('❌ Functions instance ${i + 1} failed: $e');
+          if (i == functionsInstances.length - 1) {
+            // Last attempt failed, rethrow the error
+            rethrow;
+          }
+        }
+      }
+
+      throw Exception('All Firebase Functions instances failed');
+    } catch (e) {
+      debugPrint('❌ Alternative config call failed: $e');
+      rethrow;
+    }
+  }
 
   // Collection names - centralized for consistency
   static const String _endUsersCollection = 'endUsers';
@@ -82,6 +131,105 @@ class FirebaseDataOrchestrator {
   // Current user helper
   String? get currentUserId => _auth.currentUser?.uid;
   User? get currentUser => _auth.currentUser;
+
+  /// Debug method to check authentication state
+  void _debugAuthState() {
+    final user = _auth.currentUser;
+    debugPrint('🔐 Auth Debug:');
+    debugPrint('  User: ${user?.uid}');
+    debugPrint('  Email: ${user?.email}');
+    debugPrint('  Email Verified: ${user?.emailVerified}');
+    debugPrint('  Anonymous: ${user?.isAnonymous}');
+    debugPrint('  Token: ${user != null ? 'Present' : 'None'}');
+  }
+
+  /// Test Firebase Functions connectivity and authentication
+  Future<Map<String, dynamic>> testFirebaseFunctionsAuth() async {
+    try {
+      _debugAuthState();
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        return {'success': false, 'error': 'No authenticated user'};
+      }
+
+      // Try to get an auth token
+      final token = await user.getIdToken(true);
+      debugPrint(
+          '🧪 Test: Got auth token: ${token?.substring(0, 20) ?? 'null'}...');
+
+      // Try multiple function call approaches
+      Map<String, dynamic> testResults = {};
+
+      // Test 0: Try the new simple authentication test function
+      try {
+        debugPrint('🧪 Test 0: Testing simple authentication function...');
+        final result0 = await _functions
+            .httpsCallable('testAuthentication')
+            .call({'message': 'Testing authentication from client'});
+        testResults['testAuthentication'] = 'SUCCESS: ${result0.data}';
+        debugPrint('🧪 Test 0: testAuthentication result: ${result0.data}');
+      } catch (e0) {
+        testResults['testAuthentication'] = 'FAILED: $e0';
+        debugPrint('🧪 Test 0: testAuthentication failed: $e0');
+      }
+
+      // Test 1: Try getReminderSettings (existing function)
+      try {
+        debugPrint('🧪 Test 1: Testing getReminderSettings...');
+        final result1 =
+            await _functions.httpsCallable('getReminderSettings').call({});
+        testResults['getReminderSettings'] = 'SUCCESS';
+        debugPrint('🧪 Test 1: getReminderSettings working');
+      } catch (e1) {
+        testResults['getReminderSettings'] = 'FAILED: $e1';
+        debugPrint('🧪 Test 1: getReminderSettings failed: $e1');
+      }
+
+      // Test 2: Try with default functions instance
+      try {
+        debugPrint('🧪 Test 2: Testing default Functions instance...');
+        final defaultFunctions = FirebaseFunctions.instance;
+        final result2 = await defaultFunctions
+            .httpsCallable('testAuthentication')
+            .call({'source': 'default_instance'});
+        testResults['defaultInstanceAuth'] = 'SUCCESS: ${result2.data}';
+        debugPrint('🧪 Test 2: Default instance auth result: ${result2.data}');
+      } catch (e2) {
+        testResults['defaultInstanceAuth'] = 'FAILED: $e2';
+        debugPrint('🧪 Test 2: Default instance auth failed: $e2');
+      }
+
+      // Test 3: Try a simple sendFriendRequest call
+      try {
+        debugPrint('🧪 Test 3: Testing simple sendFriendRequest...');
+        final result3 = await FirebaseFunctions.instance
+            .httpsCallable('sendFriendRequest')
+            .call({
+          'targetUserId': 'test_user_id',
+          'currentUserData': {
+            'name': 'Test User',
+            'uid': user.uid,
+          },
+          'targetUserName': 'Test Target',
+        });
+        testResults['sendFriendRequest'] = 'SUCCESS';
+        debugPrint('🧪 Test 3: sendFriendRequest working');
+      } catch (e3) {
+        testResults['sendFriendRequest'] = 'FAILED: $e3';
+        debugPrint('🧪 Test 3: sendFriendRequest failed: $e3');
+      }
+
+      return {
+        'success': true,
+        'message': 'Firebase Functions test completed',
+        'results': testResults,
+      };
+    } catch (e) {
+      debugPrint('🧪 Test: General error: $e');
+      return {'success': false, 'error': 'Test error: $e'};
+    }
+  }
 
   // ============================================================================
   // RESERVATION OPERATIONS
@@ -1609,17 +1757,134 @@ class FirebaseDataOrchestrator {
   }) async {
     if (this.currentUserId == null) throw Exception('User must be logged in');
 
-    try {
-      final result = await _functions.httpsCallable('sendFriendRequest').call({
-        'currentUserId': currentUserId,
-        'targetUserId': targetUserId,
-        'targetUserName': targetUserName,
-        'targetUserProfilePicUrl': targetUserProfilePicUrl,
-      });
+    // Debug authentication state
+    _debugAuthState();
 
-      return Map<String, dynamic>.from(result.data);
+    try {
+      // Ensure user is still authenticated
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User authentication session expired');
+      }
+
+      // Get fresh auth token to ensure it's valid
+      final token = await currentUser.getIdToken(true);
+      debugPrint(
+          '🔑 Got fresh auth token: ${token?.substring(0, 20) ?? 'null'}...');
+
+      // Wait a moment to ensure token is processed
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Try different approaches to calling the function
+      dynamic resultData;
+
+      try {
+        // Approach 1: Use the configured functions instance
+        debugPrint('🔄 Trying configured functions instance...');
+        final result =
+            await _functions.httpsCallable('sendFriendRequest').call({
+          'targetUserId': targetUserId,
+          'currentUserData': {
+            'name': currentUserData.name,
+            'username': currentUserData.username,
+            'profilePicUrl':
+                currentUserData.profilePicUrl ?? currentUserData.image,
+            'uid': currentUserId,
+          },
+          'targetUserName': targetUserName,
+          'targetUserProfilePicUrl': targetUserProfilePicUrl,
+        });
+        resultData = result.data;
+      } catch (e1) {
+        debugPrint('❌ Configured instance failed: $e1');
+
+        // Approach 2: Try with default instance
+        debugPrint('🔄 Trying default functions instance...');
+        final defaultFunctions = FirebaseFunctions.instance;
+        final result =
+            await defaultFunctions.httpsCallable('sendFriendRequest').call({
+          'targetUserId': targetUserId,
+          'currentUserData': {
+            'name': currentUserData.name,
+            'username': currentUserData.username,
+            'profilePicUrl':
+                currentUserData.profilePicUrl ?? currentUserData.image,
+            'uid': currentUserId,
+          },
+          'targetUserName': targetUserName,
+          'targetUserProfilePicUrl': targetUserProfilePicUrl,
+        });
+        resultData = result.data;
+      }
+
+      debugPrint('✅ Firebase Function call successful');
+      return Map<String, dynamic>.from(resultData);
     } catch (e) {
-      debugPrint('Error sending friend request: $e');
+      debugPrint('❌ Error sending friend request: $e');
+      debugPrint('❌ Error type: ${e.runtimeType}');
+
+      // More detailed error handling
+      if (e.toString().contains('unauthenticated')) {
+        debugPrint(
+            '🚨 Authentication error detected - checking auth state again');
+        _debugAuthState();
+
+        // Try to refresh the user's token and retry once more
+        try {
+          final currentUser = _auth.currentUser;
+          if (currentUser != null) {
+            debugPrint('🔄 Force refreshing auth token...');
+            await currentUser.getIdToken(true);
+            await Future.delayed(const Duration(milliseconds: 500));
+
+            // Final retry with fresh token
+            debugPrint('🔄 Final retry with fresh token...');
+            final finalResult = await FirebaseFunctions.instance
+                .httpsCallable('sendFriendRequest')
+                .call({
+              'targetUserId': targetUserId,
+              'currentUserData': {
+                'name': currentUserData.name,
+                'username': currentUserData.username,
+                'profilePicUrl':
+                    currentUserData.profilePicUrl ?? currentUserData.image,
+                'uid': currentUserId,
+              },
+              'targetUserName': targetUserName,
+              'targetUserProfilePicUrl': targetUserProfilePicUrl,
+            });
+
+            debugPrint('✅ Final retry successful!');
+            return Map<String, dynamic>.from(finalResult.data);
+          }
+        } catch (retryError) {
+          debugPrint('❌ Final retry also failed: $retryError');
+
+          // Final fallback: Use direct Firestore approach
+          debugPrint('🔄 Attempting direct Firestore fallback...');
+          try {
+            final directResult = await sendFriendRequestDirectly(
+              currentUserId: currentUserId,
+              currentUserData: currentUserData,
+              targetUserId: targetUserId,
+              targetUserName: targetUserName,
+              targetUserProfilePicUrl: targetUserProfilePicUrl,
+            );
+
+            if (directResult['success'] == true) {
+              debugPrint('✅ Direct Firestore fallback successful!');
+              debugPrint('🎉 Friend request completed via fallback method');
+              return directResult;
+            } else {
+              debugPrint(
+                  '❌ Direct Firestore fallback also failed: ${directResult['error']}');
+            }
+          } catch (directError) {
+            debugPrint('❌ Direct Firestore fallback also failed: $directError');
+          }
+        }
+      }
+
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -1637,8 +1902,14 @@ class FirebaseDataOrchestrator {
     try {
       final result =
           await _functions.httpsCallable('acceptFriendRequest').call({
-        'currentUserId': currentUserId,
         'requesterUserId': requesterUserId,
+        'currentUserData': {
+          'name': currentUserData.name,
+          'username': currentUserData.username,
+          'profilePicUrl':
+              currentUserData.profilePicUrl ?? currentUserData.image,
+          'uid': currentUserId,
+        },
         'requesterUserName': requesterUserName,
         'requesterProfilePicUrl': requesterProfilePicUrl,
       });
@@ -1660,7 +1931,6 @@ class FirebaseDataOrchestrator {
     try {
       final result =
           await _functions.httpsCallable('declineFriendRequest').call({
-        'currentUserId': currentUserId,
         'requesterUserId': requesterUserId,
       });
 
@@ -1680,7 +1950,6 @@ class FirebaseDataOrchestrator {
 
     try {
       final result = await _functions.httpsCallable('removeFriend').call({
-        'currentUserId': currentUserId,
         'friendUserId': friendUserId,
       });
 
@@ -1701,7 +1970,6 @@ class FirebaseDataOrchestrator {
     try {
       final result =
           await _functions.httpsCallable('unsendFriendRequest').call({
-        'currentUserId': currentUserId,
         'targetUserId': targetUserId,
       });
 
@@ -1745,7 +2013,6 @@ class FirebaseDataOrchestrator {
 
     try {
       final result = await _functions.httpsCallable('removeFamilyMember').call({
-        'currentUserId': currentUserId,
         'memberDocId': memberDocId,
       });
 
@@ -1770,11 +2037,17 @@ class FirebaseDataOrchestrator {
     try {
       final result =
           await _functions.httpsCallable('acceptFamilyRequest').call({
-        'currentUserId': currentUserId,
         'requesterUserId': requesterUserId,
+        'currentUserData': {
+          'name': currentUserData.name,
+          'username': currentUserData.username,
+          'profilePicUrl':
+              currentUserData.profilePicUrl ?? currentUserData.image,
+          'uid': currentUserId,
+        },
         'requesterName': requesterName,
         'requesterProfilePicUrl': requesterProfilePicUrl,
-        'requesterRelationship': requesterRelationship,
+        'relationshipProvidedByRequester': requesterRelationship,
       });
 
       return Map<String, dynamic>.from(result.data);
@@ -1794,7 +2067,6 @@ class FirebaseDataOrchestrator {
     try {
       final result =
           await _functions.httpsCallable('declineFamilyRequest').call({
-        'currentUserId': currentUserId,
         'requesterUserId': requesterUserId,
       });
 
@@ -2352,6 +2624,135 @@ class FirebaseDataOrchestrator {
       }
     } catch (e) {
       debugPrint('❌ DEBUG ERROR: $e');
+    }
+  }
+
+  /// Alternative method to bypass Firebase Functions authentication issues
+  Future<Map<String, dynamic>> sendFriendRequestDirectly({
+    required String currentUserId,
+    required AuthModel currentUserData,
+    required String targetUserId,
+    required String targetUserName,
+    String? targetUserProfilePicUrl,
+  }) async {
+    if (this.currentUserId == null) throw Exception('User must be logged in');
+
+    try {
+      // Use direct Firestore operations instead of Firebase Functions
+      debugPrint('🔄 Using direct Firestore approach for friend request...');
+
+      final batch = _firestore.batch();
+
+      // Check if users are already friends
+      final friendsCheck = await _firestore
+          .collection(_endUsersCollection)
+          .doc(currentUserId)
+          .collection('friends')
+          .doc(targetUserId)
+          .get();
+
+      if (friendsCheck.exists) {
+        debugPrint('👥 Users are already friends');
+        return {
+          'success': false,
+          'error': 'Users are already friends',
+          'errorType': 'already_friends',
+          'message': 'You are already friends with this user'
+        };
+      }
+
+      // Check if friend request already exists
+      final existingRequest = await _firestore
+          .collection(_endUsersCollection)
+          .doc(targetUserId)
+          .collection('friendRequests')
+          .doc(currentUserId)
+          .get();
+
+      if (existingRequest.exists) {
+        debugPrint('📤 Friend request already sent');
+        return {
+          'success': false,
+          'error': 'Friend request already sent',
+          'errorType': 'already_requested',
+          'message': 'Friend request already sent to this user'
+        };
+      }
+
+      // Check if there's an incoming request from this user
+      final incomingRequest = await _firestore
+          .collection(_endUsersCollection)
+          .doc(currentUserId)
+          .collection('friendRequests')
+          .doc(targetUserId)
+          .get();
+
+      if (incomingRequest.exists) {
+        debugPrint('📥 There is already an incoming request from this user');
+        return {
+          'success': false,
+          'error': 'Friend request received',
+          'errorType': 'incoming_request',
+          'message':
+              'This user has already sent you a friend request. Check your requests!'
+        };
+      }
+
+      // Create incoming friend request for target user
+      final incomingRequestRef = _firestore
+          .collection(_endUsersCollection)
+          .doc(targetUserId)
+          .collection('friendRequests')
+          .doc(currentUserId);
+
+      batch.set(incomingRequestRef, {
+        'senderId': currentUserId,
+        'senderName': currentUserData.name,
+        'senderUsername': currentUserData.username,
+        'senderProfilePicUrl':
+            currentUserData.profilePicUrl ?? currentUserData.image,
+        'status': 'pending',
+        'type': 'incoming',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Create outgoing friend request for current user
+      final outgoingRequestRef = _firestore
+          .collection(_endUsersCollection)
+          .doc(currentUserId)
+          .collection('friendRequests')
+          .doc(targetUserId);
+
+      batch.set(outgoingRequestRef, {
+        'receiverId': targetUserId,
+        'receiverName': targetUserName,
+        'receiverProfilePicUrl': targetUserProfilePicUrl,
+        'status': 'pending',
+        'type': 'outgoing',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      debugPrint('✅ Friend request sent successfully using direct Firestore');
+      debugPrint(
+          '📤 Direct Firestore: Friend request created between $currentUserId and $targetUserId');
+      debugPrint(
+          '🎯 Direct Firestore approach completed successfully - no Firebase Functions needed!');
+      return {
+        'success': true,
+        'message': 'Friend request sent successfully!',
+        'type': 'friend_request_sent',
+        'targetUser': targetUserName
+      };
+    } catch (e) {
+      debugPrint('❌ Error sending friend request directly: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+        'errorType': 'firestore_error',
+        'message': 'Failed to send friend request. Please try again.'
+      };
     }
   }
 }

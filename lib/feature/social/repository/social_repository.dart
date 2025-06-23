@@ -204,8 +204,8 @@ class FirebaseSocialRepository implements SocialRepository {
         'linkedUserProfilePicUrl':
             linkedUserModel.profilePicUrl ?? linkedUserModel.image,
     };
-    // Ensure Cloud Function 'social-addFamilyMember' is deployed and handles these params
-    return await _callFunction('social-addFamilyMember', payload);
+    // Ensure Cloud Function 'addOrRequestFamilyMember' is deployed and handles these params
+    return await _callFunction('addOrRequestFamilyMember', payload);
   }
 
   @override
@@ -220,7 +220,7 @@ class FirebaseSocialRepository implements SocialRepository {
       'memberDocId': memberDocId,
       if (linkedUserId != null) 'linkedUserId': linkedUserId,
     };
-    return await _callFunction('social-removeFamilyMember', payload);
+    return await _callFunction('removeFamilyMember', payload);
   }
 
   @override
@@ -243,7 +243,7 @@ class FirebaseSocialRepository implements SocialRepository {
       'requesterProfilePicUrl': requesterProfilePicUrl,
       'relationshipProvidedByRequester': requesterRelationship,
     };
-    return await _callFunction('social-acceptFamilyRequest', payload);
+    return await _callFunction('acceptFamilyRequest', payload);
   }
 
   @override
@@ -252,7 +252,7 @@ class FirebaseSocialRepository implements SocialRepository {
     required String requesterUserId,
   }) async {
     final payload = {'requesterUserId': requesterUserId};
-    return await _callFunction('social-declineFamilyRequest', payload);
+    return await _callFunction('declineFamilyRequest', payload);
   }
 
   @override
@@ -275,7 +275,7 @@ class FirebaseSocialRepository implements SocialRepository {
           targetUserName, // Denormalized for target's incoming request view
       'targetUserProfilePicUrl': targetUserProfilePicUrl,
     };
-    return await _callFunction('social-sendFriendRequest', payload);
+    return await _callFunction('sendFriendRequest', payload);
   }
 
   @override
@@ -297,7 +297,7 @@ class FirebaseSocialRepository implements SocialRepository {
       'requesterUserName': requesterUserName,
       'requesterProfilePicUrl': requesterProfilePicUrl,
     };
-    return await _callFunction('social-acceptFriendRequest', payload);
+    return await _callFunction('acceptFriendRequest', payload);
   }
 
   @override
@@ -306,7 +306,7 @@ class FirebaseSocialRepository implements SocialRepository {
     required String requesterUserId,
   }) async {
     final payload = {'requesterUserId': requesterUserId};
-    return await _callFunction('social-declineFriendRequest', payload);
+    return await _callFunction('declineFriendRequest', payload);
   }
 
   @override
@@ -315,7 +315,7 @@ class FirebaseSocialRepository implements SocialRepository {
     required String friendUserId,
   }) async {
     final payload = {'friendUserId': friendUserId};
-    return await _callFunction('social-removeFriend', payload);
+    return await _callFunction('removeFriend', payload);
   }
 
   @override
@@ -324,7 +324,7 @@ class FirebaseSocialRepository implements SocialRepository {
     required String targetUserId,
   }) async {
     final payload = {'targetUserId': targetUserId};
-    return await _callFunction('social-unsendFriendRequest', payload);
+    return await _callFunction('unsendFriendRequest', payload);
   }
 
   // Read Implementations

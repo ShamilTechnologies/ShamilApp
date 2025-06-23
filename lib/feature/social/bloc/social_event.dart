@@ -187,3 +187,8 @@ class DismissSuggestion extends SocialEvent {
   @override
   List<Object?> get props => [suggestionId, suggestedUserId];
 }
+
+// --- Debug Events ---
+class TestFirebaseAuth extends SocialEvent {
+  const TestFirebaseAuth();
+}

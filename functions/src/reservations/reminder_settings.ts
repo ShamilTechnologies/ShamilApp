@@ -80,7 +80,7 @@ export const updateReminderSettings = functions.https.onCall(async (data, contex
     console.error('Error updating reminder settings:', error);
     throw new functions.https.HttpsError(
       'internal',
-      error.message || 'Failed to update reminder settings'
+      (error as Error).message || 'Failed to update reminder settings'
     );
   }
 });
@@ -123,7 +123,7 @@ export const getReminderSettings = functions.https.onCall(async (data, context) 
     console.error('Error getting reminder settings:', error);
     throw new functions.https.HttpsError(
       'internal',
-      error.message || 'Failed to get reminder settings'
+      (error as Error).message || 'Failed to get reminder settings'
     );
   }
 });
@@ -277,7 +277,6 @@ export const sendDailySummary = functions.pubsub
   .onRun(async (context) => {
     try {
       const db = admin.firestore();
-      const now = admin.firestore.Timestamp.now();
       
       // Get current hour (UTC)
       const currentHour = new Date().getUTCHours();

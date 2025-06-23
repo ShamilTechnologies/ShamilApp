@@ -215,20 +215,11 @@ Future<void> main() async {
   // Configure Firebase Auth for proper email delivery
   await _configureFirebaseAuthEmails();
 
-  // Completely disable App Check in debug mode
+  // Initialize Firebase App Check (skip in debug mode to avoid conflicts)
   if (!kDebugMode) {
-    // Only initialize App Check in production/release mode
-    try {
-      await FirebaseAppCheckService().initialize();
-    } catch (e) {
-      print(
-          "⚠️ Firebase App Check initialization failed, continuing without it: $e");
-      // Continue without App Check in case of failure
-    }
+    await FirebaseAppCheckService().initialize();
   } else {
-    print("🔧 DEBUG MODE: App Check completely disabled - no initialization");
-    print(
-        "📧 Email operations will use standard Firebase Auth without App Check");
+    debugPrint("🛠️ DEBUG MODE: Skipping App Check initialization completely");
   }
 
   // Initialize Firebase Messaging Background Handler

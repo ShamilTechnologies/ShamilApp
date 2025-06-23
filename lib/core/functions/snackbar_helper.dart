@@ -13,11 +13,30 @@ void showGlobalSnackBar(BuildContext context, String message,
     HapticFeedback.mediumImpact();
   });
 
+  // Clear existing snackbars to prevent stacking
+  ScaffoldMessenger.of(context).clearSnackBars();
+
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       backgroundColor: isError ? AppColors.redColor : AppColors.primaryColor,
-      content: Text(message),
+      content: Text(
+        message,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
       duration: duration,
+      behavior: SnackBarBehavior
+          .fixed, // Fixed instead of floating to prevent layout issues
+      action: SnackBarAction(
+        label: 'OK',
+        textColor: Colors.white,
+        onPressed: () {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        },
+      ),
     ),
   );
 }
@@ -26,8 +45,4 @@ void showGlobalSnackBar(BuildContext context, String message,
 
 void showSuccessAnimation(
   BuildContext context,
-) {
-  
-  
-  
-}
+) {}
